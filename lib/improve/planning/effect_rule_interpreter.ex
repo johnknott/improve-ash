@@ -14,6 +14,8 @@ defmodule Improve.Planning.EffectRuleInterpreter do
     "correction" => :correction
   }
 
+  alias Improve.Planning.PathReader
+
   def interpret(input) do
     rules = Map.get(input, :rules, [])
     item_links = Map.get(input, :item_links, [])
@@ -73,7 +75,7 @@ defmodule Improve.Planning.EffectRuleInterpreter do
   end
 
   defp path_value(payload, path, role, field) do
-    case read_path(payload, path) do
+    case PathReader.read(payload, path) do
       {:ok, value} ->
         {:ok, value}
 
@@ -81,15 +83,6 @@ defmodule Improve.Planning.EffectRuleInterpreter do
         {:error, "Effect rule for role #{role} could not read #{field} at #{path}."}
     end
   end
-
-  defp read_path(payload, "payload." <> key) do
-    case Map.fetch(payload, key) do
-      {:ok, value} -> {:ok, value}
-      :error -> :error
-    end
-  end
-
-  defp read_path(_payload, _path), do: :error
 
   defp link_role(%{role: role}), do: role
   defp link_role(%{"role" => role}), do: role

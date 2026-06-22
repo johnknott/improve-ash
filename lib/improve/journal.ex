@@ -310,6 +310,7 @@ defmodule Improve.Journal do
       |> maybe_add(blank?(corrected_at), "Corrected time is required.")
       |> maybe_add(blank?(replacement_attrs), "Replacement event is required.")
       |> maybe_add(original_effects == :invalid, "Original effects must be a list.")
+      |> then(&(&1 ++ original_effect_diagnostics(original_event, original_effects)))
       |> then(fn diagnostics ->
         case replacement_result do
           {:ok, _replacement} -> diagnostics
@@ -336,6 +337,29 @@ defmodule Improve.Journal do
   defp normalize_effects(nil), do: []
   defp normalize_effects(effects) when is_list(effects), do: effects
   defp normalize_effects(_effects), do: :invalid
+
+  defp original_effect_diagnostics(_original_event, :invalid), do: []
+  defp original_effect_diagnostics(nil, _original_effects), do: []
+
+  defp original_effect_diagnostics(original_event, original_effects) do
+    original_effects
+    |> Enum.with_index(1)
+    |> Enum.flat_map(fn {effect, index} ->
+      if effect_belongs_to_event?(effect, original_event) do
+        []
+      else
+        [
+          "Original effect #{index} must belong to the original event."
+        ]
+      end
+    end)
+  end
+
+  defp effect_belongs_to_event?(%{event_instance_id: event_instance_id}, %{id: event_id}) do
+    event_instance_id == event_id
+  end
+
+  defp effect_belongs_to_event?(_effect, _original_event), do: false
 
   defp value(map, key, default \\ nil)
 

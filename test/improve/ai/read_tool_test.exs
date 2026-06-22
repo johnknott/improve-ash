@@ -163,6 +163,10 @@ defmodule Improve.Ai.ReadToolTest do
 
       assert direct_goal_id == direct_goal.id
       assert completed_event_id == log.event.id
+
+      summary = execute_tool!(tools["get_plan_summary"], user, %{"plan_id" => plan.id})
+
+      assert summary["direct_goals"] == 1
     end
   end
 

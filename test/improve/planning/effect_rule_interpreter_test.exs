@@ -64,6 +64,27 @@ defmodule Improve.Planning.EffectRuleInterpreterTest do
       assert result.diagnostics == []
     end
 
+    test "reads nested payload paths the same way diagnostics do" do
+      result =
+        EffectRuleInterpreter.interpret(%{
+          rules: [
+            %{
+              "role" => "source_vial",
+              "effect_type" => "subtract_quantity",
+              "quantity_path" => "payload.dose.amount",
+              "unit_path" => "payload.dose.unit"
+            }
+          ],
+          item_links: [
+            %{role: "source_vial", item_id: "vial-1"}
+          ],
+          payload: %{"dose" => %{"amount" => 250, "unit" => "mcg"}}
+        })
+
+      assert result.diagnostics == []
+      assert [%{quantity: 250, unit: "mcg"}] = result.effects
+    end
+
     test "returns diagnostics for missing item links" do
       result =
         EffectRuleInterpreter.interpret(%{

@@ -97,6 +97,7 @@ defmodule Improve.Plans do
          {:ok, event_types} <- list_event_types(actor: actor, query: plan_filter),
          {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
          {:ok, session_slots} <- list_session_slots(actor: actor, query: plan_filter),
+         {:ok, direct_goals} <- list_direct_goals(actor: actor, query: plan_filter),
          {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter) do
       {:ok,
        %{
@@ -108,6 +109,7 @@ defmodule Improve.Plans do
          event_types: length(event_types),
          session_templates: length(session_templates),
          session_slots: length(session_slots),
+         direct_goals: length(direct_goals),
          schedules: length(schedules)
        }}
     end

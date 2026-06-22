@@ -105,6 +105,57 @@ defmodule Improve.Journal.GenericEventCorrectionTest do
                "Event log command must be a map."
              ]
     end
+
+    test "rejects original effects that belong to another event" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-correction-effect-mismatch@example.com",
+          full_name: "Generic Correction Effect Mismatch"
+        })
+
+      plan = plan!(user)
+      item_type = item_type!(user, plan)
+      book = book!(user, plan, item_type)
+      event_type = reading_event_type!(user, plan, item_type)
+
+      original =
+        Journal.log_generic_event!(
+          read_event_attrs(plan, event_type, book, amount: 20, summary: "Read 20 pages"),
+          actor: user
+        )
+
+      other =
+        Journal.log_generic_event!(
+          read_event_attrs(plan, event_type, book, amount: 5, summary: "Read 5 pages"),
+          actor: user
+        )
+
+      [other_effect] = other.item_effects
+
+      assert {:error, diagnostics} =
+               Journal.correct_generic_event(
+                 %{
+                   original_event: original.event,
+                   original_effects: [other_effect],
+                   corrected_at: ~U[2026-06-22 20:05:00Z],
+                   replacement:
+                     read_event_attrs(plan, event_type, book,
+                       amount: 35,
+                       summary: "Read 35 pages"
+                     )
+                 },
+                 actor: user
+               )
+
+      assert diagnostics == ["Original effect 1 must belong to the original event."]
+
+      assert Journal.get_event!(original.event.id, actor: user).status == :active
+      assert Journal.get_event!(other.event.id, actor: user).status == :active
+
+      assert Journal.list_item_effects!(actor: user, query: [filter: [plan_id: plan.id]])
+             |> Enum.map(& &1.status)
+             |> Enum.all?(&(&1 == :active))
+    end
   end
 
   defp plan!(user) do
@@ -172,5 +223,21 @@ defmodule Improve.Journal.GenericEventCorrectionTest do
       },
       actor: user
     )
+  end
+
+  defp read_event_attrs(plan, event_type, book, opts) do
+    amount = Keyword.fetch!(opts, :amount)
+
+    %{
+      plan_id: plan.id,
+      event_type_id: event_type.id,
+      effective_at: ~U[2026-06-22 20:00:00Z],
+      recorded_at: ~U[2026-06-22 20:01:00Z],
+      summary: Keyword.fetch!(opts, :summary),
+      quantity: amount,
+      unit: "pages",
+      payload: %{"amount" => amount, "unit" => "pages"},
+      item_links: [%{role: "book", item_id: book.id}]
+    }
   end
 end

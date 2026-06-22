@@ -8,6 +8,8 @@ defmodule Improve.Planning.Diagnostics do
   @keyed_collections ~w(item_types items pools environments event_types session_templates direct_goals schedules sample_events)
   @quantity_effect_types ~w(add_quantity subtract_quantity set_quantity correction)
 
+  alias Improve.Planning.PathReader
+
   def validate_plan_draft(draft) do
     duplicate_key_diagnostics(draft) ++
       stable_reference_diagnostics(draft) ++
@@ -606,21 +608,7 @@ defmodule Improve.Planning.Diagnostics do
   defp payload_path(path) when is_binary(path), do: ["payload", path]
   defp payload_path(_path), do: ["payload"]
 
-  defp path_value(payload, "payload." <> path), do: get_in_path(payload, String.split(path, "."))
-
-  defp path_value(payload, path) when is_binary(path),
-    do: get_in_path(payload, String.split(path, "."))
-
-  defp path_value(_payload, _path), do: nil
-
-  defp get_in_path(source, keys) do
-    Enum.reduce_while(keys, source, fn key, current ->
-      case value(current, key) do
-        nil -> {:halt, nil}
-        next -> {:cont, next}
-      end
-    end)
-  end
+  defp path_value(payload, path), do: PathReader.value(payload, path)
 
   defp schedule_kind(schedule), do: schedule |> value("kind") |> normalize_string()
 
