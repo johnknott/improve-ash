@@ -148,6 +148,8 @@ defmodule Improve.Plans do
          {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter),
          {:ok, direct_goals} <- list_direct_goals(actor: actor, query: plan_filter),
          {:ok, journal_events} <- Improve.Journal.list_events(actor: actor, query: plan_filter),
+         {:ok, session_occurrences} <-
+           Improve.Sessions.list_session_occurrences(actor: actor, query: plan_filter),
          {:ok, items} <- list_items(actor: actor, query: plan_filter),
          {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
          {:ok, environments} <- list_environments(actor: actor, query: plan_filter) do
@@ -160,6 +162,7 @@ defmodule Improve.Plans do
          schedules: schedules,
          direct_goals: direct_goals,
          journal_events: journal_events,
+         session_occurrences: session_occurrences,
          items: items,
          pool_memberships: pool_memberships,
          environments: environments,

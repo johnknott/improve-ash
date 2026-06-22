@@ -67,7 +67,7 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, &2)) do
+        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, input, &2)) do
           {:ok, true} -> {:ok, occurrence_projection(template, input)}
           {:ok, false} -> {:ok, nil}
           {:error, diagnostic} -> {:error, diagnostic}
@@ -88,7 +88,7 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, &2)) do
+        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, input, &2)) do
           {:ok, true} -> {:ok, direct_goal_work(goal, input)}
           {:ok, false} -> {:ok, nil}
           {:error, diagnostic} -> {:error, diagnostic}
@@ -175,11 +175,11 @@ defmodule Improve.Planning.Projector do
     "Projected #{goal.name} from its direct goal schedule."
   end
 
-  defp schedule_decision(schedule, date, {:ok, matched?}) do
+  defp schedule_decision(schedule, date, input, {:ok, matched?}) do
     if not in_date_range?(date, schedule.starts_on, schedule.ends_on) do
       {:cont, {:ok, matched?}}
     else
-      case schedule_applies?(schedule, date) do
+      case schedule_applies?(schedule, date, input) do
         {:ok, true} -> {:halt, {:ok, true}}
         {:ok, false} -> {:cont, {:ok, matched?}}
         {:error, diagnostic} -> {:halt, {:error, diagnostic}}
@@ -187,17 +187,17 @@ defmodule Improve.Planning.Projector do
     end
   end
 
-  defp schedule_applies?(%{kind: :every_day}, _date), do: {:ok, true}
+  defp schedule_applies?(%{kind: :every_day}, _date, _input), do: {:ok, true}
 
-  defp schedule_applies?(%{kind: :selected_weekdays, rules: rules}, date) do
+  defp schedule_applies?(%{kind: :selected_weekdays, rules: rules}, date, _input) do
     {:ok, weekday(date) in Map.get(rules, "weekdays", [])}
   end
 
-  defp schedule_applies?(%{kind: :times_per_week, rules: rules}, date) do
-    {:ok, weekday(date) in Map.get(rules, "allowed_weekdays", [])}
+  defp schedule_applies?(%{kind: :times_per_week} = schedule, date, input) do
+    {:ok, date in quota_due_dates(schedule, date, input)}
   end
 
-  defp schedule_applies?(schedule, _date) do
+  defp schedule_applies?(schedule, _date, _input) do
     {:error,
      %{
        code: :unsupported_schedule_kind,
@@ -205,6 +205,103 @@ defmodule Improve.Planning.Projector do
        details: %{schedule_id: schedule.id, kind: schedule.kind}
      }}
   end
+
+  defp quota_due_dates(schedule, date, input) do
+    rules = schedule.rules || %{}
+    times = positive_integer(Map.get(rules, "times", Map.get(rules, "count", 1)), 1)
+    minimum_gap_days = non_negative_integer(Map.get(rules, "minimum_gap_days", 0), 0)
+    allowed_weekdays = Map.get(rules, "allowed_weekdays", Map.values(@weekdays))
+    {week_start, week_end} = week_bounds(date)
+
+    candidate_dates =
+      week_start
+      |> dates_through(week_end)
+      |> Enum.filter(fn candidate_date ->
+        in_date_range?(candidate_date, schedule.starts_on, schedule.ends_on) and
+          weekday(candidate_date) in allowed_weekdays
+      end)
+
+    completed_dates =
+      schedule
+      |> completed_dates(input)
+      |> Enum.filter(&in_date_range?(&1, week_start, week_end))
+      |> Enum.uniq()
+      |> Enum.sort_by(& &1, Date)
+
+    remaining = max(times - length(completed_dates), 0)
+
+    placed_dates =
+      candidate_dates
+      |> Enum.reject(&(&1 in completed_dates))
+      |> place_quota_dates(remaining, completed_dates, minimum_gap_days)
+
+    (completed_dates ++ placed_dates)
+    |> Enum.uniq()
+    |> Enum.sort_by(& &1, Date)
+  end
+
+  defp place_quota_dates(_candidate_dates, 0, _occupied_dates, _minimum_gap_days), do: []
+
+  defp place_quota_dates(candidate_dates, remaining, occupied_dates, minimum_gap_days) do
+    candidate_dates
+    |> Enum.reduce_while([], fn candidate_date, placed_dates ->
+      cond do
+        length(placed_dates) == remaining ->
+          {:halt, placed_dates}
+
+        gap_ok?(candidate_date, occupied_dates ++ placed_dates, minimum_gap_days) ->
+          {:cont, placed_dates ++ [candidate_date]}
+
+        true ->
+          {:cont, placed_dates}
+      end
+    end)
+  end
+
+  defp completed_dates(%{owner_type: :direct_goal, owner_id: owner_id}, input) do
+    input
+    |> Map.get(:journal_events, [])
+    |> Enum.filter(&(&1.direct_goal_id == owner_id and &1.status == :active))
+    |> Enum.map(&DateTime.to_date(&1.effective_at))
+  end
+
+  defp completed_dates(%{owner_type: :session_template, owner_id: owner_id}, input) do
+    input
+    |> Map.get(:session_occurrences, [])
+    |> Enum.filter(&(&1.session_template_id == owner_id and &1.status == :completed))
+    |> Enum.map(& &1.planned_for)
+  end
+
+  defp completed_dates(_schedule, _input), do: []
+
+  defp gap_ok?(_date, [], _minimum_gap_days), do: true
+
+  defp gap_ok?(date, occupied_dates, minimum_gap_days) do
+    Enum.all?(occupied_dates, &(abs(Date.diff(date, &1)) > minimum_gap_days))
+  end
+
+  defp week_bounds(date) do
+    week_start = Date.add(date, 1 - Date.day_of_week(date))
+    {week_start, Date.add(week_start, 6)}
+  end
+
+  defp dates_through(start_date, end_date) do
+    0..Date.diff(end_date, start_date)
+    |> Enum.map(&Date.add(start_date, &1))
+  end
+
+  defp positive_integer(value, default), do: max(non_negative_integer(value, default), 1)
+
+  defp non_negative_integer(value, _default) when is_integer(value) and value >= 0, do: value
+
+  defp non_negative_integer(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer >= 0 -> integer
+      _other -> default
+    end
+  end
+
+  defp non_negative_integer(_value, default), do: default
 
   defp schedules_for(schedules, owner_type, owner_id) do
     Enum.filter(schedules, &(&1.owner_type == owner_type and &1.owner_id == owner_id))
@@ -221,6 +318,7 @@ defmodule Improve.Planning.Projector do
       session_template_schedules: count_schedules(schedules, :session_template),
       direct_goal_schedules: count_schedules(schedules, :direct_goal),
       journal_events: length(Map.get(input, :journal_events, [])),
+      session_occurrences: length(Map.get(input, :session_occurrences, [])),
       items: length(Map.get(input, :items, [])),
       pool_memberships: length(Map.get(input, :pool_memberships, [])),
       environments: length(Map.get(input, :environments, []))

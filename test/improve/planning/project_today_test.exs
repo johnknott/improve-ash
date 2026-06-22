@@ -90,6 +90,24 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
+    test "places times-per-week session quotas instead of projecting every allowed weekday" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-quota-gym@example.com",
+          full_name: "Project Quota Gym"
+        })
+
+      %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      assert {:ok, monday} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+      assert [_session] = monday.projected_session_occurrences
+
+      assert {:ok, saturday} = Plans.project_today(plan, actor: user, date: ~D[2026-06-27])
+      assert saturday.projected_session_occurrences == []
+      assert saturday.projected_work == []
+      assert saturday.diagnostics == []
+    end
+
     test "projects a scheduled direct goal as planned without mutating history" do
       user =
         Accounts.create_user!(%{
@@ -208,6 +226,59 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Journal.read_journal(plan, actor: user)
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
+
+    test "counts completed history when placing times-per-week direct goal quota" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-direct-goal-quota@example.com",
+          full_name: "Project Direct Goal Quota"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+      quota_schedule!(user, plan, direct_goal)
+
+      log =
+        Journal.log_generic_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            direct_goal_id: direct_goal.id,
+            effective_at: ~U[2026-06-22 20:00:00Z],
+            recorded_at: ~U[2026-06-22 20:01:00Z],
+            summary: "Read 20 pages",
+            quantity: 20,
+            unit: "pages"
+          },
+          actor: user
+        )
+
+      assert {:ok, monday} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :completed,
+                 payload: %{completed_event_ids: [completed_event_id]}
+               }
+             ] = monday.projected_work
+
+      assert completed_event_id == log.event.id
+
+      assert {:ok, tuesday} = Plans.project_today(plan, actor: user, date: ~D[2026-06-23])
+      assert tuesday.projected_work == []
+
+      assert {:ok, wednesday} = Plans.project_today(plan, actor: user, date: ~D[2026-06-24])
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :planned,
+                 payload: %{completed_event_ids: []}
+               }
+             ] = wednesday.projected_work
+    end
   end
 
   defp plan!(user) do
@@ -255,6 +326,24 @@ defmodule Improve.Planning.ProjectTodayTest do
         owner_type: :direct_goal,
         owner_id: direct_goal.id,
         kind: :every_day,
+        starts_on: ~D[2026-06-22]
+      },
+      actor: user
+    )
+  end
+
+  defp quota_schedule!(user, plan, direct_goal) do
+    Plans.create_schedule!(
+      %{
+        plan_id: plan.id,
+        owner_type: :direct_goal,
+        owner_id: direct_goal.id,
+        kind: :times_per_week,
+        rules: %{
+          "times" => 2,
+          "allowed_weekdays" => ["monday", "tuesday", "wednesday"],
+          "minimum_gap_days" => 1
+        },
         starts_on: ~D[2026-06-22]
       },
       actor: user
