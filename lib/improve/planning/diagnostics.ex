@@ -5,7 +5,7 @@ defmodule Improve.Planning.Diagnostics do
 
   @known_schedule_kinds ~w(every_day selected_weekdays times_per_week every_n_days after_completion custom)
   @supported_schedule_kinds ~w(every_day selected_weekdays times_per_week)
-  @keyed_collections ~w(item_types items pools environments event_types session_templates)
+  @keyed_collections ~w(item_types items pools environments event_types session_templates direct_goals schedules sample_events)
   @quantity_effect_types ~w(add_quantity subtract_quantity set_quantity correction)
 
   def validate_plan_draft(draft) do
