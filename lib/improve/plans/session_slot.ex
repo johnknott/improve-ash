@@ -1,4 +1,4 @@
-defmodule Improve.Plans.Item do
+defmodule Improve.Plans.SessionSlot do
   use Ash.Resource,
     otp_app: :improve,
     domain: Improve.Plans,
@@ -6,7 +6,7 @@ defmodule Improve.Plans.Item do
     authorizers: [Ash.Policy.Authorizer]
 
   postgres do
-    table "items"
+    table "session_slots"
     repo Improve.Repo
   end
 
@@ -15,17 +15,23 @@ defmodule Improve.Plans.Item do
 
     create :create do
       primary? true
-      accept [:plan_id, :item_type_id, :key, :name, :facts, :stateful]
+
+      accept [
+        :plan_id,
+        :session_template_id,
+        :key,
+        :name,
+        :pool_id,
+        :count,
+        :optional,
+        :rules,
+        :position
+      ]
     end
 
     update :update do
       primary? true
-      accept [:key, :name, :facts, :stateful]
-    end
-
-    update :archive do
-      accept []
-      change set_attribute(:archived_at, &DateTime.utc_now/0)
+      accept [:key, :name, :pool_id, :count, :optional, :rules, :position]
     end
   end
 
@@ -37,6 +43,10 @@ defmodule Improve.Plans.Item do
     policy action_type([:create, :update]) do
       authorize_if expr(plan.user_id == ^actor(:id))
     end
+  end
+
+  validations do
+    validate compare(:count, greater_than: 0)
   end
 
   attributes do
@@ -52,20 +62,28 @@ defmodule Improve.Plans.Item do
       public? true
     end
 
-    attribute :facts, :map do
+    attribute :count, :integer do
       allow_nil? false
       public? true
-      default %{}
+      default 1
     end
 
-    attribute :stateful, :boolean do
+    attribute :optional, :boolean do
       allow_nil? false
       public? true
       default false
     end
 
-    attribute :archived_at, :utc_datetime_usec do
+    attribute :rules, :map do
+      allow_nil? false
       public? true
+      default %{}
+    end
+
+    attribute :position, :integer do
+      allow_nil? false
+      public? true
+      default 0
     end
 
     create_timestamp :inserted_at, public?: true
@@ -78,17 +96,20 @@ defmodule Improve.Plans.Item do
       public? true
     end
 
-    belongs_to :item_type, Improve.Plans.ItemType do
+    belongs_to :session_template, Improve.Plans.SessionTemplate do
       allow_nil? false
       public? true
     end
 
-    has_many :pool_memberships, Improve.Plans.PoolMembership
-    has_many :event_item_links, Improve.Journal.EventItemLink
-    has_many :item_effects, Improve.Journal.ItemEffect
+    belongs_to :pool, Improve.Plans.Pool do
+      allow_nil? false
+      public? true
+    end
+
+    has_many :slot_results, Improve.Sessions.SlotResult
   end
 
   identities do
-    identity :unique_key_per_plan, [:plan_id, :key]
+    identity :unique_key_per_template, [:session_template_id, :key]
   end
 end

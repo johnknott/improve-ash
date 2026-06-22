@@ -105,5 +105,10 @@ defmodule Improve.Plans.Plan do
     has_many :environments, Improve.Plans.Environment
     has_many :event_types, Improve.Plans.EventType
     has_many :schedules, Improve.Plans.Schedule
+    has_many :session_templates, Improve.Plans.SessionTemplate
+    has_many :session_slots, Improve.Plans.SessionSlot
+    has_many :direct_goals, Improve.Plans.DirectGoal
+    has_many :session_occurrences, Improve.Sessions.SessionOccurrence
+    has_many :event_instances, Improve.Journal.EventInstance
   end
 end

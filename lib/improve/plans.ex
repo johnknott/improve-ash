@@ -51,5 +51,23 @@ defmodule Improve.Plans do
       define :get_schedule, action: :read, get_by: [:id]
       define :list_schedules, action: :read
     end
+
+    resource Improve.Plans.SessionTemplate do
+      define :create_session_template, action: :create
+      define :get_session_template, action: :read, get_by: [:id]
+      define :list_session_templates, action: :read
+    end
+
+    resource Improve.Plans.SessionSlot do
+      define :create_session_slot, action: :create
+      define :get_session_slot, action: :read, get_by: [:id]
+      define :list_session_slots, action: :read
+    end
+
+    resource Improve.Plans.DirectGoal do
+      define :create_direct_goal, action: :create
+      define :get_direct_goal, action: :read, get_by: [:id]
+      define :list_direct_goals, action: :read
+    end
   end
 end

@@ -1,4 +1,4 @@
-defmodule Improve.Plans.Item do
+defmodule Improve.Plans.DirectGoal do
   use Ash.Resource,
     otp_app: :improve,
     domain: Improve.Plans,
@@ -6,7 +6,7 @@ defmodule Improve.Plans.Item do
     authorizers: [Ash.Policy.Authorizer]
 
   postgres do
-    table "items"
+    table "direct_goals"
     repo Improve.Repo
   end
 
@@ -15,17 +15,31 @@ defmodule Improve.Plans.Item do
 
     create :create do
       primary? true
-      accept [:plan_id, :item_type_id, :key, :name, :facts, :stateful]
+
+      accept [
+        :plan_id,
+        :key,
+        :name,
+        :description,
+        :event_type_id,
+        :target,
+        :completion_policy,
+        :missed_policy
+      ]
     end
 
     update :update do
       primary? true
-      accept [:key, :name, :facts, :stateful]
-    end
 
-    update :archive do
-      accept []
-      change set_attribute(:archived_at, &DateTime.utc_now/0)
+      accept [
+        :key,
+        :name,
+        :description,
+        :event_type_id,
+        :target,
+        :completion_policy,
+        :missed_policy
+      ]
     end
   end
 
@@ -52,20 +66,26 @@ defmodule Improve.Plans.Item do
       public? true
     end
 
-    attribute :facts, :map do
+    attribute :description, :string do
+      public? true
+    end
+
+    attribute :target, :map do
       allow_nil? false
       public? true
       default %{}
     end
 
-    attribute :stateful, :boolean do
+    attribute :completion_policy, :map do
       allow_nil? false
       public? true
-      default false
+      default %{}
     end
 
-    attribute :archived_at, :utc_datetime_usec do
+    attribute :missed_policy, :map do
+      allow_nil? false
       public? true
+      default %{}
     end
 
     create_timestamp :inserted_at, public?: true
@@ -78,14 +98,12 @@ defmodule Improve.Plans.Item do
       public? true
     end
 
-    belongs_to :item_type, Improve.Plans.ItemType do
+    belongs_to :event_type, Improve.Plans.EventType do
       allow_nil? false
       public? true
     end
 
-    has_many :pool_memberships, Improve.Plans.PoolMembership
-    has_many :event_item_links, Improve.Journal.EventItemLink
-    has_many :item_effects, Improve.Journal.ItemEffect
+    has_many :event_instances, Improve.Journal.EventInstance
   end
 
   identities do

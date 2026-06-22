@@ -87,6 +87,9 @@ defmodule Improve.Plans.EventType do
       allow_nil? false
       public? true
     end
+
+    has_many :direct_goals, Improve.Plans.DirectGoal
+    has_many :event_instances, Improve.Journal.EventInstance
   end
 
   identities do
