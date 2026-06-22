@@ -3,6 +3,7 @@ defmodule Improve.Journal do
     extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
+  alias Improve.Planning.EffectRuleInterpreter
   alias Improve.Plans
   alias Improve.Repo
   alias Improve.Sessions
@@ -151,9 +152,9 @@ defmodule Improve.Journal do
         )
 
       effects =
-        event_type.effect_rules
-        |> Map.get("rules", [])
-        |> Enum.map(&create_effect_from_rule!(&1, plan, event, source_vial, payload, actor))
+        event_type
+        |> effect_specs(payload, [%{role: "source_vial", item_id: source_vial.id}])
+        |> Enum.map(&create_item_effect_from_spec!(&1, plan, event, actor))
 
       {{event, source_vial_link, effects}, take_notifications!()}
     end)
@@ -245,10 +246,10 @@ defmodule Improve.Journal do
         )
 
       replacement_effects =
-        event_type.effect_rules
-        |> Map.get("rules", [])
+        event_type
+        |> effect_specs(payload, [%{role: "source_vial", item_id: source_vial.id}])
         |> Enum.map(
-          &create_effect_from_rule!(&1, plan, replacement_event, source_vial, payload, actor,
+          &create_item_effect_from_spec!(&1, plan, replacement_event, actor,
             replaces_item_effect_id: original_effect.id
           )
         )
@@ -328,38 +329,37 @@ defmodule Improve.Journal do
     end
   end
 
-  defp create_effect_from_rule!(rule, plan, event, source_vial, payload, actor, opts \\ []) do
-    if Map.get(rule, "role") != "source_vial" do
-      raise "unsupported effect rule role: #{inspect(rule)}"
-    end
+  defp effect_specs(event_type, payload, item_links) do
+    result =
+      EffectRuleInterpreter.interpret(%{
+        rules: Map.get(event_type.effect_rules, "rules", []),
+        item_links: item_links,
+        payload: payload
+      })
 
+    case result.diagnostics do
+      [] -> result.effects
+      diagnostics -> raise Enum.join(diagnostics, " ")
+    end
+  end
+
+  defp create_item_effect_from_spec!(spec, plan, event, actor, opts \\ []) do
     create!(
       __MODULE__,
       :create_item_effect!,
       actor,
       %{
         plan_id: plan.id,
-        item_id: source_vial.id,
+        item_id: Map.fetch!(spec, :item_id),
         event_instance_id: event.id,
-        effect_type: effect_type!(Map.fetch!(rule, "effect_type")),
-        quantity: path_value!(payload, Map.fetch!(rule, "quantity_path")),
-        unit: path_value!(payload, Map.fetch!(rule, "unit_path")),
-        payload: %{"rule" => rule},
+        effect_type: Map.fetch!(spec, :effect_type),
+        quantity: Map.get(spec, :quantity),
+        unit: Map.get(spec, :unit),
+        payload: Map.get(spec, :payload, %{}),
         replaces_item_effect_id: Keyword.get(opts, :replaces_item_effect_id)
       }
     )
   end
-
-  defp effect_type!("add_quantity"), do: :add_quantity
-  defp effect_type!("subtract_quantity"), do: :subtract_quantity
-  defp effect_type!("set_quantity"), do: :set_quantity
-  defp effect_type!("correction"), do: :correction
-
-  defp effect_type!(effect_type) do
-    raise "unsupported effect type: #{inspect(effect_type)}"
-  end
-
-  defp path_value!(payload, "payload." <> key), do: Map.fetch!(payload, key)
 
   defp update_slot_result!(slot_result, item, event, actor) do
     function =
