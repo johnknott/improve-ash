@@ -355,12 +355,16 @@ defmodule Improve.Journal do
   defp submit_offline_event(attrs, index, actor) do
     attrs = offline_attrs(attrs)
 
-    with {:ok, _command} <- LogEventCommand.from_attrs(attrs),
+    with {:ok, command} <- LogEventCommand.from_attrs(attrs),
+         :ok <- validate_offline_references(command, actor),
          {:ok, log_result} <- log_generic_event(attrs, actor: actor) do
       OfflineIngressResult.accepted(index, attrs, log_result)
     else
       {:error, diagnostics} when is_list(diagnostics) ->
         OfflineIngressResult.rejected(index, attrs, diagnostics)
+
+      {:needs_resolution, diagnostics, conflict_category} ->
+        OfflineIngressResult.needs_resolution(index, attrs, diagnostics, conflict_category)
 
       {:error, error} ->
         offline_failure_result(index, attrs, error)
@@ -407,6 +411,161 @@ defmodule Improve.Journal do
         :invalid_payload
     end
   end
+
+  defp validate_offline_references(command, actor) do
+    [
+      fn -> validate_plan_reference(command.plan_id, actor) end,
+      fn -> validate_plan_record(:event_type, command.event_type_id, command.plan_id, actor) end,
+      fn ->
+        validate_plan_record(
+          :session_occurrence,
+          command.session_occurrence_id,
+          command.plan_id,
+          actor
+        )
+      end,
+      fn ->
+        validate_plan_record(:slot_result, command.slot_result_id, command.plan_id, actor)
+      end,
+      fn ->
+        validate_plan_record(:direct_goal, command.direct_goal_id, command.plan_id, actor)
+      end,
+      fn -> validate_item_links(command.item_links, command.plan_id, actor) end,
+      fn -> validate_slot_freshness(command, actor) end,
+      fn -> validate_session_freshness(command, actor) end
+    ]
+    |> Enum.reduce_while(:ok, fn check, :ok ->
+      case check.() do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp validate_plan_reference(plan_id, actor) do
+    case Plans.get_plan(plan_id, actor: actor) do
+      {:ok, %{status: :archived}} ->
+        needs_resolution(
+          "Plan is archived and cannot accept offline logs.",
+          :archived_plan_record
+        )
+
+      {:ok, _plan} ->
+        :ok
+
+      {:error, _error} ->
+        needs_resolution("Plan is missing or no longer available.", :missing_plan_record)
+    end
+  end
+
+  defp validate_plan_record(_kind, nil, _plan_id, _actor), do: :ok
+
+  defp validate_plan_record(kind, id, plan_id, actor) do
+    case fetch_plan_record(kind, id, actor) do
+      {:ok, record} ->
+        validate_record_plan(kind, record, plan_id)
+
+      {:error, _error} ->
+        needs_resolution(
+          "#{record_label(kind)} is missing or no longer available.",
+          :missing_plan_record
+        )
+    end
+  end
+
+  defp fetch_plan_record(:event_type, id, actor), do: Plans.get_event_type(id, actor: actor)
+
+  defp fetch_plan_record(:session_occurrence, id, actor),
+    do: Sessions.get_session_occurrence(id, actor: actor)
+
+  defp fetch_plan_record(:slot_result, id, actor), do: Sessions.get_slot_result(id, actor: actor)
+  defp fetch_plan_record(:direct_goal, id, actor), do: Plans.get_direct_goal(id, actor: actor)
+  defp fetch_plan_record(:item, id, actor), do: Plans.get_item(id, actor: actor)
+
+  defp validate_record_plan(:item, %{archived_at: archived_at}, _plan_id)
+       when not is_nil(archived_at) do
+    needs_resolution(
+      "Item is archived and cannot be used by a new offline log.",
+      :archived_plan_record
+    )
+  end
+
+  defp validate_record_plan(kind, %{plan_id: plan_id}, plan_id), do: validate_record_state(kind)
+
+  defp validate_record_plan(kind, _record, _plan_id) do
+    needs_resolution("#{record_label(kind)} belongs to another plan.", :cross_plan_reference)
+  end
+
+  defp validate_record_state(_kind), do: :ok
+
+  defp validate_item_links(item_links, plan_id, actor) do
+    item_links
+    |> Enum.reduce_while(:ok, fn item_link, :ok ->
+      case validate_plan_record(:item, item_link.item_id, plan_id, actor) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp validate_slot_freshness(%{slot_result_id: nil}, _actor), do: :ok
+
+  defp validate_slot_freshness(command, actor) do
+    case Sessions.get_slot_result(command.slot_result_id, actor: actor) do
+      {:ok, %{event_instance_id: event_instance_id}}
+      when not is_nil(event_instance_id) and
+             event_instance_id != command.replaces_event_instance_id ->
+        needs_resolution(
+          "Slot result is already linked to another event.",
+          :stale_session_state
+        )
+
+      {:ok, %{status: status}} when status in [:completed, :skipped, :partially_completed] ->
+        needs_resolution("Slot result has already changed state.", :stale_session_state)
+
+      {:ok, slot_result}
+      when not is_nil(command.session_occurrence_id) and
+             slot_result.session_occurrence_id != command.session_occurrence_id ->
+        needs_resolution(
+          "Slot result no longer belongs to the submitted session.",
+          :stale_session_state
+        )
+
+      {:ok, _slot_result} ->
+        :ok
+
+      {:error, _error} ->
+        needs_resolution("Slot result is missing or no longer available.", :missing_plan_record)
+    end
+  end
+
+  defp validate_session_freshness(%{session_occurrence_id: nil}, _actor), do: :ok
+
+  defp validate_session_freshness(command, actor) do
+    case Sessions.get_session_occurrence(command.session_occurrence_id, actor: actor) do
+      {:ok, %{status: status}} when status in [:completed, :missed, :skipped] ->
+        needs_resolution("Session occurrence has already changed state.", :stale_session_state)
+
+      {:ok, _session_occurrence} ->
+        :ok
+
+      {:error, _error} ->
+        needs_resolution(
+          "Session occurrence is missing or no longer available.",
+          :missing_plan_record
+        )
+    end
+  end
+
+  defp needs_resolution(diagnostic, conflict_category) do
+    {:needs_resolution, [diagnostic], conflict_category}
+  end
+
+  defp record_label(:event_type), do: "Event type"
+  defp record_label(:session_occurrence), do: "Session occurrence"
+  defp record_label(:slot_result), do: "Slot result"
+  defp record_label(:direct_goal), do: "Direct goal"
+  defp record_label(:item), do: "Item"
 
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)

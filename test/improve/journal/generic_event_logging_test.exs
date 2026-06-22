@@ -286,6 +286,151 @@ defmodule Improve.Journal.GenericEventLoggingTest do
              ]
     end
 
+    test "marks archived and missing plan references as needing resolution" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-offline-stale-references@example.com",
+          full_name: "Generic Offline Stale References"
+        })
+
+      %{plan: plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      Plans.archive_item!(items["retatrutide_vial_1"], %{}, actor: user)
+
+      archived_item_attrs =
+        offline_dose_attrs(
+          plan,
+          event_types["take_dose"],
+          items["retatrutide_vial_1"],
+          "stale-op-1",
+          "stale-key-1"
+        )
+
+      missing_direct_goal_attrs =
+        plan
+        |> offline_dose_attrs(
+          event_types["take_dose"],
+          items["abdomen"],
+          "stale-op-2",
+          "stale-key-2"
+        )
+        |> Map.put(:direct_goal_id, "00000000-0000-0000-0000-000000000000")
+
+      result =
+        Journal.submit_offline_event_batch!(
+          [archived_item_attrs, missing_direct_goal_attrs],
+          actor: user
+        )
+
+      assert Enum.map(result.results, & &1.status) == [:needs_resolution, :needs_resolution]
+
+      assert Enum.map(result.results, & &1.conflict_category) == [
+               :archived_plan_record,
+               :missing_plan_record
+             ]
+
+      assert Journal.read_journal!(plan, actor: user) == []
+    end
+
+    test "marks changed session and slot references as needing resolution" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-offline-stale-session@example.com",
+          full_name: "Generic Offline Stale Session"
+        })
+
+      %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      projection = Plans.project_today!(plan, actor: user, date: ~D[2026-06-22])
+      [projected_occurrence] = projection.projected_session_occurrences
+
+      started =
+        Sessions.start_projected_session!(
+          projected_occurrence,
+          actor: user,
+          started_at: ~U[2026-06-22 12:00:00Z]
+        )
+
+      slot_result =
+        Enum.find(started.slot_results, &(&1.actual_item_id == items["chest_press"].id))
+
+      first_log =
+        Journal.log_generic_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_types["workout_exercise_performed"].id,
+            session_occurrence_id: started.session_occurrence.id,
+            slot_result_id: slot_result.id,
+            effective_at: ~U[2026-06-22 12:10:00Z],
+            recorded_at: ~U[2026-06-22 12:11:00Z],
+            summary: "Chest Press completed",
+            item_links: [
+              %{role: "exercise", item_id: items["chest_press"].id}
+            ]
+          },
+          actor: user
+        )
+
+      completed_session =
+        Sessions.complete_session_occurrence!(
+          started.session_occurrence,
+          %{completed_at: ~U[2026-06-22 13:00:00Z]},
+          actor: user
+        )
+
+      stale_slot_attrs =
+        offline_workout_attrs(
+          plan,
+          event_types["workout_exercise_performed"],
+          items["chest_press"],
+          "stale-session-op-1",
+          "stale-session-key-1",
+          session_occurrence_id: started.session_occurrence.id,
+          slot_result_id: slot_result.id
+        )
+
+      stale_session_attrs =
+        offline_workout_attrs(
+          plan,
+          event_types["workout_exercise_performed"],
+          items["lat_pulldown"],
+          "stale-session-op-2",
+          "stale-session-key-2",
+          session_occurrence_id: completed_session.id
+        )
+
+      result =
+        Journal.submit_offline_event_batch!(
+          [stale_slot_attrs, stale_session_attrs],
+          actor: user
+        )
+
+      assert Enum.map(result.results, & &1.status) == [:needs_resolution, :needs_resolution]
+
+      assert Enum.map(result.results, & &1.conflict_category) == [
+               :stale_session_state,
+               :stale_session_state
+             ]
+
+      assert Journal.read_journal!(plan, actor: user) |> Enum.map(& &1.id) == [first_log.event.id]
+    end
+
     test "returns command diagnostics before starting persistence" do
       user =
         Accounts.create_user!(%{
@@ -322,6 +467,28 @@ defmodule Improve.Journal.GenericEventLoggingTest do
       },
       item_links: [
         %{role: "source_vial", item_id: vial.id}
+      ],
+      idempotency: %{
+        client_event_id: "#{client_operation_id}-event",
+        client_operation_id: client_operation_id,
+        client_device_id: "device-1",
+        idempotency_key: idempotency_key
+      }
+    }
+  end
+
+  defp offline_workout_attrs(plan, event_type, item, client_operation_id, idempotency_key, opts) do
+    %{
+      plan_id: plan.id,
+      event_type_id: event_type.id,
+      session_occurrence_id: Keyword.get(opts, :session_occurrence_id),
+      slot_result_id: Keyword.get(opts, :slot_result_id),
+      effective_at: ~U[2026-06-22 12:30:00Z],
+      recorded_at: ~U[2026-06-22 12:31:00Z],
+      summary: "#{item.name} completed offline",
+      payload: %{"sets" => 3, "reps" => 10},
+      item_links: [
+        %{role: "exercise", item_id: item.id}
       ],
       idempotency: %{
         client_event_id: "#{client_operation_id}-event",

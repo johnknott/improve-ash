@@ -143,6 +143,23 @@ Use stable categories so clients and tests do not need to parse prose.
 is appropriate when the client may be able to re-map the pending log to newer
 plan data or ask the user what they intended.
 
+Current spike behavior:
+
+- Missing plans, event types, sessions, slots, direct goals, or linked items
+  return `needs_resolution` with `missing_plan_record`.
+- References to another plan return `needs_resolution` with
+  `cross_plan_reference`.
+- Archived plans or linked items return `needs_resolution` with
+  `archived_plan_record`.
+- Session occurrences that are already completed, missed, or skipped return
+  `needs_resolution` with `stale_session_state`.
+- Slot results that are already linked to another event, already completed, or
+  no longer belong to the submitted session return `needs_resolution` with
+  `stale_session_state`.
+- Event types and direct goals do not yet have archive fields in this spike. If
+  those fields are added, offline ingress should classify archived references as
+  `archived_plan_record`.
+
 ## Timestamp Semantics
 
 `effective_at` is when the thing happened. This drives timeline ordering and
