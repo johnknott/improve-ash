@@ -262,6 +262,8 @@ defmodule Improve.Planning.Projector do
     minimum_gap_days = non_negative_integer(Map.get(rules, "minimum_gap_days", 0), 0)
     {allowed_weekdays, rule_diagnostics} = allowed_weekdays(schedule, rules)
     {week_start, week_end} = week_bounds(date)
+    as_of_date = Map.get(input, :as_of_date, date)
+    placement_start = quota_placement_start(date, as_of_date, week_start)
 
     candidate_dates =
       week_start
@@ -283,6 +285,7 @@ defmodule Improve.Planning.Projector do
     placed_dates =
       candidate_dates
       |> Enum.reject(&(&1 in completed_dates))
+      |> Enum.reject(&(Date.compare(&1, placement_start) == :lt))
       |> place_quota_dates(remaining, completed_dates, minimum_gap_days)
 
     (completed_dates ++ placed_dates)
@@ -393,6 +396,21 @@ defmodule Improve.Planning.Projector do
   defp week_bounds(date) do
     week_start = Date.add(date, 1 - Date.day_of_week(date))
     {week_start, Date.add(week_start, 6)}
+  end
+
+  defp quota_placement_start(date, as_of_date, week_start) do
+    if Date.compare(date, as_of_date) == :eq do
+      week_start
+    else
+      max_date(week_start, as_of_date)
+    end
+  end
+
+  defp max_date(left, right) do
+    case Date.compare(left, right) do
+      :lt -> right
+      _other -> left
+    end
   end
 
   defp dates_through(start_date, end_date) do

@@ -280,6 +280,56 @@ defmodule Improve.Planning.ProjectTodayTest do
              ] = wednesday.projected_work
     end
 
+    test "flows missed earlier weekly quota to remaining allowed days" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-direct-goal-quota-forward@example.com",
+          full_name: "Project Direct Goal Quota Forward"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+
+      quota_schedule!(user, plan, direct_goal,
+        rules: %{
+          "times" => 2,
+          "allowed_weekdays" => ["monday", "wednesday", "friday"],
+          "minimum_gap_days" => 1
+        }
+      )
+
+      assert {:ok, wednesday} =
+               Plans.project_today(plan,
+                 actor: user,
+                 date: ~D[2026-06-24],
+                 as_of_date: ~D[2026-06-24]
+               )
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :planned,
+                 planned_for: ~D[2026-06-24]
+               }
+             ] = wednesday.projected_work
+
+      assert {:ok, friday} =
+               Plans.project_today(plan,
+                 actor: user,
+                 date: ~D[2026-06-26],
+                 as_of_date: ~D[2026-06-24]
+               )
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :planned,
+                 planned_for: ~D[2026-06-26]
+               }
+             ] = friday.projected_work
+    end
+
     test "returns diagnostics for an impossible quota schedule" do
       user =
         Accounts.create_user!(%{
