@@ -279,6 +279,91 @@ defmodule Improve.Planning.ProjectTodayTest do
                }
              ] = wednesday.projected_work
     end
+
+    test "returns diagnostics for an impossible quota schedule" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-impossible-quota@example.com",
+          full_name: "Project Impossible Quota"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+
+      quota_schedule!(user, plan, direct_goal,
+        rules: %{"times" => 1, "allowed_weekdays" => ["sunday"]},
+        ends_on: ~D[2026-06-26]
+      )
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert projection.projected_work == []
+      assert diagnostic(projection, :unplaceable_schedule).message =~ "cannot place any work"
+    end
+
+    test "returns diagnostics for a missing direct goal target" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-missing-target@example.com",
+          full_name: "Project Missing Target"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal_without_target!(user, plan, event_type)
+      schedule!(user, plan, direct_goal)
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [_work] = projection.projected_work
+      assert diagnostic(projection, :missing_direct_goal_target).message =~ "has no target"
+    end
+
+    test "returns diagnostics for unsupported schedule kinds" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-unsupported-schedule@example.com",
+          full_name: "Project Unsupported Schedule"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+      unsupported_schedule!(user, plan, direct_goal)
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert projection.projected_work == []
+      assert diagnostic(projection, :unsupported_schedule_kind).message =~ "not supported"
+    end
+
+    test "returns diagnostics when quota rules are only partially placeable" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-partial-quota@example.com",
+          full_name: "Project Partial Quota"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+
+      quota_schedule!(user, plan, direct_goal,
+        rules: %{
+          "times" => 3,
+          "allowed_weekdays" => ["monday", "tuesday", "wednesday"],
+          "minimum_gap_days" => 2
+        }
+      )
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [_work] = projection.projected_work
+      diagnostic = diagnostic(projection, :partially_placeable_schedule)
+      assert diagnostic.message =~ "can only place 1 of 3"
+      assert diagnostic.details.placed == 1
+    end
   end
 
   defp plan!(user) do
@@ -319,6 +404,18 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
+  defp direct_goal_without_target!(user, plan, event_type) do
+    Plans.create_direct_goal!(
+      %{
+        plan_id: plan.id,
+        event_type_id: event_type.id,
+        key: "read_any_pages",
+        name: "Read pages"
+      },
+      actor: user
+    )
+  end
+
   defp schedule!(user, plan, direct_goal) do
     Plans.create_schedule!(
       %{
@@ -332,21 +429,42 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
-  defp quota_schedule!(user, plan, direct_goal) do
+  defp quota_schedule!(user, plan, direct_goal, opts \\ []) do
     Plans.create_schedule!(
       %{
         plan_id: plan.id,
         owner_type: :direct_goal,
         owner_id: direct_goal.id,
         kind: :times_per_week,
-        rules: %{
-          "times" => 2,
-          "allowed_weekdays" => ["monday", "tuesday", "wednesday"],
-          "minimum_gap_days" => 1
-        },
+        rules:
+          Keyword.get(opts, :rules, %{
+            "times" => 2,
+            "allowed_weekdays" => ["monday", "tuesday", "wednesday"],
+            "minimum_gap_days" => 1
+          }),
+        starts_on: ~D[2026-06-22],
+        ends_on: Keyword.get(opts, :ends_on)
+      },
+      actor: user
+    )
+  end
+
+  defp unsupported_schedule!(user, plan, direct_goal) do
+    Plans.create_schedule!(
+      %{
+        plan_id: plan.id,
+        owner_type: :direct_goal,
+        owner_id: direct_goal.id,
+        kind: :every_n_days,
+        rules: %{"interval" => 2},
         starts_on: ~D[2026-06-22]
       },
       actor: user
     )
+  end
+
+  defp diagnostic(projection, code) do
+    Enum.find(projection.diagnostics, &(&1.code == code)) ||
+      flunk("Expected diagnostic #{inspect(code)} in #{inspect(projection.diagnostics)}")
   end
 end

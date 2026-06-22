@@ -47,9 +47,20 @@ defmodule Improve.Planning.Projector do
     |> Enum.sort_by(& &1.key)
     |> Enum.reduce({[], []}, fn entry, {projections, diagnostics} ->
       case project_fun.(entry) do
-        {:ok, nil} -> {projections, diagnostics}
-        {:ok, projection} -> {[projection | projections], diagnostics}
-        {:error, diagnostic} -> {projections, [diagnostic | diagnostics]}
+        {:ok, nil} ->
+          {projections, diagnostics}
+
+        {:ok, nil, new_diagnostics} ->
+          {projections, diagnostics ++ new_diagnostics}
+
+        {:ok, projection} ->
+          {[projection | projections], diagnostics}
+
+        {:ok, projection, new_diagnostics} ->
+          {[projection | projections], diagnostics ++ new_diagnostics}
+
+        {:error, diagnostic} ->
+          {projections, [diagnostic | diagnostics]}
       end
     end)
   end
@@ -67,9 +78,9 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, input, &2)) do
-          {:ok, true} -> {:ok, occurrence_projection(template, input)}
-          {:ok, false} -> {:ok, nil}
+        case schedule_decisions(schedules, date, input) do
+          {:ok, true, diagnostics} -> {:ok, occurrence_projection(template, input), diagnostics}
+          {:ok, false, diagnostics} -> {:ok, nil, diagnostics}
           {:error, diagnostic} -> {:error, diagnostic}
         end
     end
@@ -88,10 +99,17 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, input, &2)) do
-          {:ok, true} -> {:ok, direct_goal_work(goal, input)}
-          {:ok, false} -> {:ok, nil}
-          {:error, diagnostic} -> {:error, diagnostic}
+        target_diagnostics = direct_goal_target_diagnostics(goal)
+
+        case schedule_decisions(schedules, date, input) do
+          {:ok, true, diagnostics} ->
+            {:ok, direct_goal_work(goal, input), target_diagnostics ++ diagnostics}
+
+          {:ok, false, diagnostics} ->
+            {:ok, nil, target_diagnostics ++ diagnostics}
+
+          {:error, diagnostic} ->
+            {:error, diagnostic}
         end
     end
   end
@@ -175,26 +193,58 @@ defmodule Improve.Planning.Projector do
     "Projected #{goal.name} from its direct goal schedule."
   end
 
-  defp schedule_decision(schedule, date, input, {:ok, matched?}) do
+  defp direct_goal_target_diagnostics(%{target: nil} = goal) do
+    [
+      %{
+        code: :missing_direct_goal_target,
+        severity: :warning,
+        message:
+          "Direct goal has no target, so completion can only be inferred from linked journal events.",
+        details: %{direct_goal_id: goal.id, direct_goal_key: goal.key}
+      }
+    ]
+  end
+
+  defp direct_goal_target_diagnostics(%{target: target} = goal)
+       when is_map(target) and map_size(target) == 0 do
+    [
+      %{
+        code: :missing_direct_goal_target,
+        severity: :warning,
+        message:
+          "Direct goal has no target, so completion can only be inferred from linked journal events.",
+        details: %{direct_goal_id: goal.id, direct_goal_key: goal.key}
+      }
+    ]
+  end
+
+  defp direct_goal_target_diagnostics(_goal), do: []
+
+  defp schedule_decisions(schedules, date, input) do
+    Enum.reduce_while(schedules, {:ok, false, []}, &schedule_decision(&1, date, input, &2))
+  end
+
+  defp schedule_decision(schedule, date, input, {:ok, matched?, diagnostics}) do
     if not in_date_range?(date, schedule.starts_on, schedule.ends_on) do
-      {:cont, {:ok, matched?}}
+      {:cont, {:ok, matched?, diagnostics}}
     else
       case schedule_applies?(schedule, date, input) do
-        {:ok, true} -> {:halt, {:ok, true}}
-        {:ok, false} -> {:cont, {:ok, matched?}}
+        {:ok, true, new_diagnostics} -> {:halt, {:ok, true, diagnostics ++ new_diagnostics}}
+        {:ok, false, new_diagnostics} -> {:cont, {:ok, matched?, diagnostics ++ new_diagnostics}}
         {:error, diagnostic} -> {:halt, {:error, diagnostic}}
       end
     end
   end
 
-  defp schedule_applies?(%{kind: :every_day}, _date, _input), do: {:ok, true}
+  defp schedule_applies?(%{kind: :every_day}, _date, _input), do: {:ok, true, []}
 
   defp schedule_applies?(%{kind: :selected_weekdays, rules: rules}, date, _input) do
-    {:ok, weekday(date) in Map.get(rules, "weekdays", [])}
+    {:ok, weekday(date) in Map.get(rules, "weekdays", []), []}
   end
 
   defp schedule_applies?(%{kind: :times_per_week} = schedule, date, input) do
-    {:ok, date in quota_due_dates(schedule, date, input)}
+    quota = quota_plan(schedule, date, input)
+    {:ok, date in quota.due_dates, quota.diagnostics}
   end
 
   defp schedule_applies?(schedule, _date, _input) do
@@ -206,11 +256,11 @@ defmodule Improve.Planning.Projector do
      }}
   end
 
-  defp quota_due_dates(schedule, date, input) do
+  defp quota_plan(schedule, date, input) do
     rules = schedule.rules || %{}
     times = positive_integer(Map.get(rules, "times", Map.get(rules, "count", 1)), 1)
     minimum_gap_days = non_negative_integer(Map.get(rules, "minimum_gap_days", 0), 0)
-    allowed_weekdays = Map.get(rules, "allowed_weekdays", Map.values(@weekdays))
+    {allowed_weekdays, rule_diagnostics} = allowed_weekdays(schedule, rules)
     {week_start, week_end} = week_bounds(date)
 
     candidate_dates =
@@ -238,6 +288,66 @@ defmodule Improve.Planning.Projector do
     (completed_dates ++ placed_dates)
     |> Enum.uniq()
     |> Enum.sort_by(& &1, Date)
+    |> then(fn due_dates ->
+      %{
+        due_dates: due_dates,
+        diagnostics:
+          rule_diagnostics ++
+            quota_diagnostics(schedule, times, candidate_dates, completed_dates, placed_dates)
+      }
+    end)
+  end
+
+  defp allowed_weekdays(schedule, rules) do
+    case Map.get(rules, "allowed_weekdays") do
+      nil ->
+        {Map.values(@weekdays), []}
+
+      weekdays when is_list(weekdays) ->
+        {weekdays, []}
+
+      other ->
+        {[],
+         [
+           %{
+             code: :unsupported_schedule_rules,
+             severity: :error,
+             message: "Schedule allowed weekdays must be a list of weekday names.",
+             details: %{schedule_id: schedule.id, value: other}
+           }
+         ]}
+    end
+  end
+
+  defp quota_diagnostics(schedule, times, candidate_dates, completed_dates, placed_dates) do
+    placed_count = length(completed_dates) + length(placed_dates)
+
+    cond do
+      candidate_dates == [] and completed_dates == [] ->
+        [
+          %{
+            code: :unplaceable_schedule,
+            severity: :warning,
+            message:
+              "Schedule cannot place any work this week because no allowed dates fall inside the schedule range.",
+            details: %{schedule_id: schedule.id, requested: times, placed: 0}
+          }
+        ]
+
+      placed_count < times ->
+        [
+          %{
+            code: :partially_placeable_schedule,
+            severity: :warning,
+            message:
+              "Schedule can only place #{placed_count} of #{times} requested occurrence(s) this week with the current allowed weekdays and minimum gap.",
+            details: %{schedule_id: schedule.id, requested: times, placed: placed_count}
+          }
+        ]
+
+      true ->
+        []
+    end
   end
 
   defp place_quota_dates(_candidate_dates, 0, _occupied_dates, _minimum_gap_days), do: []
