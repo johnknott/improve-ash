@@ -3,6 +3,7 @@ defmodule Improve.Planning.Projector do
   Pure projection of planned work for explicit dates and records.
   """
 
+  alias Improve.Planning.ProjectedWork
   alias Improve.Planning.Recommender
 
   @weekdays %{
@@ -36,12 +37,15 @@ defmodule Improve.Planning.Projector do
         end
       end)
 
+    projected_work = Enum.map(Enum.reverse(occurrences), &ProjectedWork.session/1)
+
     %{
       plan_id: plan.id,
       date: date,
       projected_session_occurrences: Enum.reverse(occurrences),
+      projected_work: projected_work,
       diagnostics: Enum.reverse(diagnostics),
-      explanations: explanations(occurrences)
+      explanations: explanations(projected_work)
     }
   end
 
@@ -143,11 +147,9 @@ defmodule Improve.Planning.Projector do
 
   defp weekday(date), do: Map.fetch!(@weekdays, Date.day_of_week(date))
 
-  defp explanations([]), do: ["No session templates are scheduled for this date."]
+  defp explanations([]), do: ["No projected work is scheduled for this date."]
 
-  defp explanations(occurrences) do
-    Enum.map(occurrences, fn occurrence ->
-      "Projected #{occurrence.session_template_name} from its schedule and deterministic slot recommendations."
-    end)
+  defp explanations(projected_work) do
+    Enum.map(projected_work, & &1.explanation)
   end
 end

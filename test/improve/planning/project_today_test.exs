@@ -33,6 +33,22 @@ defmodule Improve.Planning.ProjectTodayTest do
                }
              ] = projection.projected_session_occurrences
 
+      assert [
+               %{
+                 kind: :session,
+                 status: :planned,
+                 owner_type: :session_template,
+                 title: "Upper-biased gym visit",
+                 planned_for: ~D[2026-06-22],
+                 payload: %{
+                   session_occurrence: %{
+                     session_template_name: "Upper-biased gym visit",
+                     recommendations: ^recommendations
+                   }
+                 }
+               }
+             ] = projection.projected_work
+
       recommendation_counts =
         Map.new(recommendations, fn recommendation ->
           {recommendation.slot_key, Enum.map(recommendation.recommended_items, & &1.item_name)}
@@ -64,8 +80,9 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-09-01])
 
       assert projection.projected_session_occurrences == []
+      assert projection.projected_work == []
       assert projection.diagnostics == []
-      assert projection.explanations == ["No session templates are scheduled for this date."]
+      assert projection.explanations == ["No projected work is scheduled for this date."]
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
   end

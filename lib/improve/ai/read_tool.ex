@@ -92,8 +92,43 @@ defmodule Improve.Ai.ReadTool do
       date: Date.to_iso8601(projection.date),
       projected_session_occurrences:
         Enum.map(projection.projected_session_occurrences, &projected_occurrence_json/1),
+      projected_work: Enum.map(projection.projected_work, &projected_work_json/1),
       diagnostics: projection.diagnostics,
       explanations: projection.explanations
+    }
+  end
+
+  defp projected_work_json(%{kind: :session, payload: %{session_occurrence: occurrence}} = work) do
+    %{
+      kind: "session",
+      status: Atom.to_string(work.status),
+      planned_for: Date.to_iso8601(work.planned_for),
+      owner_type: "session_template",
+      owner_id: work.owner_id,
+      title: work.title,
+      explanation: work.explanation,
+      session_occurrence: projected_occurrence_json(occurrence)
+    }
+  end
+
+  defp projected_work_json(%{kind: :direct_goal, payload: payload} = work) do
+    %{
+      kind: "direct_goal",
+      status: Atom.to_string(work.status),
+      planned_for: Date.to_iso8601(work.planned_for),
+      owner_type: "direct_goal",
+      owner_id: work.owner_id,
+      title: work.title,
+      explanation: work.explanation,
+      direct_goal: %{
+        direct_goal_id: payload.direct_goal_id,
+        direct_goal_key: payload.direct_goal_key,
+        event_type_id: payload.event_type_id,
+        target: payload.target,
+        completion_policy: payload.completion_policy,
+        missed_policy: payload.missed_policy,
+        completed_event_ids: payload.completed_event_ids
+      }
     }
   end
 

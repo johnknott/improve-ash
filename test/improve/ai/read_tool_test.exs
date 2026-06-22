@@ -64,6 +64,18 @@ defmodule Improve.Ai.ReadToolTest do
       assert [%{"session_template_name" => "Upper-biased gym visit"}] =
                projection["projected_session_occurrences"]
 
+      assert [
+               %{
+                 "kind" => "session",
+                 "status" => "planned",
+                 "owner_type" => "session_template",
+                 "title" => "Upper-biased gym visit",
+                 "session_occurrence" => %{
+                   "session_template_name" => "Upper-biased gym visit"
+                 }
+               }
+             ] = projection["projected_work"]
+
       summary = execute_tool!(tools["get_plan_summary"], user, %{"plan_id" => gym_plan.id})
 
       assert summary["items"] == 8
