@@ -87,6 +87,73 @@ defmodule Improve.Journal do
     end
   end
 
+  def log_dose_event!(attrs, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    plan = Map.fetch!(attrs, :plan)
+    event_type = Map.fetch!(attrs, :event_type)
+    source_vial = Map.fetch!(attrs, :source_vial)
+
+    payload = %{
+      "amount" => Map.fetch!(attrs, :amount),
+      "unit" => Map.fetch!(attrs, :unit),
+      "route" => Map.get(attrs, :route),
+      "site" => Map.get(attrs, :site),
+      "subjective_feedback" => Map.get(attrs, :subjective_feedback),
+      "notes" => Map.get(attrs, :notes)
+    }
+
+    Repo.transaction(fn ->
+      reset_notifications!()
+
+      event =
+        create!(
+          __MODULE__,
+          :log_event!,
+          actor,
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            effective_at: Map.fetch!(attrs, :effective_at),
+            recorded_at: Map.fetch!(attrs, :recorded_at),
+            summary: Map.get(attrs, :summary, "Dose recorded"),
+            quantity: Map.fetch!(attrs, :amount),
+            unit: Map.fetch!(attrs, :unit),
+            payload: payload,
+            note: Map.get(attrs, :notes)
+          }
+        )
+
+      source_vial_link =
+        create!(
+          __MODULE__,
+          :create_event_item_link!,
+          actor,
+          %{
+            plan_id: plan.id,
+            event_instance_id: event.id,
+            item_id: source_vial.id,
+            role: "source_vial",
+            metadata: %{}
+          }
+        )
+
+      effects =
+        event_type.effect_rules
+        |> Map.get("rules", [])
+        |> Enum.map(&create_effect_from_rule!(&1, plan, event, source_vial, payload, actor))
+
+      {{event, source_vial_link, effects}, take_notifications!()}
+    end)
+    |> case do
+      {:ok, {{event, source_vial_link, effects}, notifications}} ->
+        Ash.Notifier.notify(notifications)
+        %{event: event, source_vial_link: source_vial_link, item_effects: effects}
+
+      {:error, error} ->
+        raise inspect(error)
+    end
+  end
+
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
     plan_id = id(plan_or_id)
@@ -119,6 +186,58 @@ defmodule Improve.Journal do
       {:error, error} -> raise error
     end
   end
+
+  def get_item_state(item, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    with {:ok, effects} <- list_item_effects(actor: actor, query: [filter: [item_id: item.id]]) do
+      {:ok,
+       Improve.Planning.ItemState.calculate(
+         item,
+         effects,
+         Keyword.take(opts, [:future_quantity_required])
+       )}
+    end
+  end
+
+  def get_item_state!(item, opts) do
+    case get_item_state(item, opts) do
+      {:ok, state} -> state
+      {:error, error} -> raise error
+    end
+  end
+
+  defp create_effect_from_rule!(rule, plan, event, source_vial, payload, actor) do
+    if Map.get(rule, "role") != "source_vial" do
+      raise "unsupported effect rule role: #{inspect(rule)}"
+    end
+
+    create!(
+      __MODULE__,
+      :create_item_effect!,
+      actor,
+      %{
+        plan_id: plan.id,
+        item_id: source_vial.id,
+        event_instance_id: event.id,
+        effect_type: effect_type!(Map.fetch!(rule, "effect_type")),
+        quantity: path_value!(payload, Map.fetch!(rule, "quantity_path")),
+        unit: path_value!(payload, Map.fetch!(rule, "unit_path")),
+        payload: %{"rule" => rule}
+      }
+    )
+  end
+
+  defp effect_type!("add_quantity"), do: :add_quantity
+  defp effect_type!("subtract_quantity"), do: :subtract_quantity
+  defp effect_type!("set_quantity"), do: :set_quantity
+  defp effect_type!("correction"), do: :correction
+
+  defp effect_type!(effect_type) do
+    raise "unsupported effect type: #{inspect(effect_type)}"
+  end
+
+  defp path_value!(payload, "payload." <> key), do: Map.fetch!(payload, key)
 
   defp update_slot_result!(slot_result, item, event, actor) do
     function =
