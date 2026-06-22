@@ -114,6 +114,23 @@ Expected task names may evolve, but prefer this shape:
 When exact tool versions are not established yet, choose current stable versions
 unless a documented compatibility constraint says otherwise.
 
+## Ash Documentation Discipline
+
+Ash and its extensions move quickly. Do not rely on memory for non-trivial Ash,
+AshPostgres, AshTypescript, AshAI, AshOban, or AshEvents APIs.
+
+Before adding or changing meaningful Ash DSL, actions, policies, migrations,
+code interfaces, TypeScript generation, or AI tool exposure:
+
+- Check the installed package versions in `mix.lock` or with Mix.
+- Read the current official docs for those versions, preferably HexDocs:
+  `https://ash.hexdocs.pm/`, `https://ash-postgres.hexdocs.pm/`,
+  `https://ash-typescript.hexdocs.pm/`, and `https://ash-ai.hexdocs.pm/`.
+- Prefer official guides, API docs, generated docs, and package changelogs over
+  examples from memory, old blog posts, or unrelated projects.
+- If the docs and an example disagree, trust the docs for the installed version
+  and mention the decision in the implementation notes when it matters.
+
 ## Beans
 
 Beans is not assumed to be installed yet in this repository.
