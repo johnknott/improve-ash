@@ -3,6 +3,7 @@ defmodule Improve.Journal do
     extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
+  alias Improve.CommandError
   alias Improve.Journal.LogEventCommand
   alias Improve.Journal.OfflineIngressResult
   alias Improve.Planning.EffectRuleInterpreter
@@ -48,7 +49,7 @@ defmodule Improve.Journal do
     actor = Keyword.fetch!(opts, :actor)
 
     with {:ok, command} <- LogEventCommand.from_attrs(attrs) do
-      Repo.transaction(fn ->
+      transact(fn ->
         reset_notifications!()
 
         {persist_log_event_command!(command, actor), take_notifications!()}
@@ -67,8 +68,7 @@ defmodule Improve.Journal do
   def log_generic_event!(attrs, opts) do
     case log_generic_event(attrs, opts) do
       {:ok, result} -> result
-      {:error, error} when is_list(error) -> raise ArgumentError, Enum.join(error, " ")
-      {:error, error} -> raise inspect(error)
+      {:error, error} -> CommandError.raise!(:log_generic_event, error)
     end
   end
 
@@ -90,7 +90,7 @@ defmodule Improve.Journal do
   def submit_offline_event_batch!(entries, opts) do
     case submit_offline_event_batch(entries, opts) do
       {:ok, result} -> result
-      {:error, diagnostics} -> raise ArgumentError, Enum.join(diagnostics, " ")
+      {:error, diagnostics} -> CommandError.raise!(:submit_offline_event_batch, diagnostics)
     end
   end
 
@@ -102,55 +102,57 @@ defmodule Improve.Journal do
     session_occurrence = Map.fetch!(attrs, :session_occurrence)
     role = Map.fetch!(attrs, :role)
 
-    Repo.transaction(fn ->
-      reset_notifications!()
+    CommandError.wrap!(:log_session_item_event, fn ->
+      Repo.transaction(fn ->
+        reset_notifications!()
 
-      event =
-        create!(
-          __MODULE__,
-          :log_event!,
-          actor,
-          %{
-            plan_id: session_occurrence.plan_id,
-            event_type_id: event_type.id,
-            session_occurrence_id: session_occurrence.id,
-            slot_result_id: slot_result.id,
-            effective_at: Map.fetch!(attrs, :effective_at),
-            recorded_at: Map.fetch!(attrs, :recorded_at),
-            summary: Map.fetch!(attrs, :summary),
-            quantity: Map.get(attrs, :quantity),
-            unit: Map.get(attrs, :unit),
-            payload: Map.get(attrs, :payload, %{}),
-            note: Map.get(attrs, :note)
-          }
-        )
+        event =
+          create!(
+            __MODULE__,
+            :log_event!,
+            actor,
+            %{
+              plan_id: session_occurrence.plan_id,
+              event_type_id: event_type.id,
+              session_occurrence_id: session_occurrence.id,
+              slot_result_id: slot_result.id,
+              effective_at: Map.fetch!(attrs, :effective_at),
+              recorded_at: Map.fetch!(attrs, :recorded_at),
+              summary: Map.fetch!(attrs, :summary),
+              quantity: Map.get(attrs, :quantity),
+              unit: Map.get(attrs, :unit),
+              payload: Map.get(attrs, :payload, %{}),
+              note: Map.get(attrs, :note)
+            }
+          )
 
-      link =
-        create!(
-          __MODULE__,
-          :create_event_item_link!,
-          actor,
-          %{
-            plan_id: session_occurrence.plan_id,
-            event_instance_id: event.id,
-            item_id: item.id,
-            role: role,
-            metadata: Map.get(attrs, :link_metadata, %{})
-          }
-        )
+        link =
+          create!(
+            __MODULE__,
+            :create_event_item_link!,
+            actor,
+            %{
+              plan_id: session_occurrence.plan_id,
+              event_instance_id: event.id,
+              item_id: item.id,
+              role: role,
+              metadata: Map.get(attrs, :link_metadata, %{})
+            }
+          )
 
-      updated_slot_result = update_slot_result!(slot_result, item, event, actor)
+        updated_slot_result = update_slot_result!(slot_result, item, event, actor)
 
-      {{event, link, updated_slot_result}, take_notifications!()}
+        {{event, link, updated_slot_result}, take_notifications!()}
+      end)
+      |> case do
+        {:ok, {{event, link, slot_result}, notifications}} ->
+          Ash.Notifier.notify(notifications)
+          %{event: event, event_item_link: link, slot_result: slot_result}
+
+        {:error, error} ->
+          CommandError.raise!(:log_session_item_event, error)
+      end
     end)
-    |> case do
-      {:ok, {{event, link, slot_result}, notifications}} ->
-        Ash.Notifier.notify(notifications)
-        %{event: event, event_item_link: link, slot_result: slot_result}
-
-      {:error, error} ->
-        raise inspect(error)
-    end
   end
 
   def log_dose_event!(attrs, opts) do
@@ -211,7 +213,7 @@ defmodule Improve.Journal do
     actor = Keyword.fetch!(opts, :actor)
 
     with {:ok, command} <- correction_command(attrs) do
-      Repo.transaction(fn ->
+      transact(fn ->
         reset_notifications!()
 
         {persist_correction_command!(command, actor), take_notifications!()}
@@ -230,8 +232,7 @@ defmodule Improve.Journal do
   def correct_generic_event!(attrs, opts) do
     case correct_generic_event(attrs, opts) do
       {:ok, result} -> result
-      {:error, error} when is_list(error) -> raise ArgumentError, Enum.join(error, " ")
-      {:error, error} -> raise inspect(error)
+      {:error, error} -> CommandError.raise!(:correct_generic_event, error)
     end
   end
 
@@ -566,6 +567,12 @@ defmodule Improve.Journal do
   defp record_label(:slot_result), do: "Slot result"
   defp record_label(:direct_goal), do: "Direct goal"
   defp record_label(:item), do: "Item"
+
+  defp transact(fun) when is_function(fun, 0) do
+    Repo.transaction(fun)
+  rescue
+    error -> {:error, error}
+  end
 
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)

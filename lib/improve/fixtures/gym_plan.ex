@@ -3,6 +3,7 @@ defmodule Improve.Fixtures.GymPlan do
   Installs the gym demo plan used by the headless POC scenario tests.
   """
 
+  alias Improve.CommandError
   alias Improve.Plans
   alias Improve.Repo
 
@@ -10,53 +11,55 @@ defmodule Improve.Fixtures.GymPlan do
   @notifications_key {__MODULE__, :notifications}
 
   def install!(user, opts) do
-    starts_on = Keyword.fetch!(opts, :starts_on)
+    CommandError.wrap!(:install_gym_demo_plan, fn ->
+      starts_on = Keyword.fetch!(opts, :starts_on)
 
-    Repo.transaction(fn ->
-      reset_notifications!()
+      Repo.transaction(fn ->
+        reset_notifications!()
 
-      plan =
-        create!(:create_plan!, user, %{
-          name: "General Fitness",
-          intention: "Build consistent gym progress",
-          starts_on: starts_on,
-          ends_on: Date.add(starts_on, @eight_weeks),
-          status: :active,
-          source_kind: :demo,
-          source_key: "gym"
-        })
+        plan =
+          create!(:create_plan!, user, %{
+            name: "General Fitness",
+            intention: "Build consistent gym progress",
+            starts_on: starts_on,
+            ends_on: Date.add(starts_on, @eight_weeks),
+            status: :active,
+            source_kind: :demo,
+            source_key: "gym"
+          })
 
-      item_types = install_item_types!(plan, user)
-      items = install_items!(plan, item_types, user)
-      pools = install_pools!(plan, items, user)
-      environment = install_environment!(plan, items, user)
-      event_types = install_event_types!(plan, item_types, user)
-      session_template = install_session_template!(plan, environment, user)
-      slots = install_session_slots!(plan, session_template, pools, user)
-      schedule = install_schedule!(plan, session_template, starts_on, user)
+        item_types = install_item_types!(plan, user)
+        items = install_items!(plan, item_types, user)
+        pools = install_pools!(plan, items, user)
+        environment = install_environment!(plan, items, user)
+        event_types = install_event_types!(plan, item_types, user)
+        session_template = install_session_template!(plan, environment, user)
+        slots = install_session_slots!(plan, session_template, pools, user)
+        schedule = install_schedule!(plan, session_template, starts_on, user)
 
-      result = %{
-        plan: plan,
-        item_types: item_types,
-        items: items,
-        pools: pools,
-        environment: environment,
-        event_types: event_types,
-        session_template: session_template,
-        session_slots: slots,
-        schedule: schedule
-      }
+        result = %{
+          plan: plan,
+          item_types: item_types,
+          items: items,
+          pools: pools,
+          environment: environment,
+          event_types: event_types,
+          session_template: session_template,
+          session_slots: slots,
+          schedule: schedule
+        }
 
-      {result, take_notifications!()}
+        {result, take_notifications!()}
+      end)
+      |> case do
+        {:ok, {result, notifications}} ->
+          Ash.Notifier.notify(notifications)
+          result
+
+        {:error, error} ->
+          CommandError.raise!(:install_gym_demo_plan, error)
+      end
     end)
-    |> case do
-      {:ok, {result, notifications}} ->
-        Ash.Notifier.notify(notifications)
-        result
-
-      {:error, error} ->
-        raise inspect(error)
-    end
   end
 
   defp install_item_types!(plan, user) do

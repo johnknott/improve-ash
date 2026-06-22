@@ -2,6 +2,7 @@ defmodule Improve.OwnershipBoundaryTest do
   use Improve.DataCase, async: true
 
   alias Improve.Accounts
+  alias Improve.CommandError
   alias Improve.Fixtures.GymPlan
   alias Improve.Fixtures.VialPlan
   alias Improve.Journal
@@ -113,7 +114,7 @@ defmodule Improve.OwnershipBoundaryTest do
     fun.()
     flunk("expected forbidden ownership boundary")
   rescue
-    error ->
-      assert inspect(error) =~ "Forbidden"
+    error in [CommandError] ->
+      assert error.category == :forbidden
   end
 end

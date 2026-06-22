@@ -6,6 +6,7 @@ defmodule Improve.Fixtures.VialPlan do
   advice or dosing guidance.
   """
 
+  alias Improve.CommandError
   alias Improve.Plans
   alias Improve.Repo
 
@@ -13,43 +14,45 @@ defmodule Improve.Fixtures.VialPlan do
   @notifications_key {__MODULE__, :notifications}
 
   def install!(user, opts) do
-    starts_on = Keyword.fetch!(opts, :starts_on)
+    CommandError.wrap!(:install_vial_demo_plan, fn ->
+      starts_on = Keyword.fetch!(opts, :starts_on)
 
-    Repo.transaction(fn ->
-      reset_notifications!()
+      Repo.transaction(fn ->
+        reset_notifications!()
 
-      plan =
-        create!(:create_plan!, user, %{
-          name: "Retatrutide Inventory",
-          intention: "Track vial quantity and dose history",
-          starts_on: starts_on,
-          ends_on: Date.add(starts_on, @twelve_weeks),
-          status: :active,
-          source_kind: :demo,
-          source_key: "vial_inventory"
-        })
+        plan =
+          create!(:create_plan!, user, %{
+            name: "Retatrutide Inventory",
+            intention: "Track vial quantity and dose history",
+            starts_on: starts_on,
+            ends_on: Date.add(starts_on, @twelve_weeks),
+            status: :active,
+            source_kind: :demo,
+            source_key: "vial_inventory"
+          })
 
-      item_types = install_item_types!(plan, user)
-      items = install_items!(plan, item_types, user)
-      event_type = install_event_type!(plan, item_types, user)
+        item_types = install_item_types!(plan, user)
+        items = install_items!(plan, item_types, user)
+        event_type = install_event_type!(plan, item_types, user)
 
-      result = %{
-        plan: plan,
-        item_types: item_types,
-        items: items,
-        event_type: event_type
-      }
+        result = %{
+          plan: plan,
+          item_types: item_types,
+          items: items,
+          event_type: event_type
+        }
 
-      {result, take_notifications!()}
+        {result, take_notifications!()}
+      end)
+      |> case do
+        {:ok, {result, notifications}} ->
+          Ash.Notifier.notify(notifications)
+          result
+
+        {:error, error} ->
+          CommandError.raise!(:install_vial_demo_plan, error)
+      end
     end)
-    |> case do
-      {:ok, {result, notifications}} ->
-        Ash.Notifier.notify(notifications)
-        result
-
-      {:error, error} ->
-        raise inspect(error)
-    end
   end
 
   defp install_item_types!(plan, user) do

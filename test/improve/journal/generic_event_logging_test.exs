@@ -2,6 +2,7 @@ defmodule Improve.Journal.GenericEventLoggingTest do
   use Improve.DataCase, async: true
 
   alias Improve.Accounts
+  alias Improve.CommandError
   alias Improve.Fixtures.GymPlan
   alias Improve.Fixtures.VialPlan
   alias Improve.Journal
@@ -447,6 +448,23 @@ defmodule Improve.Journal.GenericEventLoggingTest do
                "Recorded time is required.",
                "Summary is required."
              ]
+    end
+
+    test "bang command failures expose structured categories" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-command-error-bang@example.com",
+          full_name: "Generic Command Error Bang"
+        })
+
+      error =
+        assert_raise CommandError, fn ->
+          Journal.log_generic_event!(%{}, actor: user)
+        end
+
+      assert error.category == :invalid_command
+      assert error.operation == :log_generic_event
+      assert "Plan is required." in error.details
     end
   end
 

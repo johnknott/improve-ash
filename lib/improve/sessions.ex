@@ -3,6 +3,7 @@ defmodule Improve.Sessions do
     extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
+  alias Improve.CommandError
   alias Improve.Repo
 
   typescript_rpc do
@@ -35,42 +36,44 @@ defmodule Improve.Sessions do
   @notifications_key {__MODULE__, :notifications}
 
   def start_projected_session!(projected_occurrence, opts) do
-    actor = Keyword.fetch!(opts, :actor)
-    started_at = Keyword.fetch!(opts, :started_at)
-    actual_item_ids_by_slot_key = Keyword.get(opts, :actual_item_ids_by_slot_key, %{})
+    CommandError.wrap!(:start_projected_session, fn ->
+      actor = Keyword.fetch!(opts, :actor)
+      started_at = Keyword.fetch!(opts, :started_at)
+      actual_item_ids_by_slot_key = Keyword.get(opts, :actual_item_ids_by_slot_key, %{})
 
-    Repo.transaction(fn ->
-      reset_notifications!()
+      Repo.transaction(fn ->
+        reset_notifications!()
 
-      occurrence =
-        create!(
-          :create_session_occurrence!,
-          actor,
-          %{
-            plan_id: projected_occurrence.plan_id,
-            session_template_id: projected_occurrence.session_template_id,
-            planned_for: projected_occurrence.planned_for,
-            status: :started,
-            started_at: started_at,
-            recommendation_snapshot: snapshot(projected_occurrence)
-          }
-        )
+        occurrence =
+          create!(
+            :create_session_occurrence!,
+            actor,
+            %{
+              plan_id: projected_occurrence.plan_id,
+              session_template_id: projected_occurrence.session_template_id,
+              planned_for: projected_occurrence.planned_for,
+              status: :started,
+              started_at: started_at,
+              recommendation_snapshot: snapshot(projected_occurrence)
+            }
+          )
 
-      slot_results =
-        projected_occurrence.recommendations
-        |> Enum.flat_map(&slot_result_attrs(&1, occurrence, actual_item_ids_by_slot_key))
-        |> Enum.map(&create!(:create_slot_result!, actor, &1))
+        slot_results =
+          projected_occurrence.recommendations
+          |> Enum.flat_map(&slot_result_attrs(&1, occurrence, actual_item_ids_by_slot_key))
+          |> Enum.map(&create!(:create_slot_result!, actor, &1))
 
-      {{occurrence, slot_results}, take_notifications!()}
+        {{occurrence, slot_results}, take_notifications!()}
+      end)
+      |> case do
+        {:ok, {{occurrence, slot_results}, notifications}} ->
+          Ash.Notifier.notify(notifications)
+          %{session_occurrence: occurrence, slot_results: slot_results}
+
+        {:error, error} ->
+          CommandError.raise!(:start_projected_session, error)
+      end
     end)
-    |> case do
-      {:ok, {{occurrence, slot_results}, notifications}} ->
-        Ash.Notifier.notify(notifications)
-        %{session_occurrence: occurrence, slot_results: slot_results}
-
-      {:error, error} ->
-        raise inspect(error)
-    end
   end
 
   defp slot_result_attrs(recommendation, occurrence, actual_item_ids_by_slot_key) do
