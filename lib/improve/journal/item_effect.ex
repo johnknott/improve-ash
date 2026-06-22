@@ -32,6 +32,13 @@ defmodule Improve.Journal.ItemEffect do
         :status,
         :replaces_item_effect_id
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  item_id: Improve.Plans.Item,
+                  event_instance_id: Improve.Journal.EventInstance,
+                  replaces_item_effect_id: Improve.Journal.ItemEffect
+                ]}
     end
 
     update :void do

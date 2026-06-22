@@ -16,6 +16,12 @@ defmodule Improve.Journal.EventItemLink do
     create :create do
       primary? true
       accept [:plan_id, :event_instance_id, :item_id, :role, :metadata]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  event_instance_id: Improve.Journal.EventInstance,
+                  item_id: Improve.Plans.Item
+                ]}
     end
   end
 

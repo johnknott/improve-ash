@@ -30,6 +30,11 @@ defmodule Improve.Sessions.SessionOccurrence do
         :started_at,
         :notes
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_template_id: Improve.Plans.SessionTemplate
+                ]}
     end
 
     update :start do

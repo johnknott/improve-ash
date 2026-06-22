@@ -26,16 +26,45 @@ defmodule Improve.Sessions.SlotResult do
         :event_instance_id,
         :notes
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_occurrence_id: Improve.Sessions.SessionOccurrence,
+                  session_slot_id: Improve.Plans.SessionSlot,
+                  recommended_item_id: Improve.Plans.Item,
+                  actual_item_id: Improve.Plans.Item,
+                  event_instance_id: Improve.Journal.EventInstance
+                ]}
     end
 
     update :complete do
+      require_atomic? false
       accept [:actual_item_id, :event_instance_id, :notes]
       change set_attribute(:status, :completed)
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_occurrence_id: Improve.Sessions.SessionOccurrence,
+                  session_slot_id: Improve.Plans.SessionSlot,
+                  recommended_item_id: Improve.Plans.Item,
+                  actual_item_id: Improve.Plans.Item,
+                  event_instance_id: Improve.Journal.EventInstance
+                ]}
     end
 
     update :swap do
+      require_atomic? false
       accept [:actual_item_id, :event_instance_id, :notes]
       change set_attribute(:status, :swapped)
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_occurrence_id: Improve.Sessions.SessionOccurrence,
+                  session_slot_id: Improve.Plans.SessionSlot,
+                  recommended_item_id: Improve.Plans.Item,
+                  actual_item_id: Improve.Plans.Item,
+                  event_instance_id: Improve.Journal.EventInstance
+                ]}
     end
   end
 

@@ -38,6 +38,15 @@ defmodule Improve.Journal.EventInstance do
         :origin,
         :replaces_event_instance_id
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  event_type_id: Improve.Plans.EventType,
+                  session_occurrence_id: Improve.Sessions.SessionOccurrence,
+                  slot_result_id: Improve.Sessions.SlotResult,
+                  direct_goal_id: Improve.Plans.DirectGoal,
+                  replaces_event_instance_id: Improve.Journal.EventInstance
+                ]}
     end
 
     update :void do
