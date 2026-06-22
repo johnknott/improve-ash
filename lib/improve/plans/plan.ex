@@ -97,5 +97,13 @@ defmodule Improve.Plans.Plan do
       allow_nil? false
       public? true
     end
+
+    has_many :item_types, Improve.Plans.ItemType
+    has_many :items, Improve.Plans.Item
+    has_many :pools, Improve.Plans.Pool
+    has_many :pool_memberships, Improve.Plans.PoolMembership
+    has_many :environments, Improve.Plans.Environment
+    has_many :event_types, Improve.Plans.EventType
+    has_many :schedules, Improve.Plans.Schedule
   end
 end
