@@ -22,6 +22,7 @@ defmodule Improve.Sessions.SessionOccurrence do
         :planned_for,
         :status,
         :recommendation_snapshot,
+        :started_at,
         :notes
       ]
     end

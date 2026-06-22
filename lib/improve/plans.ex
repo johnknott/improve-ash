@@ -112,7 +112,7 @@ defmodule Improve.Plans do
     date = Keyword.fetch!(opts, :date)
 
     with {:ok, plan} <- fetch_plan(plan_or_id, actor),
-         {:ok, input} <- projection_input(plan, actor, date) do
+         {:ok, input} <- projection_input(plan, actor, date, opts) do
       {:ok, Improve.Planning.Projector.project_today(input)}
     end
   end
@@ -130,7 +130,7 @@ defmodule Improve.Plans do
   defp fetch_plan(%{id: _id} = plan, _actor), do: {:ok, plan}
   defp fetch_plan(id, actor), do: get_plan(id, actor: actor)
 
-  defp projection_input(plan, actor, date) do
+  defp projection_input(plan, actor, date, opts) do
     plan_filter = [filter: [plan_id: plan.id]]
 
     with {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
@@ -149,7 +149,7 @@ defmodule Improve.Plans do
          items: items,
          pool_memberships: pool_memberships,
          environments: environments,
-         recent_item_ids: []
+         recent_item_ids: Keyword.get(opts, :recent_item_ids, [])
        }}
     end
   end
