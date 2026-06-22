@@ -50,35 +50,7 @@ defmodule Improve.Journal do
       Repo.transaction(fn ->
         reset_notifications!()
 
-        event_type = Plans.get_event_type!(command.event_type_id, actor: actor)
-
-        event =
-          create!(
-            __MODULE__,
-            :log_event!,
-            actor,
-            LogEventCommand.to_event_attrs(command)
-          )
-
-        event_item_links =
-          Enum.map(
-            command.item_links,
-            &create_event_item_link_from_command!(&1, command, event, actor)
-          )
-
-        item_effects =
-          event_type
-          |> effect_specs(command.payload, command.item_links)
-          |> Enum.map(&create_item_effect_from_spec!(&1, %{id: command.plan_id}, event, actor))
-
-        slot_result = update_linked_slot_result(command, event, actor)
-
-        {%{
-           event: event,
-           event_item_links: event_item_links,
-           item_effects: item_effects,
-           slot_result: slot_result
-         }, take_notifications!()}
+        {persist_log_event_command!(command, actor), take_notifications!()}
       end)
       |> case do
         {:ok, {result, notifications}} ->
@@ -164,65 +136,17 @@ defmodule Improve.Journal do
     event_type = Map.fetch!(attrs, :event_type)
     source_vial = Map.fetch!(attrs, :source_vial)
 
-    payload = %{
-      "amount" => Map.fetch!(attrs, :amount),
-      "unit" => Map.fetch!(attrs, :unit),
-      "route" => Map.get(attrs, :route),
-      "site" => Map.get(attrs, :site),
-      "subjective_feedback" => Map.get(attrs, :subjective_feedback),
-      "notes" => Map.get(attrs, :notes)
+    result =
+      log_generic_event!(
+        dose_event_command_attrs(attrs, plan, event_type, source_vial),
+        actor: actor
+      )
+
+    %{
+      event: result.event,
+      source_vial_link: List.first(result.event_item_links),
+      item_effects: result.item_effects
     }
-
-    Repo.transaction(fn ->
-      reset_notifications!()
-
-      event =
-        create!(
-          __MODULE__,
-          :log_event!,
-          actor,
-          %{
-            plan_id: plan.id,
-            event_type_id: event_type.id,
-            effective_at: Map.fetch!(attrs, :effective_at),
-            recorded_at: Map.fetch!(attrs, :recorded_at),
-            summary: Map.get(attrs, :summary, "Dose recorded"),
-            quantity: Map.fetch!(attrs, :amount),
-            unit: Map.fetch!(attrs, :unit),
-            payload: payload,
-            note: Map.get(attrs, :notes)
-          }
-        )
-
-      source_vial_link =
-        create!(
-          __MODULE__,
-          :create_event_item_link!,
-          actor,
-          %{
-            plan_id: plan.id,
-            event_instance_id: event.id,
-            item_id: source_vial.id,
-            role: "source_vial",
-            metadata: %{}
-          }
-        )
-
-      effects =
-        event_type
-        |> effect_specs(payload, [%{role: "source_vial", item_id: source_vial.id}])
-        |> Enum.map(&create_item_effect_from_spec!(&1, plan, event, actor))
-
-      {{event, source_vial_link, effects}, take_notifications!()}
-    end)
-    |> case do
-      {:ok, {{event, source_vial_link, effects}, notifications}} ->
-        Ash.Notifier.notify(notifications)
-        %{event: event, source_vial_link: source_vial_link, item_effects: effects}
-
-      {:error, error} ->
-        raise inspect(error)
-    end
   end
 
   def correct_dose_event!(attrs, opts) do
@@ -232,15 +156,6 @@ defmodule Improve.Journal do
     source_vial = Map.fetch!(attrs, :source_vial)
     original_event = Map.fetch!(attrs, :original_event)
     original_effect = Map.fetch!(attrs, :original_effect)
-
-    payload = %{
-      "amount" => Map.fetch!(attrs, :amount),
-      "unit" => Map.fetch!(attrs, :unit),
-      "route" => Map.get(attrs, :route),
-      "site" => Map.get(attrs, :site),
-      "subjective_feedback" => Map.get(attrs, :subjective_feedback),
-      "notes" => Map.get(attrs, :notes)
-    }
 
     Repo.transaction(fn ->
       reset_notifications!()
@@ -269,54 +184,23 @@ defmodule Improve.Journal do
           %{voided_at: corrected_at}
         )
 
-      replacement_event =
-        create!(
-          __MODULE__,
-          :log_event!,
-          actor,
-          %{
-            plan_id: plan.id,
-            event_type_id: event_type.id,
-            effective_at: Map.fetch!(attrs, :effective_at),
-            recorded_at: Map.fetch!(attrs, :recorded_at),
-            summary: Map.get(attrs, :summary, "Dose corrected"),
-            quantity: Map.fetch!(attrs, :amount),
-            unit: Map.fetch!(attrs, :unit),
-            payload: payload,
-            note: Map.get(attrs, :notes),
-            replaces_event_instance_id: original_event.id
-          }
+      replacement =
+        attrs
+        |> dose_event_command_attrs(plan, event_type, source_vial,
+          default_summary: "Dose corrected",
+          replaces_event_instance_id: original_event.id,
+          replaces_item_effect_id: original_effect.id,
+          link_metadata: %{"corrects_event_instance_id" => original_event.id}
         )
-
-      replacement_link =
-        create!(
-          __MODULE__,
-          :create_event_item_link!,
-          actor,
-          %{
-            plan_id: plan.id,
-            event_instance_id: replacement_event.id,
-            item_id: source_vial.id,
-            role: "source_vial",
-            metadata: %{"corrects_event_instance_id" => original_event.id}
-          }
-        )
-
-      replacement_effects =
-        event_type
-        |> effect_specs(payload, [%{role: "source_vial", item_id: source_vial.id}])
-        |> Enum.map(
-          &create_item_effect_from_spec!(&1, plan, replacement_event, actor,
-            replaces_item_effect_id: original_effect.id
-          )
-        )
+        |> LogEventCommand.from_attrs!()
+        |> persist_log_event_command!(actor)
 
       result = %{
         corrected_event: corrected_event,
         voided_effect: voided_effect,
-        replacement_event: replacement_event,
-        replacement_link: replacement_link,
-        replacement_effects: replacement_effects
+        replacement_event: replacement.event,
+        replacement_link: List.first(replacement.event_item_links),
+        replacement_effects: replacement.item_effects
       }
 
       {result, take_notifications!()}
@@ -400,13 +284,83 @@ defmodule Improve.Journal do
     end
   end
 
-  defp create_item_effect_from_spec!(spec, plan, event, actor, opts \\ []) do
+  defp persist_log_event_command!(command, actor) do
+    event =
+      create!(
+        __MODULE__,
+        :log_event!,
+        actor,
+        LogEventCommand.to_event_attrs(command)
+      )
+
+    event_item_links =
+      Enum.map(
+        command.item_links,
+        &create_event_item_link_from_command!(&1, command, event, actor)
+      )
+
+    event_type = Plans.get_event_type!(command.event_type_id, actor: actor)
+
+    item_effects =
+      event_type
+      |> effect_specs(command.payload, command.item_links)
+      |> Enum.map(
+        &create_item_effect_from_spec!(&1, command.plan_id, event, actor,
+          replaces_item_effect_id: command.replaces_item_effect_id
+        )
+      )
+
+    slot_result = update_linked_slot_result(command, event, actor)
+
+    %{
+      event: event,
+      event_item_links: event_item_links,
+      item_effects: item_effects,
+      slot_result: slot_result
+    }
+  end
+
+  defp dose_event_command_attrs(attrs, plan, event_type, source_vial, opts \\ []) do
+    %{
+      plan_id: plan.id,
+      event_type_id: event_type.id,
+      effective_at: Map.fetch!(attrs, :effective_at),
+      recorded_at: Map.fetch!(attrs, :recorded_at),
+      summary: Map.get(attrs, :summary, Keyword.get(opts, :default_summary, "Dose recorded")),
+      quantity: Map.fetch!(attrs, :amount),
+      unit: Map.fetch!(attrs, :unit),
+      payload: dose_payload(attrs),
+      note: Map.get(attrs, :notes),
+      replaces_event_instance_id: Keyword.get(opts, :replaces_event_instance_id),
+      replaces_item_effect_id: Keyword.get(opts, :replaces_item_effect_id),
+      item_links: [
+        %{
+          role: "source_vial",
+          item_id: source_vial.id,
+          metadata: Keyword.get(opts, :link_metadata, %{})
+        }
+      ]
+    }
+  end
+
+  defp dose_payload(attrs) do
+    %{
+      "amount" => Map.fetch!(attrs, :amount),
+      "unit" => Map.fetch!(attrs, :unit),
+      "route" => Map.get(attrs, :route),
+      "site" => Map.get(attrs, :site),
+      "subjective_feedback" => Map.get(attrs, :subjective_feedback),
+      "notes" => Map.get(attrs, :notes)
+    }
+  end
+
+  defp create_item_effect_from_spec!(spec, plan_or_id, event, actor, opts) do
     create!(
       __MODULE__,
       :create_item_effect!,
       actor,
       %{
-        plan_id: plan.id,
+        plan_id: id(plan_or_id),
         item_id: Map.fetch!(spec, :item_id),
         event_instance_id: event.id,
         effect_type: Map.fetch!(spec, :effect_type),

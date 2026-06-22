@@ -14,6 +14,8 @@ defmodule Improve.Journal.LogEventCommandTest do
                  session_occurrence_id: "occurrence-1",
                  slot_result_id: "slot-1",
                  direct_goal_id: "goal-1",
+                 replaces_event_instance_id: "event-1",
+                 replaces_item_effect_id: "effect-1",
                  effective_at: ~U[2026-06-22 12:00:00Z],
                  recorded_at: ~U[2026-06-22 12:05:00Z],
                  summary: "Chest Press completed",
@@ -39,6 +41,8 @@ defmodule Improve.Journal.LogEventCommandTest do
       assert command.session_occurrence_id == "occurrence-1"
       assert command.slot_result_id == "slot-1"
       assert command.direct_goal_id == "goal-1"
+      assert command.replaces_event_instance_id == "event-1"
+      assert command.replaces_item_effect_id == "effect-1"
       assert command.origin == :offline_sync
       assert command.payload == %{"reps" => [10, 10, 8]}
 
@@ -113,6 +117,7 @@ defmodule Improve.Journal.LogEventCommandTest do
 
       refute Map.has_key?(event_attrs, :item_links)
       refute Map.has_key?(event_attrs, :idempotency)
+      refute Map.has_key?(event_attrs, :replaces_item_effect_id)
       assert event_attrs.plan_id == "plan-1"
       assert event_attrs.summary == "Logged"
     end

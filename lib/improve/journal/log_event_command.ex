@@ -28,6 +28,7 @@ defmodule Improve.Journal.LogEventCommand do
     :slot_result_id,
     :direct_goal_id,
     :replaces_event_instance_id,
+    :replaces_item_effect_id,
     payload: %{},
     origin: :manual,
     item_links: [],
@@ -60,6 +61,7 @@ defmodule Improve.Journal.LogEventCommand do
       slot_result_id: value(attrs, :slot_result_id),
       direct_goal_id: value(attrs, :direct_goal_id),
       replaces_event_instance_id: value(attrs, :replaces_event_instance_id),
+      replaces_item_effect_id: value(attrs, :replaces_item_effect_id),
       item_links: normalize_item_links(value(attrs, :item_links, [])),
       idempotency: normalize_idempotency(value(attrs, :idempotency))
     }
@@ -84,7 +86,7 @@ defmodule Improve.Journal.LogEventCommand do
   def to_event_attrs(%__MODULE__{} = command) do
     command
     |> Map.from_struct()
-    |> Map.drop([:item_links, :idempotency])
+    |> Map.drop([:item_links, :idempotency, :replaces_item_effect_id])
   end
 
   defp diagnostics(command) do
