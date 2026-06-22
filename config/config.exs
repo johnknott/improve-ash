@@ -8,6 +8,7 @@
 import Config
 
 config :improve,
+  ash_domains: [Improve.Accounts, Improve.Plans],
   ecto_repos: [Improve.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 

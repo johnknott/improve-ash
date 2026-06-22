@@ -47,6 +47,7 @@ defmodule Improve.MixProject do
       {:ash_postgres, "~> 2.10"},
       {:ash_typescript, "~> 0.17.3"},
       {:ash_ai, "~> 0.7.2"},
+      {:picosat_elixir, "~> 0.2.3"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
