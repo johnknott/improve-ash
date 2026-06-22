@@ -2,6 +2,7 @@ defmodule Improve.Journal.GymSessionLoggingTest do
   use Improve.DataCase, async: true
 
   alias Improve.Accounts
+  alias Improve.CommandError
   alias Improve.Fixtures.GymPlan
   alias Improve.Journal
   alias Improve.Plans
@@ -130,6 +131,60 @@ defmodule Improve.Journal.GymSessionLoggingTest do
 
       session_slot_results = Sessions.list_slot_results!(actor: user)
       assert Enum.count(session_slot_results, & &1.event_instance_id) == 3
+    end
+
+    test "uses generic event contract validation for session item logs" do
+      user =
+        Accounts.create_user!(%{
+          email: "log-gym-session-contract@example.com",
+          full_name: "Log Gym Session Contract"
+        })
+
+      %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      projection = Plans.project_today!(plan, actor: user, date: ~D[2026-06-22])
+      [projected_occurrence] = projection.projected_session_occurrences
+
+      started =
+        Sessions.start_projected_session!(
+          projected_occurrence,
+          actor: user,
+          started_at: ~U[2026-06-22 12:00:00Z]
+        )
+
+      slot_result =
+        Enum.find(started.slot_results, &(&1.actual_item_id == items["chest_press"].id))
+
+      error =
+        assert_raise CommandError, fn ->
+          Journal.log_session_item_event!(
+            %{
+              session_occurrence: started.session_occurrence,
+              slot_result: slot_result,
+              event_type: event_types["workout_exercise_performed"],
+              item: items["chest_press"],
+              role: "exercise",
+              effective_at: ~U[2026-06-22 12:10:00Z],
+              recorded_at: ~U[2026-06-22 12:11:00Z],
+              summary: "Chest Press without required payload"
+            },
+            actor: user
+          )
+        end
+
+      assert error.operation == :log_session_item_event
+      assert error.category == :invalid_command
+      assert "Event type requires payload field sets." in error.details
+      assert "Event type requires payload field reps." in error.details
+      assert Journal.read_journal!(plan, actor: user) == []
     end
   end
 end

@@ -108,56 +108,53 @@ defmodule Improve.Journal do
     role = Map.fetch!(attrs, :role)
 
     CommandError.wrap!(:log_session_item_event, fn ->
-      Repo.transaction(fn ->
-        reset_notifications!()
-
-        event =
-          create!(
-            __MODULE__,
-            :log_event!,
-            actor,
-            %{
-              plan_id: session_occurrence.plan_id,
-              event_type_id: event_type.id,
-              session_occurrence_id: session_occurrence.id,
-              slot_result_id: slot_result.id,
-              effective_at: Map.fetch!(attrs, :effective_at),
-              recorded_at: Map.fetch!(attrs, :recorded_at),
-              summary: Map.fetch!(attrs, :summary),
-              quantity: Map.get(attrs, :quantity),
-              unit: Map.get(attrs, :unit),
-              payload: Map.get(attrs, :payload, %{}),
-              note: Map.get(attrs, :note)
-            }
-          )
-
-        link =
-          create!(
-            __MODULE__,
-            :create_event_item_link!,
-            actor,
-            %{
-              plan_id: session_occurrence.plan_id,
-              event_instance_id: event.id,
-              item_id: item.id,
-              role: role,
-              metadata: Map.get(attrs, :link_metadata, %{})
-            }
-          )
-
-        updated_slot_result = update_slot_result!(slot_result, item, event, actor)
-
-        {{event, link, updated_slot_result}, take_notifications!()}
-      end)
-      |> case do
-        {:ok, {{event, link, slot_result}, notifications}} ->
-          Ash.Notifier.notify(notifications)
-          %{event: event, event_item_link: link, slot_result: slot_result}
+      case log_generic_event(
+             session_item_event_attrs(
+               attrs,
+               session_occurrence,
+               slot_result,
+               event_type,
+               item,
+               role
+             ),
+             actor: actor
+           ) do
+        {:ok, result} ->
+          %{
+            event: result.event,
+            event_item_link: List.first(result.event_item_links),
+            slot_result: result.slot_result
+          }
 
         {:error, error} ->
           CommandError.raise!(:log_session_item_event, error)
       end
     end)
+  end
+
+  defp session_item_event_attrs(attrs, session_occurrence, slot_result, event_type, item, role) do
+    %{
+      plan_id: session_occurrence.plan_id,
+      event_type_id: event_type.id,
+      session_occurrence_id: session_occurrence.id,
+      slot_result_id: slot_result.id,
+      effective_at: Map.fetch!(attrs, :effective_at),
+      recorded_at: Map.fetch!(attrs, :recorded_at),
+      summary: Map.fetch!(attrs, :summary),
+      quantity: Map.get(attrs, :quantity),
+      unit: Map.get(attrs, :unit),
+      payload: Map.get(attrs, :payload, %{}),
+      note: Map.get(attrs, :note),
+      origin: Map.get(attrs, :origin, :manual),
+      idempotency: Map.get(attrs, :idempotency),
+      item_links: [
+        %{
+          role: role,
+          item_id: item.id,
+          metadata: Map.get(attrs, :link_metadata, %{})
+        }
+      ]
+    }
   end
 
   def log_dose_event!(attrs, opts) do
