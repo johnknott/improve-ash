@@ -157,63 +157,177 @@ defmodule Improve.Journal do
     original_event = Map.fetch!(attrs, :original_event)
     original_effect = Map.fetch!(attrs, :original_effect)
 
-    Repo.transaction(fn ->
-      reset_notifications!()
+    replacement_attrs =
+      dose_event_command_attrs(attrs, plan, event_type, source_vial,
+        default_summary: "Dose corrected",
+        link_metadata: %{"corrects_event_instance_id" => original_event.id}
+      )
 
-      corrected_at = Map.fetch!(attrs, :corrected_at)
-      correction_note = Map.get(attrs, :correction_note, "Corrected by replacement event")
+    correction =
+      correct_generic_event!(
+        %{
+          original_event: original_event,
+          original_effects: [original_effect],
+          corrected_at: Map.fetch!(attrs, :corrected_at),
+          correction_note: Map.get(attrs, :correction_note, "Corrected by replacement event"),
+          replacement: replacement_attrs
+        },
+        actor: actor
+      )
 
-      corrected_event =
-        create!(
-          __MODULE__,
-          :mark_event_corrected!,
-          actor,
-          original_event,
-          %{
-            voided_at: corrected_at,
-            note: correction_note
-          }
-        )
+    %{
+      corrected_event: correction.corrected_event,
+      voided_effect: List.first(correction.voided_effects),
+      replacement_event: correction.replacement.event,
+      replacement_link: List.first(correction.replacement.event_item_links),
+      replacement_effects: correction.replacement.item_effects
+    }
+  end
 
-      voided_effect =
+  def correct_generic_event(attrs, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    with {:ok, command} <- correction_command(attrs) do
+      Repo.transaction(fn ->
+        reset_notifications!()
+
+        {persist_correction_command!(command, actor), take_notifications!()}
+      end)
+      |> case do
+        {:ok, {result, notifications}} ->
+          Ash.Notifier.notify(notifications)
+          {:ok, result}
+
+        {:error, error} ->
+          {:error, error}
+      end
+    end
+  end
+
+  def correct_generic_event!(attrs, opts) do
+    case correct_generic_event(attrs, opts) do
+      {:ok, result} -> result
+      {:error, error} when is_list(error) -> raise ArgumentError, Enum.join(error, " ")
+      {:error, error} -> raise inspect(error)
+    end
+  end
+
+  defp persist_correction_command!(command, actor) do
+    %LogEventCommand{} = replacement = command.replacement
+
+    replacement_command =
+      %LogEventCommand{
+        replacement
+        | replaces_event_instance_id:
+            replacement.replaces_event_instance_id || command.original_event.id,
+          item_links:
+            Enum.map(
+              replacement.item_links,
+              &annotate_replacement_link(&1, command.original_event)
+            )
+      }
+
+    corrected_event =
+      create!(
+        __MODULE__,
+        :mark_event_corrected!,
+        actor,
+        command.original_event,
+        %{
+          voided_at: command.corrected_at,
+          note: command.correction_note
+        }
+      )
+
+    voided_effects =
+      Enum.map(command.original_effects, fn effect ->
         create!(
           __MODULE__,
           :void_item_effect!,
           actor,
-          original_effect,
-          %{voided_at: corrected_at}
+          effect,
+          %{voided_at: command.corrected_at}
         )
+      end)
 
-      replacement =
-        attrs
-        |> dose_event_command_attrs(plan, event_type, source_vial,
-          default_summary: "Dose corrected",
-          replaces_event_instance_id: original_event.id,
-          replaces_item_effect_id: original_effect.id,
-          link_metadata: %{"corrects_event_instance_id" => original_event.id}
-        )
-        |> LogEventCommand.from_attrs!()
-        |> persist_log_event_command!(actor)
+    replacement =
+      persist_log_event_command!(replacement_command, actor,
+        replaces_item_effects: command.original_effects
+      )
 
-      result = %{
-        corrected_event: corrected_event,
-        voided_effect: voided_effect,
-        replacement_event: replacement.event,
-        replacement_link: List.first(replacement.event_item_links),
-        replacement_effects: replacement.item_effects
-      }
+    %{
+      corrected_event: corrected_event,
+      voided_effects: voided_effects,
+      replacement: replacement
+    }
+  end
 
-      {result, take_notifications!()}
-    end)
-    |> case do
-      {:ok, {result, notifications}} ->
-        Ash.Notifier.notify(notifications)
-        result
+  defp annotate_replacement_link(item_link, original_event) do
+    metadata =
+      item_link.metadata
+      |> Kernel.||(%{})
+      |> Map.put("corrects_event_instance_id", original_event.id)
 
-      {:error, error} ->
-        raise inspect(error)
+    %{item_link | metadata: metadata}
+  end
+
+  defp correction_command(attrs) do
+    original_event = value(attrs, :original_event)
+    original_effects = normalize_effects(value(attrs, :original_effects, []))
+    corrected_at = value(attrs, :corrected_at)
+    correction_note = value(attrs, :correction_note, "Corrected by replacement event")
+    replacement_attrs = value(attrs, :replacement)
+
+    replacement_result = LogEventCommand.from_attrs(replacement_attrs)
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(original_event), "Original event is required.")
+      |> maybe_add(blank?(corrected_at), "Corrected time is required.")
+      |> maybe_add(blank?(replacement_attrs), "Replacement event is required.")
+      |> maybe_add(original_effects == :invalid, "Original effects must be a list.")
+      |> then(fn diagnostics ->
+        case replacement_result do
+          {:ok, _replacement} -> diagnostics
+          {:error, replacement_diagnostics} -> diagnostics ++ replacement_diagnostics
+        end
+      end)
+
+    case {diagnostics, replacement_result} do
+      {[], {:ok, replacement}} ->
+        {:ok,
+         %{
+           original_event: original_event,
+           original_effects: original_effects,
+           corrected_at: corrected_at,
+           correction_note: correction_note,
+           replacement: replacement
+         }}
+
+      {diagnostics, _replacement_result} ->
+        {:error, diagnostics}
     end
   end
+
+  defp normalize_effects(nil), do: []
+  defp normalize_effects(effects) when is_list(effects), do: effects
+  defp normalize_effects(_effects), do: :invalid
+
+  defp value(map, key, default \\ nil)
+
+  defp value(map, key, default) when is_map(map) do
+    Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+  end
+
+  defp value(_other, _key, default), do: default
+
+  defp maybe_add(diagnostics, true, message), do: diagnostics ++ [message]
+  defp maybe_add(diagnostics, false, _message), do: diagnostics
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?([]), do: true
+  defp blank?(_value), do: false
 
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
@@ -284,7 +398,7 @@ defmodule Improve.Journal do
     end
   end
 
-  defp persist_log_event_command!(command, actor) do
+  defp persist_log_event_command!(command, actor, opts \\ []) do
     event =
       create!(
         __MODULE__,
@@ -300,15 +414,18 @@ defmodule Improve.Journal do
       )
 
     event_type = Plans.get_event_type!(command.event_type_id, actor: actor)
+    effect_specs = effect_specs(event_type, command.payload, command.item_links)
+    replaces_item_effects = Keyword.get(opts, :replaces_item_effects, [])
 
     item_effects =
-      event_type
-      |> effect_specs(command.payload, command.item_links)
-      |> Enum.map(
-        &create_item_effect_from_spec!(&1, command.plan_id, event, actor,
-          replaces_item_effect_id: command.replaces_item_effect_id
+      effect_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {spec, index} ->
+        create_item_effect_from_spec!(spec, command.plan_id, event, actor,
+          replaces_item_effect_id:
+            replacement_effect_id(spec, index, command, replaces_item_effects)
         )
-      )
+      end)
 
     slot_result = update_linked_slot_result(command, event, actor)
 
@@ -319,6 +436,25 @@ defmodule Improve.Journal do
       slot_result: slot_result
     }
   end
+
+  defp replacement_effect_id(_spec, _index, %{replaces_item_effect_id: id}, _effects)
+       when not is_nil(id) do
+    id
+  end
+
+  defp replacement_effect_id(spec, index, _command, original_effects) do
+    original_effects
+    |> Enum.find(fn effect ->
+      effect.item_id == spec.item_id and effect.effect_type == spec.effect_type
+    end)
+    |> case do
+      %{id: id} -> id
+      nil -> original_effects |> Enum.at(index) |> effect_id()
+    end
+  end
+
+  defp effect_id(%{id: id}), do: id
+  defp effect_id(_effect), do: nil
 
   defp dose_event_command_attrs(attrs, plan, event_type, source_vial, opts \\ []) do
     %{
