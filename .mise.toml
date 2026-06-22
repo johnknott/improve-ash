@@ -25,7 +25,7 @@ description = "Run dev services in a zellij session"
 run = "./scripts/dev-zellij.sh"
 
 [tasks."phx:server"]
-description = "Run the Phoenix server once the app is scaffolded"
+description = "Run the Phoenix server"
 run = "mix phx.server"
 
 [tasks."deps:get"]
@@ -42,24 +42,24 @@ run = "mix compile --warnings-as-errors"
 
 [tasks.test]
 description = "Run ExUnit tests"
-run = "mix test"
+run = "mise run db:up && mix test"
 
 [tasks.verify]
 description = "Run local verification"
 run = "mise run fmt && mise run lint && mise run test"
 
 [tasks."db:create"]
-description = "Create the local database once the app is scaffolded"
-run = "mix ecto.create"
+description = "Start Postgres and create the local database"
+run = "mise run db:up && mix ecto.create"
 
 [tasks."db:migrate"]
-description = "Run database migrations once the app is scaffolded"
-run = "mix ecto.migrate"
+description = "Start Postgres and run database migrations"
+run = "mise run db:up && mix ecto.migrate"
 
 [tasks."db:reset"]
-description = "Reset the local database once the app is scaffolded"
-run = "mix ecto.reset"
+description = "Start Postgres and reset the local database"
+run = "mise run db:up && mix ecto.reset"
 
 [tasks."db:seed"]
 description = "Seed demo data once seeds exist"
-run = "mix run priv/repo/seeds.exs"
+run = "mise run db:up && mix run priv/repo/seeds.exs"
