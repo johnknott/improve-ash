@@ -21,6 +21,11 @@ defmodule Improve.Plans.Item do
     create :create do
       primary? true
       accept [:plan_id, :item_type_id, :key, :name, :facts, :stateful]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  item_type_id: Improve.Plans.ItemType
+                ]}
     end
 
     update :update do

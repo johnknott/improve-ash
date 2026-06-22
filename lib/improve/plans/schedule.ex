@@ -16,11 +16,32 @@ defmodule Improve.Plans.Schedule do
     create :create do
       primary? true
       accept [:plan_id, :owner_type, :owner_id, :kind, :rules, :starts_on, :ends_on]
+
+      validate {Improve.Validations.SamePlan,
+                polymorphic_reference: [
+                  type_field: :owner_type,
+                  id_field: :owner_id,
+                  resources: %{
+                    session_template: Improve.Plans.SessionTemplate,
+                    direct_goal: Improve.Plans.DirectGoal
+                  }
+                ]}
     end
 
     update :update do
       primary? true
+      require_atomic? false
       accept [:owner_type, :owner_id, :kind, :rules, :starts_on, :ends_on]
+
+      validate {Improve.Validations.SamePlan,
+                polymorphic_reference: [
+                  type_field: :owner_type,
+                  id_field: :owner_id,
+                  resources: %{
+                    session_template: Improve.Plans.SessionTemplate,
+                    direct_goal: Improve.Plans.DirectGoal
+                  }
+                ]}
     end
   end
 

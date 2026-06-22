@@ -25,11 +25,22 @@ defmodule Improve.Plans.SessionTemplate do
         :completion_policy,
         :missed_policy
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  environment_id: Improve.Plans.Environment
+                ]}
     end
 
     update :update do
       primary? true
+      require_atomic? false
       accept [:key, :name, :description, :environment_id, :completion_policy, :missed_policy]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  environment_id: Improve.Plans.Environment
+                ]}
     end
   end
 

@@ -16,6 +16,12 @@ defmodule Improve.Plans.PoolMembership do
     create :create do
       primary? true
       accept [:plan_id, :pool_id, :item_id, :metadata]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  pool_id: Improve.Plans.Pool,
+                  item_id: Improve.Plans.Item
+                ]}
     end
   end
 

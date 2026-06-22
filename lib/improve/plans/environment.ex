@@ -16,11 +16,22 @@ defmodule Improve.Plans.Environment do
     create :create do
       primary? true
       accept [:plan_id, :key, :name, :description, :available_item_ids]
+
+      validate {Improve.Validations.SamePlan,
+                array_references: [
+                  available_item_ids: Improve.Plans.Item
+                ]}
     end
 
     update :update do
       primary? true
+      require_atomic? false
       accept [:key, :name, :description, :available_item_ids]
+
+      validate {Improve.Validations.SamePlan,
+                array_references: [
+                  available_item_ids: Improve.Plans.Item
+                ]}
     end
   end
 

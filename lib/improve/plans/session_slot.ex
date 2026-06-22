@@ -27,12 +27,29 @@ defmodule Improve.Plans.SessionSlot do
         :rules,
         :position
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_template_id: Improve.Plans.SessionTemplate,
+                  pool_id: Improve.Plans.Pool
+                ]}
     end
 
     update :update do
       primary? true
+      require_atomic? false
       accept [:key, :name, :pool_id, :count, :optional, :rules, :position]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_template_id: Improve.Plans.SessionTemplate,
+                  pool_id: Improve.Plans.Pool
+                ]}
     end
+  end
+
+  validations do
+    validate compare(:count, greater_than: 0)
   end
 
   policies do
@@ -43,10 +60,6 @@ defmodule Improve.Plans.SessionSlot do
     policy action_type([:create, :update]) do
       authorize_if expr(plan.user_id == ^actor(:id))
     end
-  end
-
-  validations do
-    validate compare(:count, greater_than: 0)
   end
 
   attributes do

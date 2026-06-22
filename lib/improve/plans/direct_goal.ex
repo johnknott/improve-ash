@@ -26,10 +26,16 @@ defmodule Improve.Plans.DirectGoal do
         :completion_policy,
         :missed_policy
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  event_type_id: Improve.Plans.EventType
+                ]}
     end
 
     update :update do
       primary? true
+      require_atomic? false
 
       accept [
         :key,
@@ -40,6 +46,11 @@ defmodule Improve.Plans.DirectGoal do
         :completion_policy,
         :missed_policy
       ]
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  event_type_id: Improve.Plans.EventType
+                ]}
     end
   end
 

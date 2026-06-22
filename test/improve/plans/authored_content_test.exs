@@ -87,12 +87,22 @@ defmodule Improve.Plans.AuthoredContentTest do
           actor: user
         )
 
+      session_template =
+        Plans.create_session_template!(
+          %{
+            plan_id: plan.id,
+            key: "upper_gym",
+            name: "Upper gym"
+          },
+          actor: user
+        )
+
       schedule =
         Plans.create_schedule!(
           %{
             plan_id: plan.id,
             owner_type: :session_template,
-            owner_id: Ash.UUID.generate(),
+            owner_id: session_template.id,
             kind: :selected_weekdays,
             starts_on: ~D[2026-06-22],
             rules: %{"weekdays" => ["monday", "wednesday", "friday"]}
