@@ -1,0 +1,64 @@
+[tools]
+erlang = "29.0.2"
+elixir = "1.20.1-otp-29"
+node = "26.3.1"
+"npm:pnpm" = "11.8.0"
+go = "1.26.4"
+"go:github.com/hmans/beans" = "0.4.2"
+zellij = "0.44.3"
+watchexec = "2.5.1"
+
+[env]
+DATABASE_URL = "postgres://postgres:postgres@localhost:5433/improve_ash_dev"
+
+[tasks."tools:bootstrap"]
+description = "Install local Hex and Rebar for Elixir tooling"
+run = "mix local.hex --force && mix local.rebar --force"
+
+[tasks."db:up"]
+description = "Start local Postgres"
+run = "./scripts/db-up-postgres.sh"
+
+[tasks.dev]
+description = "Run dev services in a zellij session"
+run = "./scripts/dev-zellij.sh"
+
+[tasks."phx:server"]
+description = "Run the Phoenix server once the app is scaffolded"
+run = "mix phx.server"
+
+[tasks."deps:get"]
+description = "Fetch Mix dependencies"
+run = "mix deps.get"
+
+[tasks.fmt]
+description = "Run Elixir formatter"
+run = "mix format"
+
+[tasks.lint]
+description = "Compile with warnings as errors"
+run = "mix compile --warnings-as-errors"
+
+[tasks.test]
+description = "Run ExUnit tests"
+run = "mix test"
+
+[tasks.verify]
+description = "Run local verification"
+run = "mise run fmt && mise run lint && mise run test"
+
+[tasks."db:create"]
+description = "Create the local database once the app is scaffolded"
+run = "mix ecto.create"
+
+[tasks."db:migrate"]
+description = "Run database migrations once the app is scaffolded"
+run = "mix ecto.migrate"
+
+[tasks."db:reset"]
+description = "Reset the local database once the app is scaffolded"
+run = "mix ecto.reset"
+
+[tasks."db:seed"]
+description = "Seed demo data once seeds exist"
+run = "mix run priv/repo/seeds.exs"

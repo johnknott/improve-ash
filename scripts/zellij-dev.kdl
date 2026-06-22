@@ -1,0 +1,21 @@
+layout {
+    pane size=1 borderless=true {
+        plugin location="tab-bar"
+    }
+    pane split_direction="Vertical" {
+        pane command="bash" {
+            args "-lc" "mise run phx:server"
+        }
+        pane split_direction="Horizontal" {
+            pane command="bash" {
+                args "-lc" "watchexec -w lib -w test -w config -e ex,exs --restart -- mix test --stale"
+            }
+            pane command="bash" {
+                args "-lc" "iex -S mix"
+            }
+        }
+    }
+    pane size=1 borderless=true {
+        plugin location="status-bar"
+    }
+}
