@@ -136,6 +136,10 @@ defmodule Improve.Plans do
     Improve.Planning.PlanDraftImporter.import_draft!(draft, opts)
   end
 
+  def preview_plan_draft(draft) do
+    Improve.Planning.PlanDraftPreview.preview(draft)
+  end
+
   def project_today(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
     date = Keyword.fetch!(opts, :date)
