@@ -70,4 +70,43 @@ defmodule Improve.Plans do
       define :list_direct_goals, action: :read
     end
   end
+
+  def summarize_plan(plan_or_id, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    plan_id = plan_id(plan_or_id)
+    plan_filter = [filter: [plan_id: plan_id]]
+
+    with {:ok, item_types} <- list_item_types(actor: actor, query: plan_filter),
+         {:ok, items} <- list_items(actor: actor, query: plan_filter),
+         {:ok, pools} <- list_pools(actor: actor, query: plan_filter),
+         {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
+         {:ok, environments} <- list_environments(actor: actor, query: plan_filter),
+         {:ok, event_types} <- list_event_types(actor: actor, query: plan_filter),
+         {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
+         {:ok, session_slots} <- list_session_slots(actor: actor, query: plan_filter),
+         {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter) do
+      {:ok,
+       %{
+         item_types: length(item_types),
+         items: length(items),
+         pools: length(pools),
+         pool_memberships: length(pool_memberships),
+         environments: length(environments),
+         event_types: length(event_types),
+         session_templates: length(session_templates),
+         session_slots: length(session_slots),
+         schedules: length(schedules)
+       }}
+    end
+  end
+
+  def summarize_plan!(plan_or_id, opts) do
+    case summarize_plan(plan_or_id, opts) do
+      {:ok, summary} -> summary
+      {:error, error} -> raise error
+    end
+  end
+
+  defp plan_id(%{id: id}), do: id
+  defp plan_id(id), do: id
 end

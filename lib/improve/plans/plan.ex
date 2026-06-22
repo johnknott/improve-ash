@@ -15,13 +15,13 @@ defmodule Improve.Plans.Plan do
 
     create :create do
       primary? true
-      accept [:name, :intention, :starts_on, :ends_on, :source_kind, :source_key]
+      accept [:name, :intention, :starts_on, :ends_on, :status, :source_kind, :source_key]
       change relate_actor(:user)
     end
 
     update :update do
       primary? true
-      accept [:name, :intention, :starts_on, :ends_on, :source_kind, :source_key]
+      accept [:name, :intention, :starts_on, :ends_on, :status, :source_kind, :source_key]
     end
 
     update :archive do
