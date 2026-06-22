@@ -107,6 +107,50 @@ defmodule Improve.Plans do
     end
   end
 
+  def project_today(plan_or_id, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    date = Keyword.fetch!(opts, :date)
+
+    with {:ok, plan} <- fetch_plan(plan_or_id, actor),
+         {:ok, input} <- projection_input(plan, actor, date) do
+      {:ok, Improve.Planning.Projector.project_today(input)}
+    end
+  end
+
+  def project_today!(plan_or_id, opts) do
+    case project_today(plan_or_id, opts) do
+      {:ok, projection} -> projection
+      {:error, error} -> raise error
+    end
+  end
+
   defp plan_id(%{id: id}), do: id
   defp plan_id(id), do: id
+
+  defp fetch_plan(%{id: _id} = plan, _actor), do: {:ok, plan}
+  defp fetch_plan(id, actor), do: get_plan(id, actor: actor)
+
+  defp projection_input(plan, actor, date) do
+    plan_filter = [filter: [plan_id: plan.id]]
+
+    with {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
+         {:ok, session_slots} <- list_session_slots(actor: actor, query: plan_filter),
+         {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter),
+         {:ok, items} <- list_items(actor: actor, query: plan_filter),
+         {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
+         {:ok, environments} <- list_environments(actor: actor, query: plan_filter) do
+      {:ok,
+       %{
+         date: date,
+         plan: plan,
+         session_templates: session_templates,
+         session_slots: session_slots,
+         schedules: schedules,
+         items: items,
+         pool_memberships: pool_memberships,
+         environments: environments,
+         recent_item_ids: []
+       }}
+    end
+  end
 end
