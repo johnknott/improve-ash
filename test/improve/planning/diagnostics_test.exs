@@ -141,7 +141,14 @@ defmodule Improve.Planning.DiagnosticsTest do
             effect_rules: %{rules: []}
           }
         ],
-        schedules: [%{key: "upper_weekdays", kind: "selected_weekdays"}],
+        schedules: [
+          %{
+            key: "upper_weekdays",
+            owner_type: "session_template",
+            owner_key: "upper",
+            kind: "selected_weekdays"
+          }
+        ],
         sample_events: [
           %{
             key: "set_1",
@@ -153,6 +160,78 @@ defmodule Improve.Planning.DiagnosticsTest do
       }
 
       assert Diagnostics.validate_plan_draft(draft) == []
+    end
+
+    test "returns diagnostics for stable-key references and policy shape mistakes" do
+      draft = %{
+        item_types: [%{key: "book", name: "Book"}],
+        items: [
+          %{key: "deep_work", name: "Deep Work", item_type_key: "missing_type"}
+        ],
+        pools: [
+          %{key: "reading_pool", name: "Reading", item_keys: ["missing_book"]}
+        ],
+        environments: [
+          %{key: "library", name: "Library", available_item_keys: ["missing_book"]}
+        ],
+        event_types: [
+          %{
+            key: "read_pages",
+            item_link_roles: %{
+              roles: [
+                %{role: "book", item_type_key: "book", required: true},
+                %{role: "book", item_type_key: "book", required: false}
+              ]
+            },
+            effect_rules: %{rules: [%{role: "missing_role", effect_type: "add_quantity"}]}
+          }
+        ],
+        session_templates: [
+          %{key: "reading_session", environment_key: "missing_environment"}
+        ],
+        direct_goals: [
+          %{
+            key: "read_twenty",
+            event_type_key: "missing_event_type",
+            target: %{"quantity" => 20}
+          }
+        ],
+        schedules: [
+          %{
+            key: "bad_owner",
+            owner_type: "direct_goal",
+            owner_key: "missing_goal",
+            kind: "every_day"
+          },
+          %{
+            key: "bad_weekdays",
+            owner_type: "direct_goal",
+            owner_key: "read_twenty",
+            kind: "times_per_week",
+            rules: %{"allowed_weekdays" => "monday"}
+          }
+        ],
+        sample_events: [
+          %{
+            key: "sample",
+            event_type_key: "missing_event_type",
+            direct_goal_key: "missing_goal"
+          }
+        ]
+      }
+
+      diagnostics = Diagnostics.validate_plan_draft(draft)
+
+      assert diagnostic(diagnostics, :missing_item_type).ref == "missing_type"
+      assert diagnostic(diagnostics, :missing_item).ref == "missing_book"
+      assert diagnostic(diagnostics, :missing_environment).ref == "missing_environment"
+      assert diagnostic(diagnostics, :missing_event_type).ref == "missing_event_type"
+      assert diagnostic(diagnostics, :missing_schedule_owner).ref == "missing_goal"
+      assert diagnostic(diagnostics, :missing_direct_goal).ref == "missing_goal"
+      assert diagnostic(diagnostics, :duplicate_item_link_role).ref == "book"
+      assert diagnostic(diagnostics, :effect_rule_unknown_role).ref == "missing_role"
+      assert diagnostic(diagnostics, :direct_goal_target_unit_missing).ref == "read_twenty"
+      assert diagnostic(diagnostics, :unsupported_schedule_rule_shape).ref == "bad_weekdays"
     end
   end
 

@@ -13,7 +13,7 @@ defmodule Improve.Planning.PlanDraftImporter do
   def import_draft(draft, opts) do
     actor = Keyword.fetch!(opts, :actor)
     draft = PlanDraft.normalize(draft)
-    diagnostics = Diagnostics.validate_plan_draft(draft) ++ reference_diagnostics(draft)
+    diagnostics = Diagnostics.validate_plan_draft(draft) ++ import_date_diagnostics(draft)
 
     case diagnostics do
       [] ->
@@ -310,34 +310,8 @@ defmodule Improve.Planning.PlanDraftImporter do
     end)
   end
 
-  defp reference_diagnostics(draft) do
-    refs = %{
-      item_types: key_set(draft, :item_types),
-      items: key_set(draft, :items),
-      pools: key_set(draft, :pools),
-      environments: key_set(draft, :environments),
-      event_types: key_set(draft, :event_types),
-      session_templates: key_set(draft, :session_templates),
-      direct_goals: key_set(draft, :direct_goals)
-    }
-
+  defp import_date_diagnostics(draft) do
     []
-    |> missing_top_level_dates(draft)
-    |> missing_refs(list(draft, :items), :missing_item_type, :item_type_key, refs.item_types)
-    |> missing_refs(list(draft, :pools), :missing_item, :item_keys, refs.items)
-    |> missing_refs(list(draft, :environments), :missing_item, :available_item_keys, refs.items)
-    |> missing_refs(
-      list(draft, :direct_goals),
-      :missing_event_type,
-      :event_type_key,
-      refs.event_types
-    )
-    |> missing_session_refs(draft, refs)
-    |> missing_schedule_refs(draft, refs)
-  end
-
-  defp missing_top_level_dates(diagnostics, draft) do
-    diagnostics
     |> maybe_add(
       blank?(value(draft, :starts_on)),
       :missing_plan_date,
@@ -354,103 +328,6 @@ defmodule Improve.Planning.PlanDraftImporter do
         field: "ends_on"
       }
     )
-  end
-
-  defp missing_session_refs(diagnostics, draft, refs) do
-    Enum.reduce(list(draft, :session_templates), diagnostics, fn template, diagnostics ->
-      diagnostics =
-        case value(template, :environment_key) do
-          nil ->
-            diagnostics
-
-          environment_key ->
-            add_missing_ref(
-              diagnostics,
-              :missing_environment,
-              environment_key,
-              refs.environments,
-              template,
-              :environment_key
-            )
-        end
-
-      Enum.reduce(list(template, :slots), diagnostics, fn slot, diagnostics ->
-        add_missing_ref(
-          diagnostics,
-          :missing_pool,
-          value(slot, :pool_key),
-          refs.pools,
-          slot,
-          :pool_key
-        )
-      end)
-    end)
-  end
-
-  defp missing_schedule_refs(diagnostics, draft, refs) do
-    Enum.reduce(list(draft, :schedules), diagnostics, fn schedule, diagnostics ->
-      owner_type = owner_type(value(schedule, :owner_type))
-      owner_key = value(schedule, :owner_key)
-
-      cond do
-        owner_type == :session_template ->
-          add_missing_ref(
-            diagnostics,
-            :missing_schedule_owner,
-            owner_key,
-            refs.session_templates,
-            schedule,
-            :owner_key
-          )
-
-        owner_type == :direct_goal ->
-          add_missing_ref(
-            diagnostics,
-            :missing_schedule_owner,
-            owner_key,
-            refs.direct_goals,
-            schedule,
-            :owner_key
-          )
-
-        true ->
-          diagnostic(
-            diagnostics,
-            :unsupported_schedule_owner_type,
-            "Schedule owner_type must be session_template or direct_goal.",
-            %{owner_type: value(schedule, :owner_type), schedule_key: value(schedule, :key)}
-          )
-      end
-    end)
-  end
-
-  defp missing_refs(diagnostics, records, code, field, valid_refs) do
-    Enum.reduce(records, diagnostics, fn record, diagnostics ->
-      record
-      |> list(field)
-      |> case do
-        [] -> [value(record, field)]
-        refs -> refs
-      end
-      |> Enum.reject(&blank?/1)
-      |> Enum.reduce(diagnostics, fn ref, diagnostics ->
-        add_missing_ref(diagnostics, code, ref, valid_refs, record, field)
-      end)
-    end)
-  end
-
-  defp add_missing_ref(diagnostics, _code, nil, _valid_refs, _record, _field), do: diagnostics
-
-  defp add_missing_ref(diagnostics, code, ref, valid_refs, record, field) do
-    if MapSet.member?(valid_refs, ref) do
-      diagnostics
-    else
-      diagnostic(diagnostics, code, "Draft references a stable key that does not exist.", %{
-        key: value(record, :key),
-        field: field,
-        ref: ref
-      })
-    end
   end
 
   defp maybe_add(diagnostics, false, _code, _message, _details), do: diagnostics
@@ -470,14 +347,6 @@ defmodule Improve.Planning.PlanDraftImporter do
           details: details
         }
       ]
-  end
-
-  defp key_set(draft, collection) do
-    draft
-    |> list(collection)
-    |> Enum.map(&value(&1, :key))
-    |> Enum.reject(&blank?/1)
-    |> MapSet.new()
   end
 
   defp owner_id(schedule, session_templates, direct_goals) do

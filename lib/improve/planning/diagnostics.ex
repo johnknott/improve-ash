@@ -10,8 +10,11 @@ defmodule Improve.Planning.Diagnostics do
 
   def validate_plan_draft(draft) do
     duplicate_key_diagnostics(draft) ++
+      stable_reference_diagnostics(draft) ++
       missing_pool_diagnostics(draft) ++
       missing_item_type_diagnostics(draft) ++
+      duplicate_event_role_diagnostics(draft) ++
+      direct_goal_target_diagnostics(draft) ++
       effect_rule_diagnostics(draft) ++
       schedule_diagnostics(draft) ++
       event_sample_diagnostics(draft)
@@ -124,6 +127,260 @@ defmodule Improve.Planning.Diagnostics do
     end)
   end
 
+  defp stable_reference_diagnostics(draft) do
+    refs = %{
+      item_types: key_set(list(draft, "item_types")),
+      items: key_set(list(draft, "items")),
+      environments: key_set(list(draft, "environments")),
+      event_types: key_set(list(draft, "event_types")),
+      session_templates: key_set(list(draft, "session_templates")),
+      direct_goals: key_set(list(draft, "direct_goals"))
+    }
+
+    []
+    |> missing_refs(list(draft, "items"), :missing_item_type, "item_type_key", refs.item_types)
+    |> missing_refs(list(draft, "pools"), :missing_item, "item_keys", refs.items)
+    |> missing_refs(list(draft, "environments"), :missing_item, "available_item_keys", refs.items)
+    |> missing_refs(
+      list(draft, "direct_goals"),
+      :missing_event_type,
+      "event_type_key",
+      refs.event_types
+    )
+    |> missing_session_environment_refs(draft, refs)
+    |> missing_schedule_owner_refs(draft, refs)
+    |> missing_sample_event_refs(draft, refs)
+  end
+
+  defp missing_refs(diagnostics, records, code, field, valid_refs) do
+    Enum.flat_map(records, fn record ->
+      record
+      |> list(field)
+      |> case do
+        [] -> [value(record, field)]
+        refs -> refs
+      end
+      |> Enum.reject(&blank?/1)
+      |> Enum.reject(&MapSet.member?(valid_refs, &1))
+      |> Enum.map(fn ref ->
+        missing_ref_diagnostic(code, record, field, ref)
+      end)
+    end) ++ diagnostics
+  end
+
+  defp missing_session_environment_refs(diagnostics, draft, refs) do
+    draft
+    |> list("session_templates")
+    |> Enum.flat_map(fn template ->
+      environment_key = value(template, "environment_key")
+
+      if present?(environment_key) and not MapSet.member?(refs.environments, environment_key) do
+        [
+          diagnostic(
+            :missing_environment,
+            "This session template points at an environment that does not exist.",
+            %{session_template_key: value(template, "key"), environment_key: environment_key},
+            path: ["session_templates", value(template, "key"), "environment_key"],
+            ref: environment_key
+          )
+        ]
+      else
+        []
+      end
+    end)
+    |> Kernel.++(diagnostics)
+  end
+
+  defp missing_schedule_owner_refs(diagnostics, draft, refs) do
+    draft
+    |> list("schedules")
+    |> Enum.flat_map(fn schedule ->
+      owner_type = schedule |> value("owner_type") |> normalize_string()
+      owner_key = value(schedule, "owner_key")
+
+      cond do
+        owner_type == "session_template" and not MapSet.member?(refs.session_templates, owner_key) ->
+          [
+            diagnostic(
+              :missing_schedule_owner,
+              "This schedule points at a session template that does not exist.",
+              %{
+                schedule_key: value(schedule, "key"),
+                owner_type: owner_type,
+                owner_key: owner_key
+              },
+              path: schedule_path(schedule) ++ ["owner_key"],
+              ref: owner_key
+            )
+          ]
+
+        owner_type == "direct_goal" and not MapSet.member?(refs.direct_goals, owner_key) ->
+          [
+            diagnostic(
+              :missing_schedule_owner,
+              "This schedule points at a direct goal that does not exist.",
+              %{
+                schedule_key: value(schedule, "key"),
+                owner_type: owner_type,
+                owner_key: owner_key
+              },
+              path: schedule_path(schedule) ++ ["owner_key"],
+              ref: owner_key
+            )
+          ]
+
+        owner_type not in ["session_template", "direct_goal"] ->
+          [
+            diagnostic(
+              :unsupported_schedule_owner_type,
+              "This schedule owner type is not supported.",
+              %{schedule_key: value(schedule, "key"), owner_type: owner_type},
+              path: schedule_path(schedule) ++ ["owner_type"],
+              ref: owner_type
+            )
+          ]
+
+        true ->
+          []
+      end
+    end)
+    |> Kernel.++(diagnostics)
+  end
+
+  defp missing_sample_event_refs(diagnostics, draft, refs) do
+    draft
+    |> list("sample_events", fallback: "events")
+    |> Enum.flat_map(fn event ->
+      event_type_key = value(event, "event_type_key")
+      direct_goal_key = value(event, "direct_goal_key")
+
+      missing_event_type =
+        if present?(event_type_key) and not MapSet.member?(refs.event_types, event_type_key) do
+          [
+            diagnostic(
+              :missing_event_type,
+              "This sample event points at an event type that does not exist.",
+              %{event_key: event_ref(event), event_type_key: event_type_key},
+              path: event_path(event) ++ ["event_type_key"],
+              ref: event_type_key
+            )
+          ]
+        else
+          []
+        end
+
+      missing_direct_goal =
+        if present?(direct_goal_key) and not MapSet.member?(refs.direct_goals, direct_goal_key) do
+          [
+            diagnostic(
+              :missing_direct_goal,
+              "This sample event points at a direct goal that does not exist.",
+              %{event_key: event_ref(event), direct_goal_key: direct_goal_key},
+              path: event_path(event) ++ ["direct_goal_key"],
+              ref: direct_goal_key
+            )
+          ]
+        else
+          []
+        end
+
+      missing_event_type ++ missing_direct_goal
+    end)
+    |> Kernel.++(diagnostics)
+  end
+
+  defp missing_ref_diagnostic(:missing_item_type, record, field, ref) do
+    diagnostic(
+      :missing_item_type,
+      "This item points at an item type that does not exist.",
+      %{key: value(record, "key"), field: field, ref: ref},
+      path: ["items", value(record, "key"), field],
+      ref: ref
+    )
+  end
+
+  defp missing_ref_diagnostic(:missing_item, record, field, ref) do
+    diagnostic(
+      :missing_item,
+      "This draft points at an item that does not exist.",
+      %{key: value(record, "key"), field: field, ref: ref},
+      path: [value(record, "key"), field],
+      ref: ref
+    )
+  end
+
+  defp missing_ref_diagnostic(:missing_event_type, record, field, ref) do
+    diagnostic(
+      :missing_event_type,
+      "This direct goal points at an event type that does not exist.",
+      %{direct_goal_key: value(record, "key"), field: field, ref: ref},
+      path: ["direct_goals", value(record, "key"), field],
+      ref: ref
+    )
+  end
+
+  defp duplicate_event_role_diagnostics(draft) do
+    draft
+    |> list("event_types")
+    |> Enum.flat_map(fn event_type ->
+      event_type
+      |> item_link_roles()
+      |> Enum.group_by(&value(&1, "role"))
+      |> Enum.flat_map(fn
+        {role, roles} when not is_nil(role) and length(roles) > 1 ->
+          [
+            diagnostic(
+              :duplicate_item_link_role,
+              "This event type defines the same item link role more than once.",
+              %{event_type_key: value(event_type, "key"), role: role, count: length(roles)},
+              path: ["event_types", value(event_type, "key"), "item_link_roles", role],
+              ref: role
+            )
+          ]
+
+        _other ->
+          []
+      end)
+    end)
+  end
+
+  defp direct_goal_target_diagnostics(draft) do
+    draft
+    |> list("direct_goals")
+    |> Enum.flat_map(fn goal ->
+      target = value(goal, "target") || %{}
+      quantity = value(target, "quantity")
+      unit = value(target, "unit")
+
+      cond do
+        present?(quantity) and blank?(unit) ->
+          [
+            diagnostic(
+              :direct_goal_target_unit_missing,
+              "This direct goal target has a quantity but no unit.",
+              %{direct_goal_key: value(goal, "key"), quantity: quantity},
+              path: ["direct_goals", value(goal, "key"), "target", "unit"],
+              ref: value(goal, "key")
+            )
+          ]
+
+        present?(unit) and blank?(quantity) ->
+          [
+            diagnostic(
+              :direct_goal_target_quantity_missing,
+              "This direct goal target has a unit but no quantity.",
+              %{direct_goal_key: value(goal, "key"), unit: unit},
+              path: ["direct_goals", value(goal, "key"), "target", "quantity"],
+              ref: value(goal, "key")
+            )
+          ]
+
+        true ->
+          []
+      end
+    end)
+  end
+
   defp effect_rule_diagnostics(draft) do
     draft
     |> list("event_types")
@@ -158,6 +415,22 @@ defmodule Improve.Planning.Diagnostics do
               %{kind: kind},
               path: schedule_path(schedule) ++ ["kind"],
               ref: kind
+            )
+          ]
+
+        kind == "times_per_week" and
+          not is_list(value(value(schedule, "rules") || %{}, "allowed_weekdays")) and
+            present?(value(value(schedule, "rules") || %{}, "allowed_weekdays")) ->
+          [
+            diagnostic(
+              :unsupported_schedule_rule_shape,
+              "This times-per-week schedule has allowed_weekdays, but it is not a list.",
+              %{
+                kind: kind,
+                allowed_weekdays: value(value(schedule, "rules") || %{}, "allowed_weekdays")
+              },
+              path: schedule_path(schedule) ++ ["rules", "allowed_weekdays"],
+              ref: value(schedule, "key")
             )
           ]
 
