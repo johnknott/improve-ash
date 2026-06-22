@@ -87,6 +87,7 @@ defmodule Improve.Journal.LogEventCommand do
     command
     |> Map.from_struct()
     |> Map.drop([:item_links, :idempotency, :replaces_item_effect_id])
+    |> Map.merge(idempotency_attrs(command.idempotency))
   end
 
   defp diagnostics(command) do
@@ -134,11 +135,15 @@ defmodule Improve.Journal.LogEventCommand do
   defp validate_idempotency(diagnostics, %{idempotency: nil}), do: diagnostics
 
   defp validate_idempotency(diagnostics, %{idempotency: %Idempotency{} = idempotency}) do
-    if blank?(idempotency.client_operation_id) and blank?(idempotency.idempotency_key) do
-      diagnostics ++ ["Idempotency requires a client operation ID or idempotency key."]
-    else
-      diagnostics
-    end
+    diagnostics
+    |> maybe_add(
+      blank?(idempotency.client_device_id),
+      "Idempotency requires a client device ID."
+    )
+    |> maybe_add(
+      blank?(idempotency.client_operation_id) and blank?(idempotency.idempotency_key),
+      "Idempotency requires a client operation ID or idempotency key."
+    )
   end
 
   defp validate_idempotency(diagnostics, _command) do
@@ -184,6 +189,17 @@ defmodule Improve.Journal.LogEventCommand do
   end
 
   defp normalize_origin(origin), do: origin
+
+  defp idempotency_attrs(nil), do: %{}
+
+  defp idempotency_attrs(%Idempotency{} = idempotency) do
+    %{
+      client_event_id: idempotency.client_event_id,
+      client_operation_id: idempotency.client_operation_id,
+      client_device_id: idempotency.client_device_id,
+      idempotency_key: idempotency.idempotency_key
+    }
+  end
 
   defp value(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, Atom.to_string(key), default))

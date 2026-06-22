@@ -122,6 +122,72 @@ defmodule Improve.Journal.GenericEventLoggingTest do
       assert Enum.map(state.active_effects, & &1.id) == [effect.id]
     end
 
+    test "idempotently returns the original event for repeated offline submissions" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-idempotent-log@example.com",
+          full_name: "Generic Idempotent Log"
+        })
+
+      %{plan: plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      attrs = %{
+        plan_id: plan.id,
+        event_type_id: event_types["take_dose"].id,
+        effective_at: ~U[2026-06-22 08:00:00Z],
+        recorded_at: ~U[2026-06-22 08:01:00Z],
+        summary: "Offline dose recorded from Retatrutide vial 1",
+        quantity: 250,
+        unit: "mcg",
+        payload: %{
+          "amount" => 250,
+          "unit" => "mcg",
+          "route" => "subcutaneous",
+          "site" => "abdomen"
+        },
+        origin: :offline_sync,
+        item_links: [
+          %{role: "source_vial", item_id: items["retatrutide_vial_1"].id}
+        ],
+        idempotency: %{
+          client_event_id: "client-event-1",
+          client_operation_id: "client-operation-1",
+          client_device_id: "device-1",
+          idempotency_key: "idempotency-1"
+        }
+      }
+
+      first = Journal.log_generic_event!(attrs, actor: user)
+      second = Journal.log_generic_event!(attrs, actor: user)
+
+      assert first.idempotency_status == :accepted
+      assert second.idempotency_status == :duplicate
+      assert second.event.id == first.event.id
+      assert second.event.client_event_id == "client-event-1"
+      assert second.event.client_operation_id == "client-operation-1"
+      assert second.event.client_device_id == "device-1"
+      assert second.event.idempotency_key == "idempotency-1"
+
+      assert Enum.map(second.event_item_links, & &1.id) ==
+               Enum.map(first.event_item_links, & &1.id)
+
+      assert Enum.map(second.item_effects, & &1.id) == Enum.map(first.item_effects, & &1.id)
+
+      events = Journal.read_journal!(plan, actor: user)
+      effects = Journal.list_item_effects!(actor: user, query: [filter: [plan_id: plan.id]])
+
+      assert Enum.map(events, & &1.id) == [first.event.id]
+      assert Enum.map(effects, & &1.event_instance_id) == [first.event.id]
+    end
+
     test "returns command diagnostics before starting persistence" do
       user =
         Accounts.create_user!(%{

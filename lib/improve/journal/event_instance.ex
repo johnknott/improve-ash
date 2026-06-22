@@ -13,6 +13,13 @@ defmodule Improve.Journal.EventInstance do
   postgres do
     table "event_instances"
     repo Improve.Repo
+
+    identity_wheres_to_sql(
+      unique_client_operation_per_plan_device:
+        "client_device_id IS NOT NULL AND client_operation_id IS NOT NULL",
+      unique_idempotency_key_per_plan_device:
+        "client_device_id IS NOT NULL AND idempotency_key IS NOT NULL"
+    )
   end
 
   actions do
@@ -36,7 +43,11 @@ defmodule Improve.Journal.EventInstance do
         :note,
         :status,
         :origin,
-        :replaces_event_instance_id
+        :replaces_event_instance_id,
+        :client_event_id,
+        :client_operation_id,
+        :client_device_id,
+        :idempotency_key
       ]
 
       validate {Improve.Validations.SamePlan,
@@ -124,6 +135,22 @@ defmodule Improve.Journal.EventInstance do
       public? true
     end
 
+    attribute :client_event_id, :string do
+      public? true
+    end
+
+    attribute :client_operation_id, :string do
+      public? true
+    end
+
+    attribute :client_device_id, :string do
+      public? true
+    end
+
+    attribute :idempotency_key, :string do
+      public? true
+    end
+
     create_timestamp :inserted_at, public?: true
     update_timestamp :updated_at, public?: true
   end
@@ -157,5 +184,15 @@ defmodule Improve.Journal.EventInstance do
 
     has_many :event_item_links, Improve.Journal.EventItemLink
     has_many :item_effects, Improve.Journal.ItemEffect
+  end
+
+  identities do
+    identity :unique_client_operation_per_plan_device,
+             [:plan_id, :client_device_id, :client_operation_id],
+             where: expr(not is_nil(client_device_id) and not is_nil(client_operation_id))
+
+    identity :unique_idempotency_key_per_plan_device,
+             [:plan_id, :client_device_id, :idempotency_key],
+             where: expr(not is_nil(client_device_id) and not is_nil(idempotency_key))
   end
 end

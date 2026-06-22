@@ -399,6 +399,14 @@ defmodule Improve.Journal do
   end
 
   defp persist_log_event_command!(command, actor, opts \\ []) do
+    if duplicate = existing_idempotent_log(command, actor) do
+      duplicate
+    else
+      create_log_event_command!(command, actor, opts)
+    end
+  end
+
+  defp create_log_event_command!(command, actor, opts) do
     event =
       create!(
         __MODULE__,
@@ -433,7 +441,67 @@ defmodule Improve.Journal do
       event: event,
       event_item_links: event_item_links,
       item_effects: item_effects,
-      slot_result: slot_result
+      slot_result: slot_result,
+      idempotency_status: :accepted
+    }
+  end
+
+  defp existing_idempotent_log(%{idempotency: nil}, _actor), do: nil
+
+  defp existing_idempotent_log(command, actor) do
+    command
+    |> idempotency_queries()
+    |> Enum.find_value(fn filters ->
+      case list_events(actor: actor, query: [filter: filters, limit: 1]) do
+        {:ok, [event | _]} -> existing_log_result(event, actor)
+        {:ok, []} -> nil
+      end
+    end)
+  end
+
+  defp idempotency_queries(%{plan_id: plan_id, idempotency: idempotency}) do
+    base_filters = [
+      plan_id: plan_id,
+      client_device_id: idempotency.client_device_id
+    ]
+
+    []
+    |> maybe_add_filter(base_filters, :client_operation_id, idempotency.client_operation_id)
+    |> maybe_add_filter(base_filters, :idempotency_key, idempotency.idempotency_key)
+  end
+
+  defp maybe_add_filter(filters, _base_filters, _field, nil), do: filters
+  defp maybe_add_filter(filters, _base_filters, _field, ""), do: filters
+
+  defp maybe_add_filter(filters, base_filters, field, value) do
+    filters ++ [Keyword.put(base_filters, field, value)]
+  end
+
+  defp existing_log_result(event, actor) do
+    event_item_links =
+      list_event_item_links!(
+        actor: actor,
+        query: [filter: [event_instance_id: event.id]]
+      )
+
+    item_effects =
+      list_item_effects!(
+        actor: actor,
+        query: [filter: [event_instance_id: event.id]]
+      )
+
+    slot_result =
+      case event.slot_result_id do
+        nil -> nil
+        slot_result_id -> Sessions.get_slot_result!(slot_result_id, actor: actor)
+      end
+
+    %{
+      event: event,
+      event_item_links: event_item_links,
+      item_effects: item_effects,
+      slot_result: slot_result,
+      idempotency_status: :duplicate
     }
   end
 

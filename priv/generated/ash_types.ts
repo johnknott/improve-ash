@@ -11,7 +11,7 @@ export type UtcDateTimeUsec = string;
 // EventInstance Schema
 export type EventInstanceResourceSchema = {
   __type: "Resource";
-  __primitiveFields: "id" | "effectiveAt" | "recordedAt" | "summary" | "quantity" | "unit" | "payload" | "note" | "status" | "origin" | "voidedAt" | "insertedAt" | "updatedAt" | "planId" | "eventTypeId" | "sessionOccurrenceId" | "slotResultId" | "directGoalId" | "replacesEventInstanceId";
+  __primitiveFields: "id" | "effectiveAt" | "recordedAt" | "summary" | "quantity" | "unit" | "payload" | "note" | "status" | "origin" | "voidedAt" | "clientEventId" | "clientOperationId" | "clientDeviceId" | "idempotencyKey" | "insertedAt" | "updatedAt" | "planId" | "eventTypeId" | "sessionOccurrenceId" | "slotResultId" | "directGoalId" | "replacesEventInstanceId";
   id: UUID;
   effectiveAt: UtcDateTimeUsec;
   recordedAt: UtcDateTimeUsec;
@@ -23,6 +23,10 @@ export type EventInstanceResourceSchema = {
   status: "active" | "corrected" | "voided";
   origin: "assistant_proposed" | "imported" | "manual" | "offline_sync" | "seed";
   voidedAt: UtcDateTimeUsec | null;
+  clientEventId: string | null;
+  clientOperationId: string | null;
+  clientDeviceId: string | null;
+  idempotencyKey: string | null;
   insertedAt: UtcDateTimeUsec;
   updatedAt: UtcDateTimeUsec;
   planId: UUID;
@@ -40,7 +44,7 @@ export type EventInstanceResourceSchema = {
 
 export type EventInstanceAttributesOnlySchema = {
   __type: "Resource";
-  __primitiveFields: "id" | "effectiveAt" | "recordedAt" | "summary" | "quantity" | "unit" | "payload" | "note" | "status" | "origin" | "voidedAt" | "insertedAt" | "updatedAt" | "planId" | "eventTypeId" | "sessionOccurrenceId" | "slotResultId" | "directGoalId" | "replacesEventInstanceId";
+  __primitiveFields: "id" | "effectiveAt" | "recordedAt" | "summary" | "quantity" | "unit" | "payload" | "note" | "status" | "origin" | "voidedAt" | "clientEventId" | "clientOperationId" | "clientDeviceId" | "idempotencyKey" | "insertedAt" | "updatedAt" | "planId" | "eventTypeId" | "sessionOccurrenceId" | "slotResultId" | "directGoalId" | "replacesEventInstanceId";
   id: UUID;
   effectiveAt: UtcDateTimeUsec;
   recordedAt: UtcDateTimeUsec;
@@ -52,6 +56,10 @@ export type EventInstanceAttributesOnlySchema = {
   status: "active" | "corrected" | "voided";
   origin: "assistant_proposed" | "imported" | "manual" | "offline_sync" | "seed";
   voidedAt: UtcDateTimeUsec | null;
+  clientEventId: string | null;
+  clientOperationId: string | null;
+  clientDeviceId: string | null;
+  idempotencyKey: string | null;
   insertedAt: UtcDateTimeUsec;
   updatedAt: UtcDateTimeUsec;
   planId: UUID;
@@ -305,6 +313,34 @@ export type EventInstanceFilterInput = {
     lessThan?: UtcDateTimeUsec;
     lessThanOrEqual?: UtcDateTimeUsec;
     in?: Array<UtcDateTimeUsec>;
+    isNil?: boolean;
+  };
+
+  clientEventId?: {
+    eq?: string;
+    notEq?: string;
+    in?: Array<string>;
+    isNil?: boolean;
+  };
+
+  clientOperationId?: {
+    eq?: string;
+    notEq?: string;
+    in?: Array<string>;
+    isNil?: boolean;
+  };
+
+  clientDeviceId?: {
+    eq?: string;
+    notEq?: string;
+    in?: Array<string>;
+    isNil?: boolean;
+  };
+
+  idempotencyKey?: {
+    eq?: string;
+    notEq?: string;
+    in?: Array<string>;
     isNil?: boolean;
   };
 
@@ -767,7 +803,7 @@ export type SessionOccurrenceFilterInput = {
 };
 
 
-export const eventInstanceFilterFields = ["id", "effectiveAt", "recordedAt", "summary", "quantity", "unit", "payload", "note", "status", "origin", "voidedAt", "insertedAt", "updatedAt", "planId", "eventTypeId", "sessionOccurrenceId", "slotResultId", "directGoalId", "replacesEventInstanceId", "plan", "eventType", "sessionOccurrence", "slotResult", "directGoal", "replacesEventInstance"] as const;
+export const eventInstanceFilterFields = ["id", "effectiveAt", "recordedAt", "summary", "quantity", "unit", "payload", "note", "status", "origin", "voidedAt", "clientEventId", "clientOperationId", "clientDeviceId", "idempotencyKey", "insertedAt", "updatedAt", "planId", "eventTypeId", "sessionOccurrenceId", "slotResultId", "directGoalId", "replacesEventInstanceId", "plan", "eventType", "sessionOccurrence", "slotResult", "directGoal", "replacesEventInstance"] as const;
 export type EventInstanceFilterField = (typeof eventInstanceFilterFields)[number];
 
 export const itemEffectFilterFields = ["id", "effectType", "quantity", "unit", "payload", "status", "voidedAt", "insertedAt", "updatedAt", "planId", "itemId", "eventInstanceId", "replacesItemEffectId", "plan", "item", "eventInstance", "replacesItemEffect"] as const;
@@ -783,7 +819,7 @@ export const sessionOccurrenceFilterFields = ["id", "plannedFor", "status", "rec
 export type SessionOccurrenceFilterField = (typeof sessionOccurrenceFilterFields)[number];
 
 
-export const eventInstanceSortFields = ["id", "effectiveAt", "recordedAt", "summary", "quantity", "unit", "payload", "note", "status", "origin", "voidedAt", "insertedAt", "updatedAt", "planId", "eventTypeId", "sessionOccurrenceId", "slotResultId", "directGoalId", "replacesEventInstanceId"] as const;
+export const eventInstanceSortFields = ["id", "effectiveAt", "recordedAt", "summary", "quantity", "unit", "payload", "note", "status", "origin", "voidedAt", "clientEventId", "clientOperationId", "clientDeviceId", "idempotencyKey", "insertedAt", "updatedAt", "planId", "eventTypeId", "sessionOccurrenceId", "slotResultId", "directGoalId", "replacesEventInstanceId"] as const;
 export type EventInstanceSortField = (typeof eventInstanceSortFields)[number];
 
 export const itemEffectSortFields = ["id", "effectType", "quantity", "unit", "payload", "status", "voidedAt", "insertedAt", "updatedAt", "planId", "itemId", "eventInstanceId", "replacesItemEffectId"] as const;

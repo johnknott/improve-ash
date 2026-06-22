@@ -97,6 +97,7 @@ defmodule Improve.Journal.LogEventCommandTest do
                "Item link 1 role is required.",
                "Item link 2 item is required.",
                "Item link 3 must be a map.",
+               "Idempotency requires a client device ID.",
                "Idempotency requires a client operation ID or idempotency key."
              ]
     end
@@ -110,7 +111,12 @@ defmodule Improve.Journal.LogEventCommandTest do
           recorded_at: ~U[2026-06-22 12:05:00Z],
           summary: "Logged",
           item_links: [%{role: "item", item_id: "item-1"}],
-          idempotency: %{client_operation_id: "client-op-1"}
+          idempotency: %{
+            client_event_id: "client-event-1",
+            client_operation_id: "client-op-1",
+            client_device_id: "device-1",
+            idempotency_key: "idem-1"
+          }
         })
 
       event_attrs = LogEventCommand.to_event_attrs(command)
@@ -120,6 +126,10 @@ defmodule Improve.Journal.LogEventCommandTest do
       refute Map.has_key?(event_attrs, :replaces_item_effect_id)
       assert event_attrs.plan_id == "plan-1"
       assert event_attrs.summary == "Logged"
+      assert event_attrs.client_event_id == "client-event-1"
+      assert event_attrs.client_operation_id == "client-op-1"
+      assert event_attrs.client_device_id == "device-1"
+      assert event_attrs.idempotency_key == "idem-1"
     end
   end
 end
