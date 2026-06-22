@@ -3,6 +3,7 @@ defmodule Improve.Journal do
     extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
+  alias Improve.Journal.LogEventCommand
   alias Improve.Planning.EffectRuleInterpreter
   alias Improve.Plans
   alias Improve.Repo
@@ -41,6 +42,62 @@ defmodule Improve.Journal do
   end
 
   @notifications_key {__MODULE__, :notifications}
+
+  def log_generic_event(attrs, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    with {:ok, command} <- LogEventCommand.from_attrs(attrs) do
+      Repo.transaction(fn ->
+        reset_notifications!()
+
+        event_type = Plans.get_event_type!(command.event_type_id, actor: actor)
+
+        event =
+          create!(
+            __MODULE__,
+            :log_event!,
+            actor,
+            LogEventCommand.to_event_attrs(command)
+          )
+
+        event_item_links =
+          Enum.map(
+            command.item_links,
+            &create_event_item_link_from_command!(&1, command, event, actor)
+          )
+
+        item_effects =
+          event_type
+          |> effect_specs(command.payload, command.item_links)
+          |> Enum.map(&create_item_effect_from_spec!(&1, %{id: command.plan_id}, event, actor))
+
+        slot_result = update_linked_slot_result(command, event, actor)
+
+        {%{
+           event: event,
+           event_item_links: event_item_links,
+           item_effects: item_effects,
+           slot_result: slot_result
+         }, take_notifications!()}
+      end)
+      |> case do
+        {:ok, {result, notifications}} ->
+          Ash.Notifier.notify(notifications)
+          {:ok, result}
+
+        {:error, error} ->
+          {:error, error}
+      end
+    end
+  end
+
+  def log_generic_event!(attrs, opts) do
+    case log_generic_event(attrs, opts) do
+      {:ok, result} -> result
+      {:error, error} when is_list(error) -> raise ArgumentError, Enum.join(error, " ")
+      {:error, error} -> raise inspect(error)
+    end
+  end
 
   def log_session_item_event!(attrs, opts) do
     actor = Keyword.fetch!(opts, :actor)
@@ -361,9 +418,38 @@ defmodule Improve.Journal do
     )
   end
 
-  defp update_slot_result!(slot_result, item, event, actor) do
+  defp create_event_item_link_from_command!(item_link, command, event, actor) do
+    create!(
+      __MODULE__,
+      :create_event_item_link!,
+      actor,
+      %{
+        plan_id: command.plan_id,
+        event_instance_id: event.id,
+        item_id: item_link.item_id,
+        role: item_link.role,
+        metadata: item_link.metadata
+      }
+    )
+  end
+
+  defp update_linked_slot_result(%{slot_result_id: nil}, _event, _actor), do: nil
+
+  defp update_linked_slot_result(%{item_links: []}, _event, _actor), do: nil
+
+  defp update_linked_slot_result(command, event, actor) do
+    slot_result = Sessions.get_slot_result!(command.slot_result_id, actor: actor)
+    [%{item_id: item_id} | _] = command.item_links
+    update_slot_result!(slot_result, item_id, event, actor)
+  end
+
+  defp update_slot_result!(slot_result, %{id: item_id}, event, actor) do
+    update_slot_result!(slot_result, item_id, event, actor)
+  end
+
+  defp update_slot_result!(slot_result, item_id, event, actor) do
     function =
-      if slot_result.recommended_item_id == item.id do
+      if slot_result.recommended_item_id == item_id do
         :complete_slot_result!
       else
         :swap_slot_result!
@@ -375,7 +461,7 @@ defmodule Improve.Journal do
       actor,
       slot_result,
       %{
-        actual_item_id: item.id,
+        actual_item_id: item_id,
         event_instance_id: event.id
       }
     )
