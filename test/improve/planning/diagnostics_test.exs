@@ -127,14 +127,24 @@ defmodule Improve.Planning.DiagnosticsTest do
 
     test "returns an empty list for a supported minimal draft" do
       draft = %{
+        schema: "improve.plan_draft",
+        version: 1,
+        key: "minimal",
+        name: "Minimal Plan",
         item_types: [%{key: "exercise", name: "Exercise"}],
+        items: [%{key: "chest_press", name: "Chest Press", item_type_key: "exercise"}],
         pools: [%{key: "push", name: "Push"}],
         session_templates: [
-          %{key: "upper", slots: [%{key: "press", pool_key: "push"}]}
+          %{
+            key: "upper",
+            name: "Upper",
+            slots: [%{key: "press", name: "Press", pool_key: "push"}]
+          }
         ],
         event_types: [
           %{
             key: "workout_set",
+            name: "Workout Set",
             item_link_roles: %{
               roles: [%{role: "exercise", item_type_key: "exercise", required: true}]
             },
@@ -146,13 +156,15 @@ defmodule Improve.Planning.DiagnosticsTest do
             key: "upper_weekdays",
             owner_type: "session_template",
             owner_key: "upper",
-            kind: "selected_weekdays"
+            kind: "selected_weekdays",
+            starts_on: ~D[2026-06-22]
           }
         ],
         sample_events: [
           %{
             key: "set_1",
             event_type_key: "workout_set",
+            effective_at: ~U[2026-06-22 12:00:00Z],
             item_links: %{exercise: "chest_press"},
             payload: %{reps: 10}
           }
@@ -160,6 +172,61 @@ defmodule Improve.Planning.DiagnosticsTest do
       }
 
       assert Diagnostics.validate_plan_draft(draft) == []
+    end
+
+    test "returns diagnostics for required schema fields before import" do
+      draft = %{
+        schema: "improve.plan_draft",
+        version: 1,
+        item_types: [
+          %{key: "exercise"}
+        ],
+        items: [
+          %{key: "chest_press", name: "Chest Press"}
+        ],
+        event_types: [
+          %{name: "Workout Set"}
+        ],
+        session_templates: [
+          %{
+            key: "upper",
+            name: "Upper",
+            slots: [
+              %{key: "press", name: "Press"}
+            ]
+          }
+        ],
+        direct_goals: [
+          %{key: "sets", name: "Sets"}
+        ],
+        schedules: [
+          %{
+            key: "daily_sets",
+            owner_type: "direct_goal",
+            owner_key: "sets",
+            kind: "every_day"
+          }
+        ],
+        sample_events: [
+          %{key: "set_1", event_type_key: "workout_set"}
+        ]
+      }
+
+      required_paths =
+        draft
+        |> Diagnostics.validate_plan_draft()
+        |> Enum.filter(&(&1.code == :missing_required_field))
+        |> Enum.map(& &1.path)
+
+      assert ["key"] in required_paths
+      assert ["name"] in required_paths
+      assert ["item_types", "exercise", "name"] in required_paths
+      assert ["items", "chest_press", "item_type_key"] in required_paths
+      assert ["event_types", "0", "key"] in required_paths
+      assert ["direct_goals", "sets", "event_type_key"] in required_paths
+      assert ["schedules", "daily_sets", "starts_on"] in required_paths
+      assert ["sample_events", "set_1", "effective_at"] in required_paths
+      assert ["session_templates", "upper", "slots", "press", "pool_key"] in required_paths
     end
 
     test "returns diagnostics for stable-key references and policy shape mistakes" do

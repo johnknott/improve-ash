@@ -8,10 +8,12 @@ defmodule Improve.Planning.Diagnostics do
   @keyed_collections ~w(item_types items pools environments event_types session_templates direct_goals schedules sample_events)
   @quantity_effect_types ~w(add_quantity subtract_quantity set_quantity correction)
 
+  alias Improve.Planning.PlanDraft
   alias Improve.Planning.PathReader
 
   def validate_plan_draft(draft) do
-    duplicate_key_diagnostics(draft) ++
+    schema_required_diagnostics(draft) ++
+      duplicate_key_diagnostics(draft) ++
       stable_reference_diagnostics(draft) ++
       missing_pool_diagnostics(draft) ++
       missing_item_type_diagnostics(draft) ++
@@ -20,6 +22,124 @@ defmodule Improve.Planning.Diagnostics do
       effect_rule_diagnostics(draft) ++
       schedule_diagnostics(draft) ++
       event_sample_diagnostics(draft)
+  end
+
+  defp schema_required_diagnostics(draft) do
+    schema = PlanDraft.schema()
+
+    top_level_required_diagnostics(draft, schema.top_level.required) ++
+      collection_required_diagnostics(draft, schema.collections)
+  end
+
+  defp top_level_required_diagnostics(draft, required_fields) do
+    Enum.flat_map(required_fields, fn field ->
+      if blank?(value(draft, field)) do
+        [
+          missing_required_field_diagnostic(
+            "This plan draft is missing a required top-level field.",
+            %{field: field},
+            path: [Atom.to_string(field)],
+            ref: Atom.to_string(field)
+          )
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  defp collection_required_diagnostics(draft, collections) do
+    Enum.flat_map(collections, fn {collection, spec} ->
+      collection_key = Atom.to_string(collection)
+
+      records =
+        draft
+        |> list(collection_key, fallback: collection_fallback(collection))
+        |> Enum.with_index()
+
+      record_diagnostics =
+        Enum.flat_map(records, fn {record, index} ->
+          required_record_field_diagnostics(collection_key, record, index, spec.required)
+        end)
+
+      child_diagnostics =
+        Enum.flat_map(Map.get(spec, :children, %{}), fn {child_collection, child_spec} ->
+          child_collection_key = Atom.to_string(child_collection)
+
+          Enum.flat_map(records, fn {record, index} ->
+            parent_ref = record_ref(record, index)
+
+            record
+            |> list(child_collection_key)
+            |> Enum.with_index()
+            |> Enum.flat_map(fn {child, child_index} ->
+              required_child_field_diagnostics(
+                collection_key,
+                parent_ref,
+                child_collection_key,
+                child,
+                child_index,
+                child_spec.required
+              )
+            end)
+          end)
+        end)
+
+      record_diagnostics ++ child_diagnostics
+    end)
+  end
+
+  defp required_record_field_diagnostics(collection, record, index, required_fields) do
+    Enum.flat_map(required_fields, fn field ->
+      if blank?(value(record, field)) do
+        [
+          missing_required_field_diagnostic(
+            "This #{human_collection(collection)} entry is missing a required field.",
+            %{collection: collection, field: field, record: record_ref(record, index)},
+            path: [collection, record_ref(record, index), Atom.to_string(field)],
+            ref: Atom.to_string(field)
+          )
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  defp required_child_field_diagnostics(
+         collection,
+         parent_ref,
+         child_collection,
+         child,
+         child_index,
+         required_fields
+       ) do
+    Enum.flat_map(required_fields, fn field ->
+      if blank?(value(child, field)) do
+        [
+          missing_required_field_diagnostic(
+            "This #{human_collection(child_collection)} entry is missing a required field.",
+            %{
+              collection: collection,
+              parent: parent_ref,
+              child_collection: child_collection,
+              field: field,
+              record: record_ref(child, child_index)
+            },
+            path: [
+              collection,
+              parent_ref,
+              child_collection,
+              record_ref(child, child_index),
+              Atom.to_string(field)
+            ],
+            ref: Atom.to_string(field)
+          )
+        ]
+      else
+        []
+      end
+    end)
   end
 
   def validate_event_type(event_type, opts \\ []) do
@@ -321,6 +441,10 @@ defmodule Improve.Planning.Diagnostics do
     )
   end
 
+  defp missing_required_field_diagnostic(message, details, opts) do
+    diagnostic(:missing_required_field, message, details, opts)
+  end
+
   defp duplicate_event_role_diagnostics(draft) do
     draft
     |> list("event_types")
@@ -603,6 +727,11 @@ defmodule Improve.Planning.Diagnostics do
 
   defp event_ref(event),
     do: value(event, "key") || value(event, "id") || value(event, "event_type_key")
+
+  defp record_ref(record, index), do: value(record, "key") || Integer.to_string(index)
+
+  defp collection_fallback(:sample_events), do: "events"
+  defp collection_fallback(_collection), do: nil
 
   defp payload_path("payload." <> path), do: ["payload" | String.split(path, ".")]
   defp payload_path(path) when is_binary(path), do: ["payload", path]
