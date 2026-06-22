@@ -188,6 +188,104 @@ defmodule Improve.Journal.GenericEventLoggingTest do
       assert Enum.map(effects, & &1.event_instance_id) == [first.event.id]
     end
 
+    test "submits mixed offline batches without rolling back independent accepted logs" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-offline-batch@example.com",
+          full_name: "Generic Offline Batch"
+        })
+
+      %{plan: plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+      %{plan: other_plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      other_items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: other_plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      accepted_attrs =
+        offline_dose_attrs(
+          plan,
+          event_types["take_dose"],
+          items["retatrutide_vial_1"],
+          "batch-op-1",
+          "batch-key-1"
+        )
+
+      duplicate_attrs = accepted_attrs
+
+      rejected_attrs =
+        accepted_attrs
+        |> Map.delete(:summary)
+        |> put_in([:idempotency, :client_operation_id], "batch-op-2")
+        |> put_in([:idempotency, :idempotency_key], "batch-key-2")
+
+      needs_resolution_attrs =
+        offline_dose_attrs(
+          plan,
+          event_types["take_dose"],
+          other_items["retatrutide_vial_1"],
+          "batch-op-3",
+          "batch-key-3"
+        )
+
+      second_accepted_attrs =
+        accepted_attrs
+        |> Map.put(:effective_at, ~U[2026-06-22 09:00:00Z])
+        |> Map.put(:recorded_at, ~U[2026-06-22 09:01:00Z])
+        |> Map.put(:summary, "Second offline dose recorded")
+        |> put_in([:idempotency, :client_operation_id], "batch-op-4")
+        |> put_in([:idempotency, :idempotency_key], "batch-key-4")
+
+      result =
+        Journal.submit_offline_event_batch!(
+          [
+            accepted_attrs,
+            duplicate_attrs,
+            rejected_attrs,
+            needs_resolution_attrs,
+            second_accepted_attrs
+          ],
+          actor: user
+        )
+
+      assert Enum.map(result.results, & &1.status) == [
+               :accepted,
+               :duplicate,
+               :rejected,
+               :needs_resolution,
+               :accepted
+             ]
+
+      [accepted, duplicate, rejected, needs_resolution, second_accepted] = result.results
+
+      assert duplicate.event_instance_id == accepted.event_instance_id
+      assert rejected.conflict_category == :invalid_payload
+      assert rejected.diagnostics == ["Summary is required."]
+      assert needs_resolution.conflict_category == :cross_plan_reference
+      refute is_nil(second_accepted.event_instance_id)
+
+      events = Journal.read_journal!(plan, actor: user)
+      effects = Journal.list_item_effects!(actor: user, query: [filter: [plan_id: plan.id]])
+
+      assert Enum.map(events, & &1.id) == [
+               accepted.event_instance_id,
+               second_accepted.event_instance_id
+             ]
+
+      assert Enum.map(effects, & &1.event_instance_id) == [
+               accepted.event_instance_id,
+               second_accepted.event_instance_id
+             ]
+    end
+
     test "returns command diagnostics before starting persistence" do
       user =
         Accounts.create_user!(%{
@@ -205,5 +303,32 @@ defmodule Improve.Journal.GenericEventLoggingTest do
                "Summary is required."
              ]
     end
+  end
+
+  defp offline_dose_attrs(plan, event_type, vial, client_operation_id, idempotency_key) do
+    %{
+      plan_id: plan.id,
+      event_type_id: event_type.id,
+      effective_at: ~U[2026-06-22 08:00:00Z],
+      recorded_at: ~U[2026-06-22 08:01:00Z],
+      summary: "Offline dose recorded from Retatrutide vial 1",
+      quantity: 250,
+      unit: "mcg",
+      payload: %{
+        "amount" => 250,
+        "unit" => "mcg",
+        "route" => "subcutaneous",
+        "site" => "abdomen"
+      },
+      item_links: [
+        %{role: "source_vial", item_id: vial.id}
+      ],
+      idempotency: %{
+        client_event_id: "#{client_operation_id}-event",
+        client_operation_id: client_operation_id,
+        client_device_id: "device-1",
+        idempotency_key: idempotency_key
+      }
+    }
   end
 end

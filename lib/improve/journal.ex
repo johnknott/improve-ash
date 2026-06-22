@@ -4,6 +4,7 @@ defmodule Improve.Journal do
     otp_app: :improve
 
   alias Improve.Journal.LogEventCommand
+  alias Improve.Journal.OfflineIngressResult
   alias Improve.Planning.EffectRuleInterpreter
   alias Improve.Plans
   alias Improve.Repo
@@ -68,6 +69,28 @@ defmodule Improve.Journal do
       {:ok, result} -> result
       {:error, error} when is_list(error) -> raise ArgumentError, Enum.join(error, " ")
       {:error, error} -> raise inspect(error)
+    end
+  end
+
+  def submit_offline_event_batch(entries, opts) when is_list(entries) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    results =
+      entries
+      |> Enum.with_index(1)
+      |> Enum.map(fn {attrs, index} -> submit_offline_event(attrs, index, actor) end)
+
+    {:ok, %{results: results}}
+  end
+
+  def submit_offline_event_batch(_entries, _opts) do
+    {:error, ["Offline event batch must be a list."]}
+  end
+
+  def submit_offline_event_batch!(entries, opts) do
+    case submit_offline_event_batch(entries, opts) do
+      {:ok, result} -> result
+      {:error, diagnostics} -> raise ArgumentError, Enum.join(diagnostics, " ")
     end
   end
 
@@ -328,6 +351,62 @@ defmodule Improve.Journal do
   defp blank?(""), do: true
   defp blank?([]), do: true
   defp blank?(_value), do: false
+
+  defp submit_offline_event(attrs, index, actor) do
+    attrs = offline_attrs(attrs)
+
+    with {:ok, _command} <- LogEventCommand.from_attrs(attrs),
+         {:ok, log_result} <- log_generic_event(attrs, actor: actor) do
+      OfflineIngressResult.accepted(index, attrs, log_result)
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        OfflineIngressResult.rejected(index, attrs, diagnostics)
+
+      {:error, error} ->
+        offline_failure_result(index, attrs, error)
+    end
+  rescue
+    error ->
+      offline_failure_result(index, attrs, error)
+  end
+
+  defp offline_attrs(attrs) when is_map(attrs) do
+    Map.put_new(attrs, :origin, :offline_sync)
+  end
+
+  defp offline_attrs(attrs), do: attrs
+
+  defp offline_failure_result(index, attrs, error) do
+    diagnostics = error_diagnostics(error)
+
+    case conflict_category(diagnostics) do
+      :invalid_payload ->
+        OfflineIngressResult.rejected(index, attrs, diagnostics)
+
+      category ->
+        OfflineIngressResult.needs_resolution(index, attrs, diagnostics, category)
+    end
+  end
+
+  defp error_diagnostics(error) when is_exception(error), do: [Exception.message(error)]
+  defp error_diagnostics(error) when is_binary(error), do: [error]
+  defp error_diagnostics(error) when is_list(error), do: error
+  defp error_diagnostics(error), do: [inspect(error)]
+
+  defp conflict_category(diagnostics) do
+    text = diagnostics |> Enum.map_join(" ", &to_string/1) |> String.downcase()
+
+    cond do
+      String.contains?(text, "must belong to the same plan") ->
+        :cross_plan_reference
+
+      String.contains?(text, "not found") ->
+        :missing_plan_record
+
+      true ->
+        :invalid_payload
+    end
+  end
 
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
