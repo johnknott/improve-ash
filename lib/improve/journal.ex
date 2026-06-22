@@ -154,6 +154,112 @@ defmodule Improve.Journal do
     end
   end
 
+  def correct_dose_event!(attrs, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    plan = Map.fetch!(attrs, :plan)
+    event_type = Map.fetch!(attrs, :event_type)
+    source_vial = Map.fetch!(attrs, :source_vial)
+    original_event = Map.fetch!(attrs, :original_event)
+    original_effect = Map.fetch!(attrs, :original_effect)
+
+    payload = %{
+      "amount" => Map.fetch!(attrs, :amount),
+      "unit" => Map.fetch!(attrs, :unit),
+      "route" => Map.get(attrs, :route),
+      "site" => Map.get(attrs, :site),
+      "subjective_feedback" => Map.get(attrs, :subjective_feedback),
+      "notes" => Map.get(attrs, :notes)
+    }
+
+    Repo.transaction(fn ->
+      reset_notifications!()
+
+      corrected_at = Map.fetch!(attrs, :corrected_at)
+      correction_note = Map.get(attrs, :correction_note, "Corrected by replacement event")
+
+      corrected_event =
+        create!(
+          __MODULE__,
+          :mark_event_corrected!,
+          actor,
+          original_event,
+          %{
+            voided_at: corrected_at,
+            note: correction_note
+          }
+        )
+
+      voided_effect =
+        create!(
+          __MODULE__,
+          :void_item_effect!,
+          actor,
+          original_effect,
+          %{voided_at: corrected_at}
+        )
+
+      replacement_event =
+        create!(
+          __MODULE__,
+          :log_event!,
+          actor,
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            effective_at: Map.fetch!(attrs, :effective_at),
+            recorded_at: Map.fetch!(attrs, :recorded_at),
+            summary: Map.get(attrs, :summary, "Dose corrected"),
+            quantity: Map.fetch!(attrs, :amount),
+            unit: Map.fetch!(attrs, :unit),
+            payload: payload,
+            note: Map.get(attrs, :notes),
+            replaces_event_instance_id: original_event.id
+          }
+        )
+
+      replacement_link =
+        create!(
+          __MODULE__,
+          :create_event_item_link!,
+          actor,
+          %{
+            plan_id: plan.id,
+            event_instance_id: replacement_event.id,
+            item_id: source_vial.id,
+            role: "source_vial",
+            metadata: %{"corrects_event_instance_id" => original_event.id}
+          }
+        )
+
+      replacement_effects =
+        event_type.effect_rules
+        |> Map.get("rules", [])
+        |> Enum.map(
+          &create_effect_from_rule!(&1, plan, replacement_event, source_vial, payload, actor,
+            replaces_item_effect_id: original_effect.id
+          )
+        )
+
+      result = %{
+        corrected_event: corrected_event,
+        voided_effect: voided_effect,
+        replacement_event: replacement_event,
+        replacement_link: replacement_link,
+        replacement_effects: replacement_effects
+      }
+
+      {result, take_notifications!()}
+    end)
+    |> case do
+      {:ok, {result, notifications}} ->
+        Ash.Notifier.notify(notifications)
+        result
+
+      {:error, error} ->
+        raise inspect(error)
+    end
+  end
+
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
     plan_id = id(plan_or_id)
@@ -207,7 +313,7 @@ defmodule Improve.Journal do
     end
   end
 
-  defp create_effect_from_rule!(rule, plan, event, source_vial, payload, actor) do
+  defp create_effect_from_rule!(rule, plan, event, source_vial, payload, actor, opts \\ []) do
     if Map.get(rule, "role") != "source_vial" do
       raise "unsupported effect rule role: #{inspect(rule)}"
     end
@@ -223,7 +329,8 @@ defmodule Improve.Journal do
         effect_type: effect_type!(Map.fetch!(rule, "effect_type")),
         quantity: path_value!(payload, Map.fetch!(rule, "quantity_path")),
         unit: path_value!(payload, Map.fetch!(rule, "unit_path")),
-        payload: %{"rule" => rule}
+        payload: %{"rule" => rule},
+        replaces_item_effect_id: Keyword.get(opts, :replaces_item_effect_id)
       }
     )
   end
