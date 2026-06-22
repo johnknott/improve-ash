@@ -146,6 +146,7 @@ defmodule Improve.Plans do
     with {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
          {:ok, session_slots} <- list_session_slots(actor: actor, query: plan_filter),
          {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter),
+         {:ok, direct_goals} <- list_direct_goals(actor: actor, query: plan_filter),
          {:ok, items} <- list_items(actor: actor, query: plan_filter),
          {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
          {:ok, environments} <- list_environments(actor: actor, query: plan_filter) do
@@ -156,6 +157,7 @@ defmodule Improve.Plans do
          session_templates: session_templates,
          session_slots: session_slots,
          schedules: schedules,
+         direct_goals: direct_goals,
          items: items,
          pool_memberships: pool_memberships,
          environments: environments,

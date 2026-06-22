@@ -44,6 +44,7 @@ defmodule Improve.Planning.Projector do
       date: date,
       projected_session_occurrences: Enum.reverse(occurrences),
       projected_work: projected_work,
+      input_summary: input_summary(input),
       diagnostics: Enum.reverse(diagnostics),
       explanations: explanations(projected_work)
     }
@@ -137,6 +138,26 @@ defmodule Improve.Planning.Projector do
 
   defp schedules_for(schedules, template_id) do
     Enum.filter(schedules, &(&1.owner_type == :session_template and &1.owner_id == template_id))
+  end
+
+  defp input_summary(input) do
+    schedules = Map.get(input, :schedules, [])
+
+    %{
+      session_templates: length(Map.get(input, :session_templates, [])),
+      session_slots: length(Map.get(input, :session_slots, [])),
+      direct_goals: length(Map.get(input, :direct_goals, [])),
+      schedules: length(schedules),
+      session_template_schedules: count_schedules(schedules, :session_template),
+      direct_goal_schedules: count_schedules(schedules, :direct_goal),
+      items: length(Map.get(input, :items, [])),
+      pool_memberships: length(Map.get(input, :pool_memberships, [])),
+      environments: length(Map.get(input, :environments, []))
+    }
+  end
+
+  defp count_schedules(schedules, owner_type) do
+    Enum.count(schedules, &(&1.owner_type == owner_type))
   end
 
   defp in_date_range?(date, starts_on, nil), do: Date.compare(date, starts_on) != :lt

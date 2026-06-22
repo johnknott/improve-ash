@@ -76,6 +76,9 @@ defmodule Improve.Ai.ReadToolTest do
                }
              ] = projection["projected_work"]
 
+      assert projection["input_summary"]["session_templates"] == 1
+      assert projection["input_summary"]["direct_goals"] == 0
+
       summary = execute_tool!(tools["get_plan_summary"], user, %{"plan_id" => gym_plan.id})
 
       assert summary["items"] == 8

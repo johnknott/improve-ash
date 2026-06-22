@@ -93,6 +93,7 @@ defmodule Improve.Ai.ReadTool do
       projected_session_occurrences:
         Enum.map(projection.projected_session_occurrences, &projected_occurrence_json/1),
       projected_work: Enum.map(projection.projected_work, &projected_work_json/1),
+      input_summary: projection.input_summary,
       diagnostics: projection.diagnostics,
       explanations: projection.explanations
     }
