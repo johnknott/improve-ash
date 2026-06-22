@@ -90,11 +90,11 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
-    test "loads direct goals into projection input without projecting or mutating them yet" do
+    test "projects a scheduled direct goal as planned without mutating history" do
       user =
         Accounts.create_user!(%{
-          email: "project-direct-goal-input@example.com",
-          full_name: "Project Direct Goal Input"
+          email: "project-direct-goal-planned@example.com",
+          full_name: "Project Direct Goal Planned"
         })
 
       plan = plan!(user)
@@ -111,11 +111,102 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert projection.input_summary.direct_goal_schedules == 1
       assert projection.input_summary.session_templates == 0
       assert projection.projected_session_occurrences == []
-      assert projection.projected_work == []
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :planned,
+                 title: "Read 20 pages",
+                 planned_for: ~D[2026-06-22],
+                 payload: %{
+                   direct_goal_id: direct_goal_id,
+                   direct_goal_key: "read_twenty_pages",
+                   target: %{"quantity" => 20, "unit" => "pages"},
+                   completed_event_ids: []
+                 }
+               }
+             ] = projection.projected_work
+
+      assert direct_goal_id == direct_goal.id
       assert projection.diagnostics == []
 
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
       assert {:ok, []} = Journal.read_journal(plan, actor: user)
+    end
+
+    test "projects a scheduled direct goal as completed from linked journal history" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-direct-goal-completed@example.com",
+          full_name: "Project Direct Goal Completed"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+      schedule!(user, plan, direct_goal)
+
+      log =
+        Journal.log_generic_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            direct_goal_id: direct_goal.id,
+            effective_at: ~U[2026-06-22 20:00:00Z],
+            recorded_at: ~U[2026-06-22 20:01:00Z],
+            summary: "Read 25 pages",
+            quantity: 25,
+            unit: "pages",
+            payload: %{"amount" => 25, "unit" => "pages"}
+          },
+          actor: user
+        )
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :completed,
+                 payload: %{completed_event_ids: [completed_event_id]}
+               }
+             ] = projection.projected_work
+
+      assert completed_event_id == log.event.id
+      assert [_event] = Journal.read_journal!(plan, actor: user)
+      assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
+    end
+
+    test "projects a scheduled direct goal as missed when the date has passed without history" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-direct-goal-missed@example.com",
+          full_name: "Project Direct Goal Missed"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      direct_goal = direct_goal!(user, plan, event_type)
+      schedule!(user, plan, direct_goal)
+
+      assert {:ok, projection} =
+               Plans.project_today(plan,
+                 actor: user,
+                 date: ~D[2026-06-22],
+                 as_of_date: ~D[2026-06-23]
+               )
+
+      assert [
+               %{
+                 kind: :direct_goal,
+                 status: :missed,
+                 payload: %{direct_goal_id: direct_goal_id, completed_event_ids: []}
+               }
+             ] = projection.projected_work
+
+      assert direct_goal_id == direct_goal.id
+      assert {:ok, []} = Journal.read_journal(plan, actor: user)
+      assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
   end
 

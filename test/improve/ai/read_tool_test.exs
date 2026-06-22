@@ -118,6 +118,52 @@ defmodule Improve.Ai.ReadToolTest do
 
       assert error_text =~ "could not be found"
     end
+
+    test "projects direct goal work through AshAI execution" do
+      user = user!("ai-direct-goal@example.com")
+      plan = reading_plan!(user)
+      event_type = reading_event_type!(user, plan)
+      direct_goal = reading_direct_goal!(user, plan, event_type)
+      reading_schedule!(user, plan, direct_goal)
+
+      log =
+        Journal.log_generic_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            direct_goal_id: direct_goal.id,
+            effective_at: ~U[2026-06-22 20:00:00Z],
+            recorded_at: ~U[2026-06-22 20:01:00Z],
+            summary: "Read 25 pages",
+            quantity: 25,
+            unit: "pages"
+          },
+          actor: user
+        )
+
+      tools = tools_by_name(actor: user)
+
+      projection =
+        execute_tool!(tools["project_today"], user, %{
+          "plan_id" => plan.id,
+          "date" => "2026-06-22"
+        })
+
+      assert [
+               %{
+                 "kind" => "direct_goal",
+                 "status" => "completed",
+                 "title" => "Read 20 pages",
+                 "direct_goal" => %{
+                   "direct_goal_id" => direct_goal_id,
+                   "completed_event_ids" => [completed_event_id]
+                 }
+               }
+             ] = projection["projected_work"]
+
+      assert direct_goal_id == direct_goal.id
+      assert completed_event_id == log.event.id
+    end
   end
 
   defp user!(email) do
@@ -139,5 +185,56 @@ defmodule Improve.Ai.ReadToolTest do
              AshAi.Tools.execute(tool, %{"input" => input}, %{actor: actor})
 
     Jason.decode!(json_result)
+  end
+
+  defp reading_plan!(user) do
+    Plans.create_plan!(
+      %{
+        name: "Reading",
+        intention: "Track reading",
+        starts_on: ~D[2026-06-22],
+        ends_on: ~D[2026-07-20]
+      },
+      actor: user
+    )
+  end
+
+  defp reading_event_type!(user, plan) do
+    Plans.create_event_type!(
+      %{
+        plan_id: plan.id,
+        key: "read_pages",
+        name: "Read Pages"
+      },
+      actor: user
+    )
+  end
+
+  defp reading_direct_goal!(user, plan, event_type) do
+    Plans.create_direct_goal!(
+      %{
+        plan_id: plan.id,
+        event_type_id: event_type.id,
+        key: "read_twenty_pages",
+        name: "Read 20 pages",
+        target: %{"quantity" => 20, "unit" => "pages"},
+        completion_policy: %{"mode" => "at_least_target"},
+        missed_policy: %{"mode" => "miss_if_no_event_by_end_of_day"}
+      },
+      actor: user
+    )
+  end
+
+  defp reading_schedule!(user, plan, direct_goal) do
+    Plans.create_schedule!(
+      %{
+        plan_id: plan.id,
+        owner_type: :direct_goal,
+        owner_id: direct_goal.id,
+        kind: :every_day,
+        starts_on: ~D[2026-06-22]
+      },
+      actor: user
+    )
   end
 end

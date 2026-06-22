@@ -21,39 +21,43 @@ defmodule Improve.Planning.Projector do
     plan = Map.fetch!(input, :plan)
     templates = Map.fetch!(input, :session_templates)
 
-    {occurrences, diagnostics} =
-      templates
-      |> Enum.sort_by(& &1.key)
-      |> Enum.reduce({[], []}, fn template, {occurrences, diagnostics} ->
-        case template_projection(template, input) do
-          {:ok, nil} ->
-            {occurrences, diagnostics}
+    {occurrences, session_diagnostics} =
+      project_entries(templates, &template_projection(&1, input))
 
-          {:ok, occurrence} ->
-            {[occurrence | occurrences], diagnostics}
+    {direct_goal_work, direct_goal_diagnostics} =
+      project_entries(Map.get(input, :direct_goals, []), &direct_goal_projection(&1, input))
 
-          {:error, diagnostic} ->
-            {occurrences, [diagnostic | diagnostics]}
-        end
-      end)
-
-    projected_work = Enum.map(Enum.reverse(occurrences), &ProjectedWork.session/1)
+    occurrences = Enum.reverse(occurrences)
+    direct_goal_work = Enum.reverse(direct_goal_work)
+    projected_work = Enum.map(occurrences, &ProjectedWork.session/1) ++ direct_goal_work
 
     %{
       plan_id: plan.id,
       date: date,
-      projected_session_occurrences: Enum.reverse(occurrences),
+      projected_session_occurrences: occurrences,
       projected_work: projected_work,
       input_summary: input_summary(input),
-      diagnostics: Enum.reverse(diagnostics),
+      diagnostics: Enum.reverse(session_diagnostics) ++ Enum.reverse(direct_goal_diagnostics),
       explanations: explanations(projected_work)
     }
+  end
+
+  defp project_entries(entries, project_fun) do
+    entries
+    |> Enum.sort_by(& &1.key)
+    |> Enum.reduce({[], []}, fn entry, {projections, diagnostics} ->
+      case project_fun.(entry) do
+        {:ok, nil} -> {projections, diagnostics}
+        {:ok, projection} -> {[projection | projections], diagnostics}
+        {:error, diagnostic} -> {projections, [diagnostic | diagnostics]}
+      end
+    end)
   end
 
   defp template_projection(template, input) do
     date = Map.fetch!(input, :date)
     plan = Map.fetch!(input, :plan)
-    schedules = schedules_for(input.schedules, template.id)
+    schedules = schedules_for(input.schedules, :session_template, template.id)
 
     cond do
       not in_date_range?(date, plan.starts_on, plan.ends_on) ->
@@ -65,6 +69,27 @@ defmodule Improve.Planning.Projector do
       true ->
         case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, &2)) do
           {:ok, true} -> {:ok, occurrence_projection(template, input)}
+          {:ok, false} -> {:ok, nil}
+          {:error, diagnostic} -> {:error, diagnostic}
+        end
+    end
+  end
+
+  defp direct_goal_projection(goal, input) do
+    date = Map.fetch!(input, :date)
+    plan = Map.fetch!(input, :plan)
+    schedules = schedules_for(input.schedules, :direct_goal, goal.id)
+
+    cond do
+      not in_date_range?(date, plan.starts_on, plan.ends_on) ->
+        {:ok, nil}
+
+      schedules == [] ->
+        {:ok, nil}
+
+      true ->
+        case Enum.reduce_while(schedules, {:ok, false}, &schedule_decision(&1, date, &2)) do
+          {:ok, true} -> {:ok, direct_goal_work(goal, input)}
           {:ok, false} -> {:ok, nil}
           {:error, diagnostic} -> {:error, diagnostic}
         end
@@ -105,6 +130,51 @@ defmodule Improve.Planning.Projector do
     }
   end
 
+  defp direct_goal_work(goal, input) do
+    completed_events = completed_direct_goal_events(goal, input)
+
+    status =
+      direct_goal_status(input.date, Map.get(input, :as_of_date, input.date), completed_events)
+
+    ProjectedWork.direct_goal(goal,
+      planned_for: input.date,
+      status: status,
+      completed_event_ids: Enum.map(completed_events, & &1.id),
+      explanation: direct_goal_explanation(goal, status, completed_events)
+    )
+  end
+
+  defp completed_direct_goal_events(goal, input) do
+    input
+    |> Map.get(:journal_events, [])
+    |> Enum.filter(fn event ->
+      event.direct_goal_id == goal.id and event.status == :active and
+        Date.compare(DateTime.to_date(event.effective_at), input.date) == :eq
+    end)
+  end
+
+  defp direct_goal_status(_date, _as_of_date, [_event | _events]), do: :completed
+
+  defp direct_goal_status(date, as_of_date, []) do
+    if Date.compare(date, as_of_date) == :lt do
+      :missed
+    else
+      :planned
+    end
+  end
+
+  defp direct_goal_explanation(goal, :completed, events) do
+    "Projected #{goal.name} as completed from #{length(events)} linked journal event(s)."
+  end
+
+  defp direct_goal_explanation(goal, :missed, _events) do
+    "Projected #{goal.name} as missed because the date has passed without a linked journal event."
+  end
+
+  defp direct_goal_explanation(goal, :planned, _events) do
+    "Projected #{goal.name} from its direct goal schedule."
+  end
+
   defp schedule_decision(schedule, date, {:ok, matched?}) do
     if not in_date_range?(date, schedule.starts_on, schedule.ends_on) do
       {:cont, {:ok, matched?}}
@@ -136,8 +206,8 @@ defmodule Improve.Planning.Projector do
      }}
   end
 
-  defp schedules_for(schedules, template_id) do
-    Enum.filter(schedules, &(&1.owner_type == :session_template and &1.owner_id == template_id))
+  defp schedules_for(schedules, owner_type, owner_id) do
+    Enum.filter(schedules, &(&1.owner_type == owner_type and &1.owner_id == owner_id))
   end
 
   defp input_summary(input) do
@@ -150,6 +220,7 @@ defmodule Improve.Planning.Projector do
       schedules: length(schedules),
       session_template_schedules: count_schedules(schedules, :session_template),
       direct_goal_schedules: count_schedules(schedules, :direct_goal),
+      journal_events: length(Map.get(input, :journal_events, [])),
       items: length(Map.get(input, :items, [])),
       pool_memberships: length(Map.get(input, :pool_memberships, [])),
       environments: length(Map.get(input, :environments, []))
