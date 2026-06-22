@@ -1,8 +1,16 @@
 defmodule Improve.Sessions do
   use Ash.Domain,
+    extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
   alias Improve.Repo
+
+  typescript_rpc do
+    resource Improve.Sessions.SessionOccurrence do
+      rpc_action(:list_session_occurrences, :read)
+      rpc_action(:get_session_occurrence, :read, get_by: [:id])
+    end
+  end
 
   resources do
     resource Improve.Sessions.SessionOccurrence do

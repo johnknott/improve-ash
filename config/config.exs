@@ -8,7 +8,7 @@
 import Config
 
 config :improve,
-  ash_domains: [Improve.Accounts, Improve.Plans, Improve.Sessions, Improve.Journal],
+  ash_domains: [Improve.Accounts, Improve.Plans, Improve.Sessions, Improve.Journal, Improve.Ai],
   ecto_repos: [Improve.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
@@ -30,6 +30,16 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+config :ash_typescript,
+  output_file: "priv/generated/ash_rpc.ts",
+  types_output_file: "priv/generated/ash_types.ts",
+  run_endpoint: "/api/rpc/run",
+  validate_endpoint: "/api/rpc/validate",
+  input_field_formatter: :camel_case,
+  output_field_formatter: :camel_case,
+  generate_zod_schemas: false,
+  generate_valibot_schemas: false
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

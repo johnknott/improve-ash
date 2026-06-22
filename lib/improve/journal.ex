@@ -1,9 +1,22 @@
 defmodule Improve.Journal do
   use Ash.Domain,
+    extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
+  alias Improve.Plans
   alias Improve.Repo
   alias Improve.Sessions
+
+  typescript_rpc do
+    resource Improve.Journal.EventInstance do
+      rpc_action(:list_events, :read)
+      rpc_action(:get_event, :read, get_by: [:id])
+    end
+
+    resource Improve.Journal.ItemEffect do
+      rpc_action(:list_item_effects, :read)
+    end
+  end
 
   resources do
     resource Improve.Journal.EventInstance do
@@ -262,9 +275,10 @@ defmodule Improve.Journal do
 
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
-    plan_id = id(plan_or_id)
 
-    list_events(actor: actor, query: [filter: [plan_id: plan_id], sort: [effective_at: :asc]])
+    with {:ok, plan} <- fetch_plan(plan_or_id, actor) do
+      list_events(actor: actor, query: [filter: [plan_id: plan.id], sort: [effective_at: :asc]])
+    end
   end
 
   def read_journal!(plan_or_id, opts) do
@@ -296,7 +310,8 @@ defmodule Improve.Journal do
   def get_item_state(item, opts) do
     actor = Keyword.fetch!(opts, :actor)
 
-    with {:ok, effects} <- list_item_effects(actor: actor, query: [filter: [item_id: item.id]]) do
+    with {:ok, item} <- Plans.get_item(id(item), actor: actor),
+         {:ok, effects} <- list_item_effects(actor: actor, query: [filter: [item_id: item.id]]) do
       {:ok,
        Improve.Planning.ItemState.calculate(
          item,
@@ -391,6 +406,9 @@ defmodule Improve.Journal do
 
   defp id(%{id: id}), do: id
   defp id(id), do: id
+
+  defp fetch_plan(%{id: id}, actor), do: Plans.get_plan(id, actor: actor)
+  defp fetch_plan(id, actor), do: Plans.get_plan(id, actor: actor)
 
   defp reset_notifications! do
     Process.put(@notifications_key, [])

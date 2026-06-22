@@ -7,5 +7,8 @@ defmodule ImproveWeb.Router do
 
   scope "/api", ImproveWeb do
     pipe_through :api
+
+    post "/rpc/run", AshTypescriptRpcController, :run
+    post "/rpc/validate", AshTypescriptRpcController, :validate
   end
 end

@@ -3,7 +3,12 @@ defmodule Improve.Journal.ItemEffect do
     otp_app: :improve,
     domain: Improve.Journal,
     data_layer: AshPostgres.DataLayer,
+    extensions: [AshTypescript.Resource],
     authorizers: [Ash.Policy.Authorizer]
+
+  typescript do
+    type_name("ItemEffect")
+  end
 
   postgres do
     table "item_effects"

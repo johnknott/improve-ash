@@ -3,7 +3,12 @@ defmodule Improve.Plans.Item do
     otp_app: :improve,
     domain: Improve.Plans,
     data_layer: AshPostgres.DataLayer,
+    extensions: [AshTypescript.Resource],
     authorizers: [Ash.Policy.Authorizer]
+
+  typescript do
+    type_name("Item")
+  end
 
   postgres do
     table "items"

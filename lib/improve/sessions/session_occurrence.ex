@@ -3,7 +3,12 @@ defmodule Improve.Sessions.SessionOccurrence do
     otp_app: :improve,
     domain: Improve.Sessions,
     data_layer: AshPostgres.DataLayer,
+    extensions: [AshTypescript.Resource],
     authorizers: [Ash.Policy.Authorizer]
+
+  typescript do
+    type_name("SessionOccurrence")
+  end
 
   postgres do
     table "session_occurrences"

@@ -3,7 +3,12 @@ defmodule Improve.Journal.EventInstance do
     otp_app: :improve,
     domain: Improve.Journal,
     data_layer: AshPostgres.DataLayer,
+    extensions: [AshTypescript.Resource],
     authorizers: [Ash.Policy.Authorizer]
+
+  typescript do
+    type_name("EventInstance")
+  end
 
   postgres do
     table "event_instances"

@@ -46,7 +46,7 @@ run = "mise run db:up && mix test"
 
 [tasks.verify]
 description = "Run local verification"
-run = "mise run fmt && mise run lint && mise run test"
+run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check"
 
 [tasks."db:create"]
 description = "Start Postgres and create the local database"
@@ -63,3 +63,11 @@ run = "mise run db:up && mix ecto.reset"
 [tasks."db:seed"]
 description = "Seed demo data once seeds exist"
 run = "mise run db:up && mix run priv/repo/seeds.exs"
+
+[tasks."typescript:generate"]
+description = "Regenerate AshTypescript contracts"
+run = "mix ash_typescript.codegen"
+
+[tasks."typescript:check"]
+description = "Type-check generated TypeScript contract smoke imports"
+run = "pnpm exec tsc --noEmit -p tsconfig.json"

@@ -1,6 +1,19 @@
 defmodule Improve.Plans do
   use Ash.Domain,
+    extensions: [AshTypescript.Rpc],
     otp_app: :improve
+
+  typescript_rpc do
+    resource Improve.Plans.Plan do
+      rpc_action(:list_plans, :read)
+      rpc_action(:get_plan, :read, get_by: [:id])
+    end
+
+    resource Improve.Plans.Item do
+      rpc_action(:list_items, :read)
+      rpc_action(:get_item, :read, get_by: [:id])
+    end
+  end
 
   resources do
     resource Improve.Plans.Plan do
@@ -73,10 +86,10 @@ defmodule Improve.Plans do
 
   def summarize_plan(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
-    plan_id = plan_id(plan_or_id)
-    plan_filter = [filter: [plan_id: plan_id]]
 
-    with {:ok, item_types} <- list_item_types(actor: actor, query: plan_filter),
+    with {:ok, plan} <- fetch_plan(plan_or_id, actor),
+         plan_filter = [filter: [plan_id: plan.id]],
+         {:ok, item_types} <- list_item_types(actor: actor, query: plan_filter),
          {:ok, items} <- list_items(actor: actor, query: plan_filter),
          {:ok, pools} <- list_pools(actor: actor, query: plan_filter),
          {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
@@ -124,10 +137,7 @@ defmodule Improve.Plans do
     end
   end
 
-  defp plan_id(%{id: id}), do: id
-  defp plan_id(id), do: id
-
-  defp fetch_plan(%{id: _id} = plan, _actor), do: {:ok, plan}
+  defp fetch_plan(%{id: id}, actor), do: get_plan(id, actor: actor)
   defp fetch_plan(id, actor), do: get_plan(id, actor: actor)
 
   defp projection_input(plan, actor, date, opts) do
