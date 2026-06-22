@@ -120,6 +120,22 @@ defmodule Improve.Plans do
     end
   end
 
+  def export_plan_draft(plan_or_id, opts) do
+    Improve.Planning.PlanDraftExporter.export(plan_or_id, opts)
+  end
+
+  def export_plan_draft!(plan_or_id, opts) do
+    Improve.Planning.PlanDraftExporter.export!(plan_or_id, opts)
+  end
+
+  def import_plan_draft(draft, opts) do
+    Improve.Planning.PlanDraftImporter.import_draft(draft, opts)
+  end
+
+  def import_plan_draft!(draft, opts) do
+    Improve.Planning.PlanDraftImporter.import_draft!(draft, opts)
+  end
+
   def project_today(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
     date = Keyword.fetch!(opts, :date)
