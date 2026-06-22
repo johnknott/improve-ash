@@ -33,6 +33,7 @@ defmodule Improve.Fixtures.GymPlanTest do
                event_types: 2,
                session_templates: 1,
                session_slots: 3,
+               direct_goals: 0,
                schedules: 1
              }
 

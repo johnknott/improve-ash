@@ -34,6 +34,7 @@ defmodule Improve.Fixtures.VialPlanTest do
                event_types: 1,
                session_templates: 0,
                session_slots: 0,
+               direct_goals: 0,
                schedules: 0
              }
 

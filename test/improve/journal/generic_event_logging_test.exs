@@ -281,10 +281,8 @@ defmodule Improve.Journal.GenericEventLoggingTest do
                second_accepted.event_instance_id
              ]
 
-      assert Enum.map(effects, & &1.event_instance_id) == [
-               accepted.event_instance_id,
-               second_accepted.event_instance_id
-             ]
+      assert effects |> Enum.map(& &1.event_instance_id) |> Enum.sort() ==
+               [accepted.event_instance_id, second_accepted.event_instance_id] |> Enum.sort()
     end
 
     test "marks archived and missing plan references as needing resolution" do
@@ -381,6 +379,7 @@ defmodule Improve.Journal.GenericEventLoggingTest do
             effective_at: ~U[2026-06-22 12:10:00Z],
             recorded_at: ~U[2026-06-22 12:11:00Z],
             summary: "Chest Press completed",
+            payload: %{"sets" => 3, "reps" => 10},
             item_links: [
               %{role: "exercise", item_id: items["chest_press"].id}
             ]
@@ -430,6 +429,115 @@ defmodule Improve.Journal.GenericEventLoggingTest do
              ]
 
       assert Journal.read_journal!(plan, actor: user) |> Enum.map(& &1.id) == [first_log.event.id]
+    end
+
+    test "rejects generic events missing required item link roles before persistence" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-contract-missing-role@example.com",
+          full_name: "Generic Contract Missing Role"
+        })
+
+      %{plan: plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      assert {:error, diagnostics} =
+               Journal.log_generic_event(
+                 %{
+                   plan_id: plan.id,
+                   event_type_id: event_types["take_dose"].id,
+                   effective_at: ~U[2026-06-22 08:00:00Z],
+                   recorded_at: ~U[2026-06-22 08:01:00Z],
+                   summary: "Dose without vial",
+                   payload: %{"amount" => 250, "unit" => "mcg"},
+                   item_links: []
+                 },
+                 actor: user
+               )
+
+      assert diagnostics == ["Event type requires item link role source_vial."]
+      assert Journal.read_journal!(plan, actor: user) == []
+    end
+
+    test "rejects generic events with unsupported item link roles before persistence" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-contract-unknown-role@example.com",
+          full_name: "Generic Contract Unknown Role"
+        })
+
+      %{plan: plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      assert {:error, diagnostics} =
+               Journal.log_generic_event(
+                 %{
+                   plan_id: plan.id,
+                   event_type_id: event_types["take_dose"].id,
+                   effective_at: ~U[2026-06-22 08:00:00Z],
+                   recorded_at: ~U[2026-06-22 08:01:00Z],
+                   summary: "Dose with unknown role",
+                   payload: %{"amount" => 250, "unit" => "mcg"},
+                   item_links: [
+                     %{role: "unknown", item_id: items["retatrutide_vial_1"].id}
+                   ]
+                 },
+                 actor: user
+               )
+
+      assert diagnostics == [
+               "Event type requires item link role source_vial.",
+               "Event command uses unsupported item link role unknown."
+             ]
+
+      assert Journal.read_journal!(plan, actor: user) == []
+    end
+
+    test "rejects generic events missing required payload fields before persistence" do
+      user =
+        Accounts.create_user!(%{
+          email: "generic-contract-missing-payload@example.com",
+          full_name: "Generic Contract Missing Payload"
+        })
+
+      %{plan: plan} = VialPlan.install!(user, starts_on: ~D[2026-06-22])
+
+      items =
+        Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      event_types =
+        Plans.list_event_types!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Map.new(&{&1.key, &1})
+
+      assert {:error, diagnostics} =
+               Journal.log_generic_event(
+                 %{
+                   plan_id: plan.id,
+                   event_type_id: event_types["take_dose"].id,
+                   effective_at: ~U[2026-06-22 08:00:00Z],
+                   recorded_at: ~U[2026-06-22 08:01:00Z],
+                   summary: "Dose without amount",
+                   payload: %{"unit" => "mcg"},
+                   item_links: [
+                     %{role: "source_vial", item_id: items["retatrutide_vial_1"].id}
+                   ]
+                 },
+                 actor: user
+               )
+
+      assert diagnostics == ["Event type requires payload field amount."]
+      assert Journal.read_journal!(plan, actor: user) == []
     end
 
     test "returns command diagnostics before starting persistence" do

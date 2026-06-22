@@ -12,6 +12,18 @@ defmodule Improve.CommandError do
     raise exception(operation: operation, error: error)
   end
 
+  def forbidden!(operation, details \\ ["Forbidden."]) do
+    details = List.wrap(details)
+
+    raise %__MODULE__{
+      category: :forbidden,
+      operation: operation,
+      details: details,
+      cause: nil,
+      message: message(operation, :forbidden, details)
+    }
+  end
+
   def wrap!(operation, fun) when is_function(fun, 0) do
     fun.()
   rescue

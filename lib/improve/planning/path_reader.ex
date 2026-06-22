@@ -52,11 +52,13 @@ defmodule Improve.Planning.PathReader do
   defp read_path(_source, _path), do: :error
 
   defp map_fetch(map, key) do
+    atom_key = existing_atom(key)
+
     cond do
       Map.has_key?(map, key) ->
         {:ok, Map.fetch!(map, key)}
 
-      atom_key = existing_atom(key) ->
+      not is_nil(atom_key) and Map.has_key?(map, atom_key) ->
         {:ok, Map.fetch!(map, atom_key)}
 
       true ->

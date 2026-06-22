@@ -4,6 +4,7 @@ defmodule Improve.Journal do
     otp_app: :improve
 
   alias Improve.CommandError
+  alias Improve.Journal.EventContract
   alias Improve.Journal.LogEventCommand
   alias Improve.Journal.OfflineIngressResult
   alias Improve.Planning.EffectRuleInterpreter
@@ -48,11 +49,12 @@ defmodule Improve.Journal do
   def log_generic_event(attrs, opts) do
     actor = Keyword.fetch!(opts, :actor)
 
-    with {:ok, command} <- LogEventCommand.from_attrs(attrs) do
+    with {:ok, command} <- LogEventCommand.from_attrs(attrs),
+         {:new, event_type} <- prepare_log_event_command(command, actor) do
       transact(fn ->
         reset_notifications!()
 
-        {persist_log_event_command!(command, actor), take_notifications!()}
+        {create_log_event_command!(command, actor, event_type, []), take_notifications!()}
       end)
       |> case do
         {:ok, {result, notifications}} ->
@@ -62,6 +64,9 @@ defmodule Improve.Journal do
         {:error, error} ->
           {:error, error}
       end
+    else
+      {:duplicate, result} -> {:ok, result}
+      {:error, diagnostics} -> {:error, diagnostics}
     end
   end
 
@@ -161,6 +166,8 @@ defmodule Improve.Journal do
     event_type = Map.fetch!(attrs, :event_type)
     source_vial = Map.fetch!(attrs, :source_vial)
 
+    ensure_actor_owns_plan!(:log_dose_event, plan, actor)
+
     result =
       log_generic_event!(
         dose_event_command_attrs(attrs, plan, event_type, source_vial),
@@ -181,6 +188,8 @@ defmodule Improve.Journal do
     source_vial = Map.fetch!(attrs, :source_vial)
     original_event = Map.fetch!(attrs, :original_event)
     original_effect = Map.fetch!(attrs, :original_effect)
+
+    ensure_actor_owns_plan!(:correct_dose_event, plan, actor)
 
     replacement_attrs =
       dose_event_command_attrs(attrs, plan, event_type, source_vial,
@@ -209,10 +218,17 @@ defmodule Improve.Journal do
     }
   end
 
+  defp ensure_actor_owns_plan!(_operation, %{user_id: user_id}, %{id: user_id}), do: :ok
+
+  defp ensure_actor_owns_plan!(operation, _plan, _actor) do
+    CommandError.forbidden!(operation, ["Plan is not available to this actor."])
+  end
+
   def correct_generic_event(attrs, opts) do
     actor = Keyword.fetch!(opts, :actor)
 
-    with {:ok, command} <- correction_command(attrs) do
+    with {:ok, command} <- correction_command(attrs),
+         :ok <- validate_log_event_command(command.replacement, actor) do
       transact(fn ->
         reset_notifications!()
 
@@ -226,6 +242,14 @@ defmodule Improve.Journal do
         {:error, error} ->
           {:error, error}
       end
+    end
+  end
+
+  defp validate_log_event_command(command, actor) do
+    case prepare_log_event_command(command, actor) do
+      {:new, _event_type} -> :ok
+      {:duplicate, _result} -> :ok
+      {:error, diagnostics} -> {:error, diagnostics}
     end
   end
 
@@ -667,15 +691,34 @@ defmodule Improve.Journal do
     end
   end
 
-  defp persist_log_event_command!(command, actor, opts \\ []) do
-    if duplicate = existing_idempotent_log(command, actor) do
-      duplicate
-    else
-      create_log_event_command!(command, actor, opts)
+  defp persist_log_event_command!(command, actor, opts) do
+    case prepare_log_event_command(command, actor) do
+      {:duplicate, result} ->
+        result
+
+      {:new, event_type} ->
+        create_log_event_command!(command, actor, event_type, opts)
+
+      {:error, diagnostics} ->
+        raise Enum.join(diagnostics, " ")
     end
   end
 
-  defp create_log_event_command!(command, actor, opts) do
+  defp prepare_log_event_command(command, actor) do
+    if duplicate = existing_idempotent_log(command, actor) do
+      {:duplicate, duplicate}
+    else
+      with {:ok, event_type} <- Plans.get_event_type(command.event_type_id, actor: actor),
+           [] <- EventContract.validate(event_type, command) do
+        {:new, event_type}
+      else
+        diagnostics when is_list(diagnostics) -> {:error, diagnostics}
+        {:error, error} -> {:error, error}
+      end
+    end
+  end
+
+  defp create_log_event_command!(command, actor, event_type, opts) do
     event =
       create!(
         __MODULE__,
@@ -690,7 +733,6 @@ defmodule Improve.Journal do
         &create_event_item_link_from_command!(&1, command, event, actor)
       )
 
-    event_type = Plans.get_event_type!(command.event_type_id, actor: actor)
     effect_specs = effect_specs(event_type, command.payload, command.item_links)
     replaces_item_effects = Keyword.get(opts, :replaces_item_effects, [])
 
