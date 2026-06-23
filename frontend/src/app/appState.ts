@@ -2,9 +2,18 @@ import { get, writable } from 'svelte/store'
 import {
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
+  logSessionSlot as submitSessionSlotEvent,
   logEvent as submitLogEvent,
+  startSession as startSessionRequest,
 } from '../api/improveClient'
-import type { DashboardData, DemoPlanKind, LogEventInput, ProjectedWork } from '../api/types'
+import type {
+  DashboardData,
+  DemoPlanKind,
+  LogEventInput,
+  LogSessionSlotInput,
+  ProjectedWork,
+  SessionSlotResult,
+} from '../api/types'
 
 type DashboardState = {
   loading: boolean
@@ -16,6 +25,12 @@ type DashboardState = {
 type LogDialogState = {
   open: boolean
   work: ProjectedWork | null
+}
+
+type SessionSlotDialogState = {
+  open: boolean
+  work: ProjectedWork | null
+  slotResult: SessionSlotResult | null
 }
 
 export const dashboardState = writable<DashboardState>({
@@ -32,9 +47,16 @@ export const logDialogState = writable<LogDialogState>({
   work: null,
 })
 
+export const sessionSlotDialogState = writable<SessionSlotDialogState>({
+  open: false,
+  work: null,
+  slotResult: null,
+})
+
 export const checkInDialogOpen = writable(false)
 export const toastMessage = writable<string | null>(null)
 export const installingDemoPlan = writable<DemoPlanKind | null>(null)
+export const startingSessionId = writable<string | null>(null)
 
 let lastLoadedPlanId: string | null = null
 
@@ -68,9 +90,11 @@ export function resetDashboard(): void {
   selectedPlanId.set(null)
   dashboardState.set({ loading: false, refreshing: false, error: null, data: null })
   logDialogState.set({ open: false, work: null })
+  sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
   checkInDialogOpen.set(false)
   toastMessage.set(null)
   installingDemoPlan.set(null)
+  startingSessionId.set(null)
 }
 
 export function openLogDialog(work: ProjectedWork | null = null): void {
@@ -79,6 +103,14 @@ export function openLogDialog(work: ProjectedWork | null = null): void {
 
 export function closeLogDialog(): void {
   logDialogState.set({ open: false, work: null })
+}
+
+export function openSessionSlotDialog(work: ProjectedWork, slotResult: SessionSlotResult): void {
+  sessionSlotDialogState.set({ open: true, work, slotResult })
+}
+
+export function closeSessionSlotDialog(): void {
+  sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
 }
 
 export async function submitLog(input: LogEventInput): Promise<void> {
@@ -108,6 +140,44 @@ export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
   } finally {
     installingDemoPlan.set(null)
   }
+}
+
+export async function startSession(work: ProjectedWork): Promise<void> {
+  if (!work.session) {
+    return
+  }
+
+  startingSessionId.set(work.id)
+  dashboardState.update((state) => ({ ...state, refreshing: true, error: null }))
+
+  try {
+    const data = await startSessionRequest({
+      planId: work.planId,
+      sessionTemplateId: work.session.sessionTemplateId,
+      date: work.plannedFor,
+    })
+    lastLoadedPlanId = data.currentPlan?.id ?? null
+    selectedPlanId.set(lastLoadedPlanId)
+    dashboardState.set({ loading: false, refreshing: false, error: null, data })
+    showToast('Session started.')
+  } catch {
+    dashboardState.update((state) => ({
+      ...state,
+      refreshing: false,
+      error: 'We could not start that session.',
+    }))
+  } finally {
+    startingSessionId.set(null)
+  }
+}
+
+export async function submitSessionSlot(input: LogSessionSlotInput): Promise<void> {
+  const data = await submitSessionSlotEvent(input)
+  closeSessionSlotDialog()
+  lastLoadedPlanId = data.currentPlan?.id ?? null
+  selectedPlanId.set(lastLoadedPlanId)
+  dashboardState.set({ loading: false, refreshing: false, error: null, data })
+  showToast('Slot logged.')
 }
 
 export function showToast(message: string): void {

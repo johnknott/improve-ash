@@ -19,6 +19,8 @@ defmodule ImproveWeb.Router do
 
     get "/app/dashboard", AppController, :dashboard
     post "/app/demo-plans", AppController, :install_demo_plan
+    post "/app/start-session", AppController, :start_session
+    post "/app/log-session-slot", AppController, :log_session_slot
     post "/app/log-event", AppController, :log_event
 
     post "/rpc/run", AshTypescriptRpcController, :run

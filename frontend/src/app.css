@@ -616,7 +616,8 @@ form > button,
 
 .work-list,
 .journal-list,
-.plan-item-list {
+.plan-item-list,
+.session-slot-list {
   display: grid;
   gap: 0.65rem;
 }
@@ -665,6 +666,30 @@ form > button,
 .plan-item-row p,
 .body-copy {
   line-height: 1.45;
+}
+
+.session-slot-list {
+  margin-top: 0.4rem;
+}
+
+.session-slot-mini {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 7px;
+  background: #f8fafc;
+  padding: 0.6rem;
+}
+
+.session-slot-mini strong,
+.session-slot-mini small {
+  display: block;
+}
+
+.session-slot-mini strong {
+  color: #172033;
+  font-size: 0.9rem;
 }
 
 .compact-button {
@@ -891,6 +916,99 @@ form > button,
   justify-content: flex-start;
 }
 
+.model-card,
+.model-card-grid,
+.model-grid,
+.model-section,
+.model-list,
+.schema-row,
+.inventory-row,
+.session-slot-row,
+.pool-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.model-card {
+  gap: 1rem;
+}
+
+.model-card-grid,
+.model-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.model-grid h3,
+.model-section h3,
+.pool-card h3,
+.inventory-row h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 0.98rem;
+}
+
+.schema-row {
+  gap: 0.4rem;
+  border-top: 1px solid #edf1f6;
+  padding-top: 0.7rem;
+}
+
+.schema-row > span,
+.muted,
+.pool-card p,
+.inventory-row p,
+.session-slot-row small,
+.mini-row small {
+  color: #66748b;
+  font-size: 0.86rem;
+}
+
+.mini-row,
+.session-slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid #e2e7ef;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.mini-row span,
+.session-slot-row strong {
+  color: #172033;
+  font-weight: 800;
+}
+
+.schedule-row {
+  justify-content: flex-start;
+}
+
+.pool-card,
+.inventory-row {
+  border: 1px solid #e2e7ef;
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.inventory-row {
+  grid-template-columns: minmax(10rem, 0.8fr) auto minmax(14rem, 1fr);
+  align-items: start;
+}
+
+.json-block {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0;
+  border-radius: 7px;
+  background: #f5f7fa;
+  color: #303b50;
+  padding: 0.75rem;
+  font: 0.78rem / 1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
 .toast {
   position: fixed;
   right: 1rem;
@@ -956,6 +1074,9 @@ form > button,
   .dashboard-grid,
   .secondary-grid,
   .plan-grid,
+  .model-card-grid,
+  .model-grid,
+  .inventory-row,
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -964,6 +1085,9 @@ form > button,
   .work-row,
   .journal-row,
   .plan-item-row,
+  .mini-row,
+  .session-slot-row,
+  .session-slot-mini,
   .error-banner {
     align-items: stretch;
     flex-direction: column;

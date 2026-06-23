@@ -61,7 +61,7 @@
         {#if data.today.upcoming.length}
           <div class="work-list compact-list">
             {#each data.today.upcoming as work (work.id)}
-              <ProjectedWorkRow {work} />
+              <ProjectedWorkRow {work} actionable={false} />
             {/each}
           </div>
         {:else}

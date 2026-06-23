@@ -3,6 +3,7 @@ defmodule ImproveWeb.AppControllerTest do
 
   alias Improve.Accounts
   alias Improve.Emails.LocalMailbox
+  alias Improve.Fixtures.GymPlan
   alias Improve.Plans
 
   setup do
@@ -43,6 +44,70 @@ defmodule ImproveWeb.AppControllerTest do
 
     assert %{"error" => %{"message" => "Choose a demo plan to install."}} =
              json_response(conn, 422)
+  end
+
+  test "signed-in users can start and log a projected gym session", %{conn: conn} do
+    email = "app-session-flow@example.test"
+    conn = sign_in!(conn, email)
+    user = Accounts.get_user_by_email!(email)
+    %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+
+    [template] = Plans.list_session_templates!(actor: user, query: [filter: [plan_id: plan.id]])
+
+    conn =
+      post(conn, ~p"/api/app/start-session", %{
+        plan_id: plan.id,
+        session_template_id: template.id,
+        date: "2026-06-22"
+      })
+
+    assert %{
+             "today" => %{
+               "work" => [
+                 %{
+                   "status" => "started",
+                   "session" => %{
+                     "state" => %{"session_occurrence_id" => occurrence_id},
+                     "slotResults" => slot_results
+                   }
+                 }
+               ]
+             }
+           } = json_response(conn, 200)
+
+    assert length(slot_results) == 5
+
+    slot_result =
+      Enum.find(slot_results, fn slot_result ->
+        slot_result["slotKey"] == "push" and is_nil(slot_result["eventInstanceId"])
+      end)
+
+    conn =
+      post(conn, ~p"/api/app/log-session-slot", %{
+        session_occurrence_id: occurrence_id,
+        slot_key: slot_result["slotKey"],
+        actual_item_key: slot_result["actualItemKey"],
+        recommended_item_key: slot_result["recommendedItemKey"],
+        event_key: "workout_exercise_performed",
+        role: "exercise",
+        date: "2026-06-22",
+        payload: %{"sets" => 3, "reps" => 10, "load" => 45, "load_unit" => "kg"}
+      })
+
+    assert %{
+             "today" => %{
+               "work" => [
+                 %{
+                   "session" => %{
+                     "slotResults" => updated_slot_results,
+                     "state" => %{"slot_results_logged" => 1}
+                   }
+                 }
+               ]
+             }
+           } = json_response(conn, 200)
+
+    assert Enum.any?(updated_slot_results, &(&1["id"] == slot_result["id"] and &1["eventInstanceId"]))
   end
 
   defp sign_in!(conn, email) do

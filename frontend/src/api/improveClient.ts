@@ -1,4 +1,11 @@
-import type { DashboardData, DemoPlanKind, LogEventInput, JournalEntry } from './types'
+import type {
+  DashboardData,
+  DemoPlanKind,
+  LogEventInput,
+  JournalEntry,
+  LogSessionSlotInput,
+  StartSessionInput,
+} from './types'
 
 type ApiError = {
   error?: {
@@ -46,6 +53,36 @@ export async function installDemoPlan(kind: DemoPlanKind): Promise<DashboardData
   return apiFetch<DashboardData>('/api/app/demo-plans', {
     method: 'POST',
     body: JSON.stringify({ kind }),
+  })
+}
+
+export async function startSession(input: StartSessionInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/start-session', {
+    method: 'POST',
+    body: JSON.stringify({
+      plan_id: input.planId,
+      session_template_id: input.sessionTemplateId,
+      date: input.date,
+    }),
+  })
+}
+
+export async function logSessionSlot(input: LogSessionSlotInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/log-session-slot', {
+    method: 'POST',
+    body: JSON.stringify({
+      session_occurrence_id: input.sessionOccurrenceId,
+      slot_key: input.slotKey,
+      actual_item_key: input.actualItemKey,
+      recommended_item_key: input.recommendedItemKey,
+      event_key: input.eventKey,
+      role: input.role,
+      summary: input.summary,
+      quantity: input.quantity,
+      unit: input.unit,
+      note: input.note,
+      payload: input.payload,
+    }),
   })
 }
 

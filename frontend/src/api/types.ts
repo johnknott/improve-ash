@@ -51,7 +51,26 @@ export type ProjectedWork = {
   session: {
     recommendations: Array<{ id: string; key: string; name: string; reason?: string | null }>
     state: Record<string, unknown>
+    sessionTemplateId: string
+    slotResults: SessionSlotResult[]
   } | null
+}
+
+export type SessionSlotResult = {
+  id: string
+  status: string
+  sessionOccurrenceId: string
+  sessionSlotId: string
+  slotKey: string | null
+  slotName: string | null
+  recommendedItemId: string | null
+  recommendedItemKey: string | null
+  recommendedItemName: string | null
+  actualItemId: string | null
+  actualItemKey: string | null
+  actualItemName: string | null
+  eventInstanceId: string | null
+  notes: string | null
 }
 
 export type TodayProjection = {
@@ -92,6 +111,16 @@ export type PlanItem = {
   archived: boolean
 }
 
+export type ItemType = {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  factsSchema: Record<string, unknown>
+  displayHints: Record<string, unknown>
+  itemCount: number
+}
+
 export type EventType = {
   id: string
   key: string
@@ -99,12 +128,66 @@ export type EventType = {
   description: string | null
   payloadSchema: Record<string, unknown>
   itemLinkRoles: Record<string, unknown>
+  effectRules: Record<string, unknown>
+}
+
+export type Pool = {
+  id: string
+  key: string
+  name: string
+  description: string | null
+}
+
+export type PoolMembership = {
+  id: string
+  poolId: string
+  itemId: string
+  metadata: Record<string, unknown>
+}
+
+export type SessionTemplate = {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  environmentId: string | null
+  completionPolicy: Record<string, unknown>
+  missedPolicy: Record<string, unknown>
+}
+
+export type SessionSlot = {
+  id: string
+  sessionTemplateId: string
+  key: string
+  name: string
+  poolId: string
+  poolName: string | null
+  count: number
+  optional: boolean
+  rules: Record<string, unknown>
+  position: number
+}
+
+export type Schedule = {
+  id: string
+  ownerType: string
+  ownerId: string
+  kind: string
+  rules: Record<string, unknown>
+  startsOn: string
+  endsOn: string | null
 }
 
 export type PlanDetail = {
   summary: Plan
   items: PlanItem[]
+  itemTypes: ItemType[]
   eventTypes: EventType[]
+  pools: Pool[]
+  poolMemberships: PoolMembership[]
+  sessionTemplates: SessionTemplate[]
+  sessionSlots: SessionSlot[]
+  schedules: Schedule[]
 }
 
 export type DashboardData = {
@@ -128,3 +211,23 @@ export type LogEventInput = {
 }
 
 export type DemoPlanKind = 'gym' | 'vial_inventory'
+
+export type StartSessionInput = {
+  planId: string
+  sessionTemplateId: string
+  date: string
+}
+
+export type LogSessionSlotInput = {
+  sessionOccurrenceId: string
+  slotKey: string
+  actualItemKey: string
+  recommendedItemKey?: string | null
+  eventKey: string
+  role: string
+  summary: string
+  quantity?: string | null
+  unit?: string | null
+  note?: string | null
+  payload: Record<string, unknown>
+}

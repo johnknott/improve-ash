@@ -1,10 +1,15 @@
 <script lang="ts">
-  import { ClipboardPlus } from '@lucide/svelte'
+  import { ClipboardPlus, Dumbbell, Play } from '@lucide/svelte'
   import type { ProjectedWork } from '../../api/types'
-  import { openLogDialog } from '../../app/appState'
+  import {
+    openLogDialog,
+    openSessionSlotDialog,
+    startSession,
+    startingSessionId,
+  } from '../../app/appState'
   import Badge from '../../components/ui/Badge.svelte'
 
-  let { work }: { work: ProjectedWork } = $props()
+  let { work, actionable = true }: { work: ProjectedWork; actionable?: boolean } = $props()
 
   let targetText = $derived(
     work.target.quantity
@@ -17,6 +22,9 @@
   )
 
   let tone = $derived(work.status === 'completed' ? 'good' : work.kind === 'session' ? 'info' : 'neutral')
+  let occurrenceId = $derived(work.session?.state?.session_occurrence_id)
+  let canStartSession = $derived(actionable && work.kind === 'session' && !occurrenceId)
+  let sessionStarted = $derived(work.kind === 'session' && !!occurrenceId)
 </script>
 
 <article class="work-row">
@@ -36,9 +44,46 @@
         {/each}
       </div>
     {/if}
+
+    {#if sessionStarted && work.session?.slotResults.length}
+      <div class="session-slot-list">
+        {#each work.session.slotResults as slotResult (slotResult.id)}
+          <div class="session-slot-mini">
+            <div>
+              <strong>{slotResult.actualItemName ?? slotResult.recommendedItemName}</strong>
+              <small>{slotResult.slotName ?? 'Slot'} · {slotResult.status}</small>
+            </div>
+            {#if slotResult.eventInstanceId}
+              <Badge tone="good">logged</Badge>
+            {:else if actionable}
+              <button
+                class="secondary-button compact-button"
+                type="button"
+                onclick={() => openSessionSlotDialog(work, slotResult)}
+              >
+                <Dumbbell size={16} />
+                <span>Log</span>
+              </button>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
-  <button class="secondary-button compact-button" type="button" disabled={!work.canLog} onclick={() => openLogDialog(work)}>
-    <ClipboardPlus size={16} />
-    <span>{work.status === 'completed' ? 'Done' : 'Log'}</span>
-  </button>
+  {#if canStartSession}
+    <button
+      class="primary-button compact-button"
+      type="button"
+      disabled={$startingSessionId === work.id}
+      onclick={() => startSession(work)}
+    >
+      <Play size={16} />
+      <span>{$startingSessionId === work.id ? 'Starting' : 'Start'}</span>
+    </button>
+  {:else if work.kind !== 'session'}
+    <button class="secondary-button compact-button" type="button" disabled={!work.canLog || !actionable} onclick={() => openLogDialog(work)}>
+      <ClipboardPlus size={16} />
+      <span>{work.status === 'completed' ? 'Done' : 'Log'}</span>
+    </button>
+  {/if}
 </article>
