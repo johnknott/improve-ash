@@ -1035,6 +1035,25 @@ form > button,
   align-items: start;
 }
 
+.inventory-quantity {
+  display: block;
+  margin-top: 0.45rem;
+  color: #172033;
+  font-size: 1.05rem;
+}
+
+.inventory-detail,
+.inventory-subsection,
+.inventory-history {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.inventory-subsection {
+  border-top: 1px solid #edf1f6;
+  padding-top: 0.7rem;
+}
+
 .json-block {
   max-height: 18rem;
   overflow: auto;

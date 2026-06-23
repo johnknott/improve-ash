@@ -1,10 +1,13 @@
 <script lang="ts">
-  import type { DashboardData, ItemType, PlanItem } from '../../api/types'
+  import { Pencil, PlusCircle } from '@lucide/svelte'
+  import type { DashboardData, ItemType, JournalEntry, PlanItem } from '../../api/types'
+  import { openDoseDialog } from '../../app/appState'
   import Badge from '../../components/ui/Badge.svelte'
   import Card from '../../components/ui/Card.svelte'
   import EmptyState from '../../components/ui/EmptyState.svelte'
   import JsonBlock from '../../components/ui/JsonBlock.svelte'
   import LoadingState from '../../components/ui/LoadingState.svelte'
+  import { formatDateTime } from '../../lib/dates'
   import DemoPlanSetup from '../setup/DemoPlanSetup.svelte'
 
   let { data, loading }: { data: DashboardData | null; loading: boolean } = $props()
@@ -14,6 +17,39 @@
 
   function itemsForType(itemType: ItemType): PlanItem[] {
     return items.filter((item) => item.typeId === itemType.id)
+  }
+
+  function doseHistoryFor(item: PlanItem): JournalEntry[] {
+    return (data?.journal ?? []).filter((entry) =>
+      entry.itemLinks.some((link) => link.itemId === item.id && link.role === 'source_vial')
+    )
+  }
+
+  function canLogDose(item: PlanItem): boolean {
+    return item.stateful && (data?.planDetail?.eventTypes ?? []).some((eventType) => eventType.key === 'take_dose')
+  }
+
+  function currentQuantity(item: PlanItem): string | null {
+    const quantity = stateValue(item.state?.calculatedState.current_quantity)
+    const unit = stateValue(item.state?.calculatedState.unit)
+
+    if (!quantity) {
+      return null
+    }
+
+    return unit ? `${quantity} ${unit}` : quantity
+  }
+
+  function stateValue(value: unknown): string | null {
+    if (typeof value === 'string') {
+      return value
+    }
+
+    if (typeof value === 'number') {
+      return String(value)
+    }
+
+    return null
   }
 </script>
 
@@ -38,6 +74,9 @@
                 <div>
                   <h3>{item.name}</h3>
                   <p>{item.key}</p>
+                  {#if currentQuantity(item)}
+                    <strong class="inventory-quantity">{currentQuantity(item)}</strong>
+                  {/if}
                 </div>
                 <div class="row-actions">
                   {#if item.stateful}
@@ -46,8 +85,66 @@
                   {#if item.archived}
                     <Badge tone="warning">archived</Badge>
                   {/if}
+                  {#if canLogDose(item)}
+                    <button class="secondary-button compact-button" type="button" onclick={() => openDoseDialog(item)}>
+                      <PlusCircle size={16} />
+                      <span>Log dose</span>
+                    </button>
+                  {/if}
                 </div>
-                <JsonBlock value={item.facts} />
+                <div class="inventory-detail">
+                  <JsonBlock value={item.facts} />
+
+                  {#if item.state?.activeEffects.length}
+                    <div class="inventory-subsection">
+                      <p class="muted">Active effects</p>
+                      <div class="chip-list compact-chips">
+                        {#each item.state.activeEffects as effect (effect.id)}
+                          <span class="model-chip">
+                            {effect.effectType}
+                            {#if effect.quantity}
+                              {effect.quantity}{effect.unit ? ` ${effect.unit}` : ''}
+                            {/if}
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+
+                  {#if doseHistoryFor(item).length}
+                    <div class="inventory-subsection">
+                      <p class="muted">Dose history</p>
+                      <div class="inventory-history">
+                        {#each doseHistoryFor(item) as entry (entry.id)}
+                          <div class="mini-row">
+                            <div>
+                              <strong>{entry.quantity}{entry.unit ? ` ${entry.unit}` : ''}</strong>
+                              <small>{formatDateTime(entry.effectiveAt)} · {entry.status}</small>
+                            </div>
+                            {#if entry.status === 'active'}
+                              <button
+                                class="secondary-button compact-button"
+                                type="button"
+                                onclick={() => openDoseDialog(item, entry)}
+                              >
+                                <Pencil size={15} />
+                                <span>Correct</span>
+                              </button>
+                            {/if}
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+
+                  {#if item.state?.warnings.length}
+                    <div class="inventory-subsection">
+                      {#each item.state.warnings as warning}
+                        <p class="error inline-error">{warning}</p>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
               </article>
             {:else}
               <EmptyState title="No items" message="No items of this type are authored in the current plan." />

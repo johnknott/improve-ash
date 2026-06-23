@@ -1,6 +1,8 @@
 import type {
   DashboardData,
+  CorrectDoseInput,
   DemoPlanKind,
+  DoseInput,
   LogEventInput,
   JournalEntry,
   LogSessionSlotInput,
@@ -49,6 +51,24 @@ export async function logEvent(input: LogEventInput): Promise<JournalEntry> {
   })
 
   return response.event
+}
+
+export async function logDose(input: DoseInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/log-dose', {
+    method: 'POST',
+    body: JSON.stringify(doseBody(input)),
+  })
+}
+
+export async function correctDose(input: CorrectDoseInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/correct-dose', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...doseBody(input),
+      original_event_id: input.originalEventId,
+      correction_note: input.correctionNote,
+    }),
+  })
 }
 
 export async function installDemoPlan(kind: DemoPlanKind): Promise<DashboardData> {
@@ -115,6 +135,19 @@ function updateSessionStatus(path: string, input: SessionStatusInput): Promise<D
       note: input.note,
     }),
   })
+}
+
+function doseBody(input: DoseInput): Record<string, unknown> {
+  return {
+    plan_id: input.planId,
+    source_vial_item_id: input.sourceVialItemId,
+    amount: input.amount,
+    unit: input.unit,
+    effective_at: input.effectiveAt,
+    note: input.note,
+    site: input.site,
+    route: input.route,
+  }
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {

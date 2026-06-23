@@ -25,6 +25,8 @@ defmodule ImproveWeb.Router do
     post "/app/complete-session", AppController, :complete_session
     post "/app/skip-session", AppController, :skip_session
     post "/app/log-event", AppController, :log_event
+    post "/app/log-dose", AppController, :log_dose
+    post "/app/correct-dose", AppController, :correct_dose
 
     post "/rpc/run", AshTypescriptRpcController, :run
     post "/rpc/validate", AshTypescriptRpcController, :validate

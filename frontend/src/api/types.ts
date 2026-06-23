@@ -126,7 +126,17 @@ export type JournalEntry = {
     quantity: string | null
     unit: string | null
     status: string
+    eventInstanceId: string | null
+    replacesItemEffectId: string | null
   }>
+}
+
+export type ItemState = {
+  itemId: string
+  startingFacts: Record<string, unknown>
+  calculatedState: Record<string, unknown>
+  activeEffects: JournalEntry['itemEffects']
+  warnings: string[]
 }
 
 export type PlanItem = {
@@ -136,6 +146,7 @@ export type PlanItem = {
   typeId: string
   typeKey: string | null
   stateful: boolean
+  state: ItemState | null
   facts: Record<string, unknown>
   archived: boolean
 }
@@ -270,4 +281,20 @@ export type SwapSessionSlotInput = {
 export type SessionStatusInput = {
   sessionOccurrenceId: string
   note?: string | null
+}
+
+export type DoseInput = {
+  planId: string
+  sourceVialItemId: string
+  amount: string
+  unit: string
+  effectiveAt?: string | null
+  note?: string | null
+  site?: string | null
+  route?: string | null
+}
+
+export type CorrectDoseInput = DoseInput & {
+  originalEventId: string
+  correctionNote?: string | null
 }

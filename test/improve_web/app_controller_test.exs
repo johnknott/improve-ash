@@ -194,8 +194,89 @@ defmodule ImproveWeb.AppControllerTest do
            } = json_response(conn, 200)
   end
 
+  test "signed-in users can log and correct vial doses from the app API", %{conn: conn} do
+    conn = sign_in!(conn, "app-vial-flow@example.test")
+
+    conn = post(conn, ~p"/api/app/demo-plans", %{kind: "vial_inventory"})
+    response = json_response(conn, 200)
+    plan_id = get_in(response, ["currentPlan", "id"])
+    vial = plan_item(response, "retatrutide_vial_1")
+
+    assert get_in(vial, ["state", "calculatedState", "current_quantity"]) == "5000"
+    assert get_in(vial, ["state", "calculatedState", "unit"]) == "mcg"
+
+    conn =
+      post(conn, ~p"/api/app/log-dose", %{
+        plan_id: plan_id,
+        source_vial_item_id: vial["id"],
+        amount: "250",
+        unit: "mcg",
+        effective_at: "2026-06-23T08:00:00Z",
+        note: "Left abdomen"
+      })
+
+    response = json_response(conn, 200)
+    vial = plan_item(response, "retatrutide_vial_1")
+
+    assert get_in(vial, ["state", "calculatedState", "current_quantity"]) == "4750"
+
+    assert [
+             %{
+               "id" => original_event_id,
+               "itemLinks" => [%{"role" => "source_vial", "itemKey" => "retatrutide_vial_1"}],
+               "itemEffects" => [
+                 %{
+                   "effectType" => "subtract_quantity",
+                   "quantity" => "250",
+                   "status" => "active"
+                 }
+               ]
+             }
+           ] = response["journal"]
+
+    conn =
+      post(conn, ~p"/api/app/correct-dose", %{
+        plan_id: plan_id,
+        original_event_id: original_event_id,
+        source_vial_item_id: vial["id"],
+        amount: "200",
+        unit: "mcg",
+        effective_at: "2026-06-23T08:05:00Z",
+        correction_note: "Dose amount corrected"
+      })
+
+    response = json_response(conn, 200)
+    vial = plan_item(response, "retatrutide_vial_1")
+
+    assert get_in(vial, ["state", "calculatedState", "current_quantity"]) == "4800"
+
+    assert [
+             %{
+               "effectType" => "subtract_quantity",
+               "quantity" => "200",
+               "status" => "active"
+             }
+           ] = get_in(vial, ["state", "activeEffects"])
+
+    assert Enum.any?(
+             response["journal"],
+             &(&1["id"] == original_event_id and &1["status"] == "corrected")
+           )
+
+    assert Enum.any?(
+             response["journal"],
+             &(&1["summary"] == "Corrected dose from Retatrutide vial 1")
+           )
+  end
+
   defp alternate_push_item_key(recommended_key) do
     Enum.find(["chest_press", "shoulder_press", "cable_fly"], &(&1 != recommended_key))
+  end
+
+  defp plan_item(response, key) do
+    response
+    |> get_in(["planDetail", "items"])
+    |> Enum.find(&(&1["key"] == key))
   end
 
   defp sign_in!(conn, email) do

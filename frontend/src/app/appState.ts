@@ -3,6 +3,8 @@ import {
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
   completeSession as completeSessionRequest,
+  correctDose as correctDoseRequest,
+  logDose as logDoseRequest,
   logSessionSlot as submitSessionSlotEvent,
   logEvent as submitLogEvent,
   skipSession as skipSessionRequest,
@@ -11,13 +13,17 @@ import {
 } from '../api/improveClient'
 import type {
   DashboardData,
+  CorrectDoseInput,
   DemoPlanKind,
+  DoseInput,
+  JournalEntry,
   LogEventInput,
   LogSessionSlotInput,
   ProjectedWork,
   SessionStatusInput,
   SessionSlotResult,
   SwapSessionSlotInput,
+  PlanItem,
 } from '../api/types'
 
 type DashboardState = {
@@ -38,6 +44,12 @@ type SessionSlotDialogState = {
   slotResult: SessionSlotResult | null
 }
 
+type DoseDialogState = {
+  open: boolean
+  item: PlanItem | null
+  event: JournalEntry | null
+}
+
 export const dashboardState = writable<DashboardState>({
   loading: true,
   refreshing: false,
@@ -56,6 +68,12 @@ export const sessionSlotDialogState = writable<SessionSlotDialogState>({
   open: false,
   work: null,
   slotResult: null,
+})
+
+export const doseDialogState = writable<DoseDialogState>({
+  open: false,
+  item: null,
+  event: null,
 })
 
 export const checkInDialogOpen = writable(false)
@@ -98,6 +116,7 @@ export function resetDashboard(): void {
   dashboardState.set({ loading: false, refreshing: false, error: null, data: null })
   logDialogState.set({ open: false, work: null })
   sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
+  doseDialogState.set({ open: false, item: null, event: null })
   checkInDialogOpen.set(false)
   toastMessage.set(null)
   installingDemoPlan.set(null)
@@ -122,11 +141,33 @@ export function closeSessionSlotDialog(): void {
   sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
 }
 
+export function openDoseDialog(item: PlanItem, event: JournalEntry | null = null): void {
+  doseDialogState.set({ open: true, item, event })
+}
+
+export function closeDoseDialog(): void {
+  doseDialogState.set({ open: false, item: null, event: null })
+}
+
 export async function submitLog(input: LogEventInput): Promise<void> {
   await submitLogEvent(input)
   closeLogDialog()
   showToast('Logged.')
   await loadDashboard(lastLoadedPlanId)
+}
+
+export async function submitDose(input: DoseInput): Promise<void> {
+  const data = await logDoseRequest(input)
+  closeDoseDialog()
+  setDashboardData(data)
+  showToast('Dose logged.')
+}
+
+export async function submitDoseCorrection(input: CorrectDoseInput): Promise<void> {
+  const data = await correctDoseRequest(input)
+  closeDoseDialog()
+  setDashboardData(data)
+  showToast('Dose corrected.')
 }
 
 export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
