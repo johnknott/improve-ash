@@ -96,6 +96,79 @@ Reset is the exception: reset is development plumbing, not a product workflow.
 It should be scoped by stable story key and should not require a full database
 reset for normal iteration.
 
+## Story Layer Versus App API
+
+Treat `Improve.Stories` as a laboratory for discovering the real high-level
+application API. It can be friendly, experimental, and script-oriented. It can
+own scenario keys, reset behavior, demo users, fixture setup, friendly lookups,
+and pretty output.
+
+If a helper describes something the real UI might do, it should eventually move
+into an app-facing namespace such as `Improve.App`.
+
+Examples of operations that probably belong in `Improve.App` once their shape
+settles:
+
+- create a plan
+- project today
+- start a session
+- log an event
+- log a direct goal
+- log a session slot
+- correct a mistake
+- read item state
+- submit offline events
+- fetch AI context
+
+In the long run, `Improve.Stories` should mostly wrap that app-facing API,
+adding story reset, friendly keys, and printing. It should not become the only
+pleasant way to use the system.
+
+The intended stack is:
+
+```text
+Improve.Plans / Improve.Sessions / Improve.Journal / Improve.Ai
+  Core domains, resources, actions, validations, deterministic workflows.
+
+Improve.App
+  Product-facing application API used by UI, scripts, specs, and assistant
+  orchestration.
+
+Improve.Stories
+  Script laboratory: scenario keys, reset, demo users, friendly lookup,
+  fixture sugar, and readable output.
+```
+
+Promote functions from `Improve.Stories` into `Improve.App` only after stories
+show that the operation is real product language rather than temporary script
+sugar.
+
+## Scripts And Specs
+
+Readable story scripts and automated story specs should stay close, but not
+become the same thing.
+
+A story script is the plain-English walkthrough. It should create a plan,
+project today, log what happened, read the journal, check derived state, and ask
+what the AI can see. It should optimize for readability and inspection.
+
+A story spec should run the same workflow, or an equivalent workflow using the
+same app-facing API, and assert the important outcomes:
+
+- projected work exists
+- one event was logged
+- duplicate offline retry did not create a second event
+- correction voided the old effect and created a replacement
+- item state reflects active effects only
+- AI context includes the right structured facts
+
+The script protects product readability. The spec protects behavior. Together
+they prove the full loop:
+
+```text
+plan -> projection -> action -> journal -> derived state -> AI context
+```
+
 ## Elixir Shape
 
 The ideal product shape reads like this:

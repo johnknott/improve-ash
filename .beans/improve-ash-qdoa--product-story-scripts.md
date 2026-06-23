@@ -12,3 +12,4 @@ Add executable plain-English product story scripts that pressure the app-facing 
 
 Progress:
 - First slice completed in `improve-ash-tjpx`: product note, thin story helper layer, direct-goal reading story, reset coverage, and verification.
+- Boundary tidy completed in `improve-ash-d9aj` and `improve-ash-zjp5`: documented the Story/App split and promoted direct-goal logging into `Improve.App`.
