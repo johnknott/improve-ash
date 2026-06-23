@@ -116,6 +116,63 @@ defmodule ImproveWeb.AppControllerTest do
            ] = get_in(response, ["today", "work"])
   end
 
+  test "signed-in users can create a daily metric track from the app API", %{conn: conn} do
+    conn = sign_in!(conn, "app-metric-track-create@example.test")
+
+    conn =
+      post(conn, ~p"/api/app/plans", %{
+        name: "Body metrics",
+        intention: "Notice trends without daily noise",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
+
+    conn =
+      post(conn, ~p"/api/app/direct-goals", %{
+        plan_id: plan_id,
+        name: "Weigh myself",
+        description: "Daily bodyweight check-in.",
+        target_mode: "metric",
+        metric_name: "Weight",
+        event_name: "Weight",
+        unit: "kg",
+        date: "2026-06-23"
+      })
+
+    response = json_response(conn, 200)
+
+    assert [
+             %{
+               "name" => "Weigh myself",
+               "description" => "Daily bodyweight check-in.",
+               "eventTypeName" => "Weight",
+               "target" => %{
+                 "mode" => "metric",
+                 "metricName" => "Weight",
+                 "quantity" => nil,
+                 "unit" => "kg"
+               },
+               "schedule" => %{"kind" => "every_day"}
+             }
+           ] = get_in(response, ["planDetail", "directGoals"])
+
+    assert [
+             %{
+               "title" => "Weigh myself",
+               "target" => %{
+                 "mode" => "metric",
+                 "metricName" => "Weight",
+                 "quantity" => nil,
+                 "unit" => "kg"
+               },
+               "canLog" => true
+             }
+           ] = get_in(response, ["today", "work"])
+  end
+
   test "signed-in users can start, swap, log, and complete a projected gym session", %{conn: conn} do
     email = "app-session-flow@example.test"
     conn = sign_in!(conn, email)

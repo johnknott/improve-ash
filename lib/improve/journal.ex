@@ -628,7 +628,13 @@ defmodule Improve.Journal do
     actor = Keyword.fetch!(opts, :actor)
 
     with {:ok, plan} <- fetch_plan(plan_or_id, actor) do
-      list_events(actor: actor, query: [filter: [plan_id: plan.id], sort: [effective_at: :asc]])
+      list_events(
+        actor: actor,
+        query: [
+          filter: [plan_id: plan.id],
+          sort: [effective_at: :asc, recorded_at: :asc, inserted_at: :asc]
+        ]
+      )
     end
   end
 

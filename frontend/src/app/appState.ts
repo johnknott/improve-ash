@@ -2,33 +2,13 @@ import { get, writable } from 'svelte/store'
 import {
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
-  completeSession as completeSessionRequest,
-  correctLinkedEvent as correctLinkedEventRequest,
-  createDirectGoal as createDirectGoalRequest,
   createPlan as createPlanRequest,
-  logLinkedEvent as logLinkedEventRequest,
-  logSessionSlot as submitSessionSlotEvent,
-  logEvent as submitLogEvent,
-  skipSession as skipSessionRequest,
-  startSession as startSessionRequest,
-  swapSessionSlot as swapSessionSlotRequest,
   todayIso,
 } from '../api/improveClient'
 import type {
   DashboardData,
-  CorrectLinkedEventInput,
-  CreateDirectGoalInput,
   CreatePlanInput,
   DemoPlanKind,
-  JournalEntry,
-  LinkedEventInput,
-  LogEventInput,
-  LogSessionSlotInput,
-  ProjectedWork,
-  SessionStatusInput,
-  SessionSlotResult,
-  SwapSessionSlotInput,
-  PlanItem,
 } from '../api/types'
 
 type DashboardState = {
@@ -40,21 +20,6 @@ type DashboardState = {
 
 type LogDialogState = {
   open: boolean
-  work: ProjectedWork | null
-}
-
-type SessionSlotDialogState = {
-  open: boolean
-  work: ProjectedWork | null
-  slotResult: SessionSlotResult | null
-}
-
-type LinkedEventDialogState = {
-  open: boolean
-  item: PlanItem | null
-  event: JournalEntry | null
-  eventTypeId: string | null
-  role: string | null
 }
 
 export const dashboardState = writable<DashboardState>({
@@ -69,30 +34,12 @@ export const selectedDate = writable(todayIso())
 
 export const logDialogState = writable<LogDialogState>({
   open: false,
-  work: null,
-})
-
-export const sessionSlotDialogState = writable<SessionSlotDialogState>({
-  open: false,
-  work: null,
-  slotResult: null,
-})
-
-export const linkedEventDialogState = writable<LinkedEventDialogState>({
-  open: false,
-  item: null,
-  event: null,
-  eventTypeId: null,
-  role: null,
 })
 
 export const newPlanDialogOpen = writable(false)
 export const checkInDialogOpen = writable(false)
 export const toastMessage = writable<string | null>(null)
 export const installingDemoPlan = writable<DemoPlanKind | null>(null)
-export const startingSessionId = writable<string | null>(null)
-export const selectedSessionWorkId = writable<string | null>(null)
-export const updatingSession = writable(false)
 
 let lastLoadedPlanId: string | null = null
 
@@ -123,45 +70,19 @@ export function resetDashboard(): void {
   selectedPlanId.set(null)
   selectedDate.set(todayIso())
   dashboardState.set({ loading: false, refreshing: false, error: null, data: null })
-  logDialogState.set({ open: false, work: null })
-  sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
-  linkedEventDialogState.set({ open: false, item: null, event: null, eventTypeId: null, role: null })
+  logDialogState.set({ open: false })
   newPlanDialogOpen.set(false)
   checkInDialogOpen.set(false)
   toastMessage.set(null)
   installingDemoPlan.set(null)
-  startingSessionId.set(null)
-  selectedSessionWorkId.set(null)
-  updatingSession.set(false)
 }
 
-export function openLogDialog(work: ProjectedWork | null = null): void {
-  logDialogState.set({ open: true, work })
+export function openLogDialog(): void {
+  logDialogState.set({ open: true })
 }
 
 export function closeLogDialog(): void {
-  logDialogState.set({ open: false, work: null })
-}
-
-export function openSessionSlotDialog(work: ProjectedWork, slotResult: SessionSlotResult): void {
-  sessionSlotDialogState.set({ open: true, work, slotResult })
-}
-
-export function closeSessionSlotDialog(): void {
-  sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
-}
-
-export function openLinkedEventDialog(
-  item: PlanItem,
-  eventTypeId: string,
-  role: string,
-  event: JournalEntry | null = null
-): void {
-  linkedEventDialogState.set({ open: true, item, event, eventTypeId, role })
-}
-
-export function closeLinkedEventDialog(): void {
-  linkedEventDialogState.set({ open: false, item: null, event: null, eventTypeId: null, role: null })
+  logDialogState.set({ open: false })
 }
 
 export function openNewPlanDialog(): void {
@@ -187,27 +108,6 @@ export async function stepSelectedDate(days: number): Promise<void> {
 
 export async function resetSelectedDate(): Promise<void> {
   await changeSelectedDate(todayIso())
-}
-
-export async function submitLog(input: LogEventInput): Promise<void> {
-  await submitLogEvent(input)
-  closeLogDialog()
-  showToast('Logged.')
-  await loadDashboard(lastLoadedPlanId, get(selectedDate))
-}
-
-export async function submitLinkedEvent(input: LinkedEventInput): Promise<void> {
-  const data = await logLinkedEventRequest({ ...input, date: get(selectedDate) })
-  closeLinkedEventDialog()
-  setDashboardData(data)
-  showToast('Event logged.')
-}
-
-export async function submitLinkedEventCorrection(input: CorrectLinkedEventInput): Promise<void> {
-  const data = await correctLinkedEventRequest({ ...input, date: get(selectedDate) })
-  closeLinkedEventDialog()
-  setDashboardData(data)
-  showToast('Event corrected.')
 }
 
 export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
@@ -243,95 +143,6 @@ export async function submitNewPlan(input: CreatePlanInput): Promise<void> {
       error: 'We could not create that plan.',
     }))
     throw new Error('We could not create that plan.')
-  }
-}
-
-export async function submitDirectGoal(input: CreateDirectGoalInput): Promise<void> {
-  dashboardState.update((state) => ({ ...state, refreshing: true, error: null }))
-
-  try {
-    setDashboardData(await createDirectGoalRequest({ ...input, date: get(selectedDate) }))
-    showToast('Goal added.')
-  } catch {
-    dashboardState.update((state) => ({
-      ...state,
-      refreshing: false,
-      error: 'We could not add that goal.',
-    }))
-    throw new Error('We could not add that goal.')
-  }
-}
-
-export async function startSession(work: ProjectedWork): Promise<void> {
-  if (!work.session) {
-    return
-  }
-
-  startingSessionId.set(work.id)
-  dashboardState.update((state) => ({ ...state, refreshing: true, error: null }))
-
-  try {
-    const data = await startSessionRequest({
-      planId: work.planId,
-      sessionTemplateId: work.session.sessionTemplateId,
-      date: work.plannedFor,
-    })
-    lastLoadedPlanId = data.currentPlan?.id ?? null
-    selectedPlanId.set(lastLoadedPlanId)
-    dashboardState.set({ loading: false, refreshing: false, error: null, data })
-    showToast('Session started.')
-  } catch {
-    dashboardState.update((state) => ({
-      ...state,
-      refreshing: false,
-      error: 'We could not start that session.',
-    }))
-  } finally {
-    startingSessionId.set(null)
-  }
-}
-
-export async function submitSessionSlot(input: LogSessionSlotInput): Promise<void> {
-  const data = await submitSessionSlotEvent({ ...input, date: get(selectedDate) })
-  closeSessionSlotDialog()
-  setDashboardData(data)
-  showToast('Slot logged.')
-}
-
-export function selectSession(work: ProjectedWork): void {
-  selectedSessionWorkId.set(work.id)
-}
-
-export async function swapSessionSlot(input: SwapSessionSlotInput): Promise<void> {
-  updatingSession.set(true)
-
-  try {
-    setDashboardData(await swapSessionSlotRequest({ ...input, date: get(selectedDate) }))
-    showToast('Slot swapped.')
-  } finally {
-    updatingSession.set(false)
-  }
-}
-
-export async function completeSession(input: SessionStatusInput): Promise<void> {
-  updatingSession.set(true)
-
-  try {
-    setDashboardData(await completeSessionRequest({ ...input, date: get(selectedDate) }))
-    showToast('Session completed.')
-  } finally {
-    updatingSession.set(false)
-  }
-}
-
-export async function skipSession(input: SessionStatusInput): Promise<void> {
-  updatingSession.set(true)
-
-  try {
-    setDashboardData(await skipSessionRequest({ ...input, date: get(selectedDate) }))
-    showToast('Session skipped.')
-  } finally {
-    updatingSession.set(false)
   }
 }
 

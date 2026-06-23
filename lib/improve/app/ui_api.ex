@@ -357,21 +357,28 @@ defmodule Improve.App.UiApi do
   defp create_direct_goal_attrs(params) do
     quantity = blank_to_nil(Map.get(params, "quantity"))
     unit = blank_to_nil(Map.get(params, "unit"))
+    target_mode = blank_to_nil(Map.get(params, "target_mode")) || "fixed"
+    metric_name = blank_to_nil(Map.get(params, "metric_name"))
     event_type_id = blank_to_nil(Map.get(params, "event_type_id"))
     event_name = blank_to_nil(Map.get(params, "event_name"))
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(params, "name")), "Goal name is required.")
-      |> maybe_add(blank?(quantity), "Goal amount is required.")
-      |> maybe_add(blank?(unit), "Goal unit is required.")
-      |> maybe_add(blank?(event_type_id) and blank?(event_name), "Choose what this goal logs.")
+      |> maybe_add(blank?(Map.get(params, "name")), "Track name is required.")
+      |> maybe_add(target_mode not in ["fixed", "metric"], "Choose a supported track type.")
+      |> maybe_add(target_mode == "fixed" and blank?(quantity), "Track amount is required.")
+      |> maybe_add(target_mode == "metric" and blank?(metric_name), "Metric name is required.")
+      |> maybe_add(blank?(unit), "Track unit is required.")
+      |> maybe_add(blank?(event_type_id) and blank?(event_name), "Choose what this track logs.")
 
     case diagnostics do
       [] ->
         {:ok,
          %{
            name: String.trim(Map.fetch!(params, "name")),
+           description: blank_to_nil(Map.get(params, "description")),
+           target_mode: target_mode,
+           metric_name: metric_name,
            quantity: quantity,
            unit: unit,
            event_type_id: event_type_id,
@@ -401,14 +408,10 @@ defmodule Improve.App.UiApi do
       App.add_direct_goal!(plan, attrs.name,
         actor: actor,
         key: key_from(attrs.name),
+        description: attrs.description,
         event: event_type.key,
         schedule: App.every_day(),
-        target: %{
-          quantity: attrs.quantity,
-          unit: attrs.unit,
-          quantity_path: "payload.amount",
-          summary_template: "#{event_type.name} %{quantity} %{unit}"
-        }
+        target: direct_goal_target(attrs, event_type)
       )
 
     {:ok, direct_goal}
@@ -418,6 +421,26 @@ defmodule Improve.App.UiApi do
 
     error ->
       {:error, [Exception.message(error)]}
+  end
+
+  defp direct_goal_target(%{target_mode: "metric"} = attrs, event_type) do
+    %{
+      mode: "metric",
+      metric_name: attrs.metric_name,
+      unit: attrs.unit,
+      quantity_path: "payload.amount",
+      summary_template: "#{event_type.name} %{quantity} %{unit}"
+    }
+  end
+
+  defp direct_goal_target(attrs, event_type) do
+    %{
+      mode: "fixed",
+      quantity: attrs.quantity,
+      unit: attrs.unit,
+      quantity_path: "payload.amount",
+      summary_template: "#{event_type.name} %{quantity} %{unit}"
+    }
   end
 
   defp get_plan_item(params, plan_id, actor) do
@@ -937,6 +960,8 @@ defmodule Improve.App.UiApi do
     %{
       quantity: map_value(target, "quantity"),
       unit: map_value(target, "unit"),
+      mode: map_value(target, "mode"),
+      metricName: map_value(target, "metric_name"),
       quantityPath: map_value(target, "quantity_path"),
       summaryTemplate: map_value(target, "summary_template")
     }
