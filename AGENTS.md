@@ -136,6 +136,12 @@ Expected task names may evolve, but prefer this shape:
 When exact tool versions are not established yet, choose current stable versions
 unless a documented compatibility constraint says otherwise.
 
+Before adding a new Mix package, check Elixir Observer categories first:
+`https://elixir-observer.com/categories`. Use it to understand the current
+package landscape and nearby alternatives. Still verify the chosen package
+against Hex.pm, HexDocs, the package repository, compatibility constraints, and
+this spike's scope before adding it.
+
 ## Ash Documentation Discipline
 
 Ash and its extensions move quickly. Do not rely on memory for non-trivial Ash,
