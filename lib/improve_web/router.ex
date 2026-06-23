@@ -17,6 +17,9 @@ defmodule ImproveWeb.Router do
     get "/auth/me", AuthController, :me
     post "/auth/logout", AuthController, :logout
 
+    get "/app/dashboard", AppController, :dashboard
+    post "/app/log-event", AppController, :log_event
+
     post "/rpc/run", AshTypescriptRpcController, :run
     post "/rpc/validate", AshTypescriptRpcController, :validate
   end

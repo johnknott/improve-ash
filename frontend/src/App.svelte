@@ -1,10 +1,28 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import AppShell from './app/AppShell.svelte'
+  import { dashboardState, loadDashboard, resetDashboard } from './app/appState'
   import LoginPage from './features/auth/LoginPage.svelte'
-  import { authState, loadCurrentUser, logoutCurrentUser } from './features/auth/authStore'
+  import { authState, loadCurrentUser } from './features/auth/authStore'
+
+  let loadedUserId = $state<string | null>(null)
 
   onMount(() => {
     loadCurrentUser()
+  })
+
+  $effect(() => {
+    const user = $authState.user
+
+    if (user && loadedUserId !== user.id) {
+      loadedUserId = user.id
+      loadDashboard()
+    }
+
+    if (!user && loadedUserId) {
+      loadedUserId = null
+      resetDashboard()
+    }
   })
 </script>
 
@@ -15,24 +33,11 @@
 {:else if !$authState.user}
   <LoginPage />
 {:else}
-  <main class="app-shell">
-    <header>
-      <div>
-        <p class="eyebrow">Improve</p>
-        <h1>Today</h1>
-      </div>
-
-      <div class="account">
-        <span>{$authState.user.email}</span>
-        <button type="button" onclick={logoutCurrentUser}>Log out</button>
-      </div>
-    </header>
-
-    <section class="today-panel">
-      <h2>Ready for the first real screen</h2>
-      <p>
-        Auth is live. The next pass can hang the Today projection and story-backed flows here.
-      </p>
-    </section>
-  </main>
+  <AppShell
+    user={$authState.user}
+    data={$dashboardState.data}
+    loading={$dashboardState.loading}
+    error={$dashboardState.error}
+    onRetry={() => loadDashboard()}
+  />
 {/if}
