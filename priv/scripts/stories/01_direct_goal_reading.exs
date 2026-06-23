@@ -26,7 +26,12 @@ Story.add_direct_goal!(story, plan, "Read 20 pages",
   key: "daily_reading",
   event: "pages_read",
   schedule: Story.every_day(),
-  target: %{pages: 20}
+  target: %{
+    quantity: 20,
+    unit: "pages",
+    quantity_path: "payload.pages",
+    summary_template: "Read %{quantity} %{unit}"
+  }
 )
 
 Story.show_plan_summary!(story, plan)
@@ -36,11 +41,7 @@ Story.show_projection!(story, today)
 
 Story.log_direct_goal!(story, today,
   goal: "daily_reading",
-  event: "pages_read",
-  payload: %{pages: 25, note: "Read before bed"},
-  quantity: 25,
-  unit: "pages",
-  note: "Read before bed"
+  payload: %{pages: 25, note: "Read before bed"}
 )
 
 Story.show_journal!(story, plan)

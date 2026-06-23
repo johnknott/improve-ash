@@ -12,6 +12,7 @@ defmodule Improve.Stories do
   alias Improve.Accounts
   alias Improve.Ai
   alias Improve.Journal
+  alias Improve.Planning.PathReader
   alias Improve.Plans
   alias Improve.Repo
   alias Improve.Stories.Print
@@ -123,8 +124,12 @@ defmodule Improve.Stories do
   def log_direct_goal!(%Story{} = story, projection, opts) do
     plan_id = projection.plan_id
     direct_goal = direct_goal!(story, plan_id, Keyword.fetch!(opts, :goal))
-    event_type = event_type!(story, plan_id, Keyword.fetch!(opts, :event))
+    event_type = direct_goal_event_type!(story, plan_id, direct_goal, opts)
     effective_at = Keyword.get(opts, :effective_at, default_datetime(projection.date))
+    payload = stringify_keys(Keyword.get(opts, :payload, %{}))
+    quantity = Keyword.get(opts, :quantity, quantity_from_target(payload, direct_goal.target))
+    unit = Keyword.get(opts, :unit, value(direct_goal.target, "unit"))
+    note = Keyword.get(opts, :note, value(payload, "note"))
 
     Journal.log_generic_event!(
       %{
@@ -133,11 +138,11 @@ defmodule Improve.Stories do
         direct_goal_id: direct_goal.id,
         effective_at: effective_at,
         recorded_at: Keyword.get(opts, :recorded_at, effective_at),
-        summary: Keyword.get(opts, :summary, "#{direct_goal.name} logged"),
-        payload: stringify_keys(Keyword.get(opts, :payload, %{})),
-        note: Keyword.get(opts, :note),
-        quantity: Keyword.get(opts, :quantity),
-        unit: Keyword.get(opts, :unit)
+        summary: Keyword.get(opts, :summary, direct_goal_summary(direct_goal, quantity, unit)),
+        payload: payload,
+        note: note,
+        quantity: quantity,
+        unit: unit
       },
       actor: actor!(story)
     )
@@ -236,6 +241,13 @@ defmodule Improve.Stories do
     end
   end
 
+  defp direct_goal_event_type!(story, plan_id, direct_goal, opts) do
+    case Keyword.get(opts, :as_event, Keyword.get(opts, :event)) do
+      nil -> Plans.get_event_type!(direct_goal.event_type_id, actor: actor!(story))
+      key -> event_type!(story, plan_id, key)
+    end
+  end
+
   defp direct_goal!(story, plan_or_id, key) do
     story
     |> direct_goals(plan_id(plan_or_id))
@@ -328,6 +340,34 @@ defmodule Improve.Stories do
     DateTime.new!(date, ~T[20:00:00], "Etc/UTC")
   end
 
+  defp quantity_from_target(payload, target) do
+    case value(target, "quantity_path") do
+      path when is_binary(path) -> PathReader.value(payload, path)
+      _other -> nil
+    end
+  end
+
+  defp direct_goal_summary(direct_goal, quantity, unit)
+       when not is_nil(quantity) and not is_nil(unit) do
+    case value(direct_goal.target, "summary_template") do
+      template when is_binary(template) ->
+        template
+        |> String.replace("%{quantity}", to_string(quantity))
+        |> String.replace("%{unit}", to_string(unit))
+
+      _other ->
+        "#{quantity} #{unit} for #{direct_goal.name}"
+    end
+  end
+
+  defp direct_goal_summary(direct_goal, _quantity, _unit), do: "#{direct_goal.name} logged"
+
+  defp value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, existing_atom(key))
+  end
+
+  defp value(_map, _key), do: nil
+
   defp stringify_keys(value) when is_map(value) do
     Map.new(value, fn {key, value} -> {stringify_key(key), stringify_keys(value)} end)
   end
@@ -337,6 +377,12 @@ defmodule Improve.Stories do
 
   defp stringify_key(key) when is_atom(key), do: Atom.to_string(key)
   defp stringify_key(key), do: key
+
+  defp existing_atom(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
+  end
 
   defp maybe_put(opts, _key, nil), do: opts
   defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
