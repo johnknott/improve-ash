@@ -267,6 +267,19 @@ defmodule Improve.Stories do
     App.log_session_slot!(started_session, Keyword.put(opts, :actor, actor!(story)))
   end
 
+  def log_event!(%Story{} = story, plan, opts) do
+    App.log_event!(plan, Keyword.put(opts, :actor, actor!(story)))
+  end
+
+  def subtract_quantity(opts) do
+    %{
+      role: Keyword.fetch!(opts, :from),
+      effect_type: "subtract_quantity",
+      quantity_path: Keyword.fetch!(opts, :quantity),
+      unit_path: Keyword.fetch!(opts, :unit)
+    }
+  end
+
   def show_plan_summary!(%Story{} = story, plan) do
     summary = Plans.summarize_plan!(plan, actor: actor!(story))
 
@@ -346,6 +359,22 @@ defmodule Improve.Stories do
     events
   end
 
+  def show_item_state!(%Story{} = story, plan, item_key) do
+    state = App.get_item_state!(plan, item_key, actor: actor!(story))
+
+    Print.section("Item State")
+
+    Print.key_values([
+      {"Item", item_key},
+      {"Current quantity", state.calculated_state.current_quantity},
+      {"Unit", state.calculated_state.unit},
+      {"Active effects", length(state.active_effects)},
+      {"Warnings", length(state.warnings)}
+    ])
+
+    state
+  end
+
   def show_ai_plan_summary!(%Story{} = story, plan) do
     summary = Ai.get_plan_summary!(plan.id, actor: actor!(story))
 
@@ -372,6 +401,16 @@ defmodule Improve.Stories do
     Print.inspect_value("journal", journal)
 
     journal
+  end
+
+  def show_ai_item_state!(%Story{} = story, plan, item_key) do
+    item = item!(story, plan, item_key)
+    state = Ai.get_item_state!(item.id, actor: actor!(story))
+
+    Print.section("AI Item State")
+    Print.inspect_value("state", state)
+
+    state
   end
 
   defp create_schedule!(story, plan, owner_type, owner, schedule) do

@@ -62,6 +62,39 @@ defmodule Improve.App do
     )
   end
 
+  def log_event!(plan, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    plan_id = plan_id(plan)
+    event_type = event_type!(plan_id, Keyword.fetch!(opts, :event), actor)
+    payload = stringify_keys(Keyword.get(opts, :payload, %{}))
+    links = item_links(plan_id, Keyword.get(opts, :links, %{}), actor)
+    effective_at = event_datetime(opts)
+    quantity = Keyword.get(opts, :quantity, value(payload, "amount"))
+    unit = Keyword.get(opts, :unit, value(payload, "unit"))
+
+    Journal.log_generic_event!(
+      %{
+        plan_id: plan_id,
+        event_type_id: event_type.id,
+        effective_at: effective_at,
+        recorded_at: Keyword.get(opts, :recorded_at, effective_at),
+        summary: Keyword.get(opts, :summary, event_summary(event_type, links)),
+        quantity: quantity,
+        unit: unit,
+        payload: payload,
+        note: Keyword.get(opts, :note, value(payload, "note")),
+        item_links: links
+      },
+      actor: actor
+    )
+  end
+
+  def get_item_state!(plan, item_key, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    item = item!(plan_id(plan), item_key, actor)
+    Journal.get_item_state!(item, actor: actor)
+  end
+
   def log_direct_goal!(projection, opts) do
     actor = Keyword.fetch!(opts, :actor)
     plan_id = projection.plan_id
@@ -107,10 +140,27 @@ defmodule Improve.App do
     end
   end
 
+  defp item_links(plan_id, links, actor) when is_map(links) do
+    Enum.map(links, fn {role, item_key} ->
+      item = item!(plan_id, item_key, actor)
+
+      %{
+        role: to_string(role),
+        item_id: item.id
+      }
+    end)
+  end
+
+  defp event_summary(event_type, [%{role: role, item_id: item_id} | _links]) do
+    "#{event_type.name} for #{role} #{item_id}"
+  end
+
+  defp event_summary(event_type, _links), do: "#{event_type.name} logged"
+
   defp session_template!(plan_id, key, actor) do
     actor
     |> session_templates(plan_id)
-    |> Enum.find(&(&1.key == key))
+    |> Enum.find(&(&1.key == to_string(key)))
     |> case do
       nil -> raise ArgumentError, "No session #{inspect(key)} exists in this plan."
       session_template -> session_template
@@ -229,8 +279,18 @@ defmodule Improve.App do
     Plans.list_direct_goals!(actor: actor, query: [filter: [plan_id: plan_id]])
   end
 
+  defp plan_id(%{id: id}), do: id
+  defp plan_id(id), do: id
+
   defp default_datetime(date) do
     DateTime.new!(date, ~T[20:00:00], "Etc/UTC")
+  end
+
+  defp event_datetime(opts) do
+    case Keyword.fetch(opts, :effective_at) do
+      {:ok, effective_at} -> effective_at
+      :error -> default_datetime(Keyword.fetch!(opts, :on))
+    end
   end
 
   defp quantity_from_target(payload, target) do

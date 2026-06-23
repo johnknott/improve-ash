@@ -43,14 +43,14 @@ Current scripts:
 ```text
 priv/scripts/stories/01_direct_goal_reading.exs
 priv/scripts/stories/02_start_and_log_gym_session.exs
+priv/scripts/stories/03_log_dose_and_check_vial_state.exs
 ```
 
 Possible future scripts:
 
 ```text
-priv/scripts/stories/03_project_today.exs
-priv/scripts/stories/04_log_direct_goal.exs
-priv/scripts/stories/05_log_dose_and_check_vial_state.exs
+priv/scripts/stories/04_project_today.exs
+priv/scripts/stories/05_log_direct_goal.exs
 priv/scripts/stories/06_correct_logged_event.exs
 priv/scripts/stories/07_submit_offline_batch.exs
 priv/scripts/stories/08_ai_today_context.exs

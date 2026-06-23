@@ -218,6 +218,93 @@ defmodule Improve.StoriesTest do
     end
   end
 
+  describe "vial inventory story helpers" do
+    test "log a linked inventory event and derive item state from generated effects" do
+      story =
+        Story.begin!("test_vial_inventory_basic", reset?: true)
+        |> Story.user!("Story Vial", email: "story+test-vial-inventory-basic@example.test")
+
+      plan =
+        Story.create_plan!(story, "Vial inventory plan",
+          intention: "Track vial quantity and dose history",
+          from: ~D[2026-06-22],
+          until: ~D[2026-09-14]
+        )
+
+      Story.add_item_type!(story, plan, "Peptide vial", key: "peptide_vial")
+
+      Story.add_item!(story, plan, "Retatrutide vial 1",
+        key: "reta_vial_1",
+        type: "peptide_vial",
+        stateful: true,
+        facts: %{starting_quantity: 5000, unit: "mcg", low_quantity_threshold: 500}
+      )
+
+      Story.add_event_type!(story, plan, "Dose taken",
+        key: "dose_taken",
+        required_links: ["source_vial"],
+        payload: %{required: ["amount", "unit"]},
+        effects: [
+          Story.subtract_quantity(
+            from: "source_vial",
+            quantity: "payload.amount",
+            unit: "payload.unit"
+          )
+        ]
+      )
+
+      before_state =
+        capture_return(fn ->
+          Story.show_item_state!(story, plan, "reta_vial_1")
+        end)
+
+      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(5000))
+      assert before_state.calculated_state.unit == "mcg"
+      assert before_state.active_effects == []
+
+      log =
+        Story.log_event!(story, plan,
+          event: "dose_taken",
+          on: ~D[2026-06-22],
+          summary: "Dose taken from Retatrutide vial 1",
+          links: %{source_vial: "reta_vial_1"},
+          payload: %{amount: 250, unit: "mcg", site: "abdomen", note: "Morning dose"}
+        )
+
+      assert log.event.summary == "Dose taken from Retatrutide vial 1"
+      assert log.event.quantity == Decimal.new(250)
+      assert log.event.unit == "mcg"
+
+      assert [%{role: "source_vial"} = link] = log.event_item_links
+      assert [effect] = log.item_effects
+      assert effect.item_id == link.item_id
+      assert effect.effect_type == :subtract_quantity
+      assert effect.quantity == Decimal.new(250)
+      assert effect.unit == "mcg"
+
+      after_state =
+        capture_return(fn ->
+          Story.show_item_state!(story, plan, "reta_vial_1")
+        end)
+
+      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(4750))
+      assert after_state.calculated_state.unit == "mcg"
+      assert Enum.map(after_state.active_effects, & &1.id) == [effect.id]
+      assert after_state.warnings == []
+
+      assert [%{id: event_id}] = Journal.read_journal!(plan, actor: story.user)
+      assert event_id == log.event.id
+
+      ai_state =
+        capture_return(fn ->
+          Story.show_ai_item_state!(story, plan, "reta_vial_1")
+        end)
+
+      assert ai_state.calculated_state.current_quantity == "4750"
+      assert [%{effect_type: :subtract_quantity, quantity: "250"}] = ai_state.active_effects
+    end
+  end
+
   defp capture_return(fun) do
     ref = make_ref()
 
