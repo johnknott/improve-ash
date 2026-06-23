@@ -3,6 +3,8 @@ defmodule Improve.Accounts do
     otp_app: :improve
 
   resources do
+    resource Improve.Accounts.Token
+
     resource Improve.Accounts.User do
       define :create_user, action: :create
       define :get_user, action: :read, get_by: [:id]

@@ -10,6 +10,9 @@ defmodule Improve.Application do
     children = [
       ImproveWeb.Telemetry,
       Improve.Repo,
+      {Improve.Hammer, clean_period: :timer.minutes(1)},
+      {AshAuthentication.Supervisor, otp_app: :improve},
+      Improve.Emails.LocalMailbox,
       {DNSCluster, query: Application.get_env(:improve, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Improve.PubSub},
       # Start a worker by calling: Improve.Worker.start_link(arg)

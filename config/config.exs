@@ -41,6 +41,8 @@ config :ash_typescript,
   generate_zod_schemas: false,
   generate_valibot_schemas: false
 
+config :improve, Improve.Emails, adapter: Improve.Emails.LocalMailbox
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
