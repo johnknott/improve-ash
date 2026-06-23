@@ -215,6 +215,10 @@ Story.add_pool!(story, plan, "Lower body quads", key: "lower_quads", items: ["le
 Story.add_session!(story, plan, "Upper body gym visit",
   key: "upper_body_gym",
   schedule: Story.every_week(times: 2, on: [:tuesday, :thursday]),
+  defaults: %{
+    event: "exercise_performed",
+    payload: %{sets: 2, reps: "8", effort: "medium"}
+  },
   slots: [
     Story.choose(2, from: "upper_cardio", key: "upper_cardio", name: "Warm-up cardio"),
     Story.choose(1, from: "upper_push", key: "upper_push", name: "Push pattern"),
@@ -223,14 +227,15 @@ Story.add_session!(story, plan, "Upper body gym visit",
   ]
 )
 
-# Awkwardness exposed: these session slots probably want default event/payload
-# hints, but the current story API only records the slot choices.
-
 # Old Saturday lower-body tracks translated into one lower-body session.
 
 Story.add_session!(story, plan, "Lower body gym visit",
   key: "lower_body_gym",
   schedule: Story.every_week(times: 1, on: [:saturday]),
+  defaults: %{
+    event: "exercise_performed",
+    payload: %{sets: 2, reps: "8-10", effort: "medium"}
+  },
   slots: [
     Story.choose(2, from: "lower_cardio", key: "lower_cardio", name: "Warm-up cardio"),
     Story.choose(1, from: "lower_press", key: "lower_press", name: "Press pattern"),

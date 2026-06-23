@@ -17,3 +17,4 @@ Progress:
 - Vial inventory story completed in `improve-ash-vialstory`: generic linked-item event logging, authored subtract-quantity effects, derived item state, and AI state output.
 - Final pre-promotion scenarios completed in `improve-ash-nextstories`: correction, offline duplicate/stale ingress, and hybrid Today.
 - Rough old-plan translation completed in `improve-ash-roughplan`: manually recreates the old exported plan in the new model, projects Monday/Tuesday/Saturday, logs a linked Retatrutide dose, and verifies the derived vial state.
+- App promotion completed in `improve-ash-xis5`: stable product operations now live behind the `Improve.App` facade, with `Improve.Stories` wrapping that API for script context and printing.

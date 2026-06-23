@@ -117,13 +117,14 @@ application API. It can be friendly, experimental, and script-oriented. It can
 own scenario keys, reset behavior, demo users, fixture setup, friendly lookups,
 and pretty output.
 
-If a helper describes something the real UI might do, it should eventually move
-into an app-facing namespace such as `Improve.App`.
+If a helper describes something the real UI might do, it belongs in the
+app-facing `Improve.App` facade. `Improve.Stories` can wrap those operations
+with actor/story context, but should not be the only pleasant way to call them.
 
-Examples of operations that probably belong in `Improve.App` once their shape
-settles:
+Current product-facing operations in `Improve.App` include:
 
 - create a plan
+- add event types, item types, items, pools, direct goals, and sessions
 - project today
 - start a session
 - log an event
@@ -133,6 +134,7 @@ settles:
 - read item state
 - submit offline events
 - fetch AI context
+- construct schedule, session-slot, and effect-rule helpers
 
 In the long run, `Improve.Stories` should mostly wrap that app-facing API,
 adding story reset, friendly keys, and printing. It should not become the only
@@ -146,7 +148,8 @@ Improve.Plans / Improve.Sessions / Improve.Journal / Improve.Ai
 
 Improve.App
   Product-facing application API used by UI, scripts, specs, and assistant
-  orchestration.
+  orchestration. This is a facade over smaller modules such as authoring,
+  logging, projection, state, AI context, and small product constructors.
 
 Improve.Stories
   Script laboratory: scenario keys, reset, demo users, friendly lookup,
