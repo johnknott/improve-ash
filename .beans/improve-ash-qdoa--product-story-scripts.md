@@ -16,3 +16,4 @@ Progress:
 - Gym session story completed in `improve-ash-gymstory`: create/project/start/log flow with completed and swapped slot results.
 - Vial inventory story completed in `improve-ash-vialstory`: generic linked-item event logging, authored subtract-quantity effects, derived item state, and AI state output.
 - Final pre-promotion scenarios completed in `improve-ash-nextstories`: correction, offline duplicate/stale ingress, and hybrid Today.
+- Rough old-plan translation completed in `improve-ash-roughplan`: manually recreates the old exported plan in the new model, projects Monday/Tuesday/Saturday, logs a linked Retatrutide dose, and verifies the derived vial state.

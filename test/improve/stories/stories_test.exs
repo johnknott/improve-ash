@@ -491,6 +491,112 @@ defmodule Improve.StoriesTest do
     end
   end
 
+  describe "rough old-plan translation story helpers" do
+    test "recreates the old real plan shape without building an importer" do
+      story =
+        Story.begin!("test_translated_old_plan_rough", reset?: true)
+        |> Story.user!("Story Old Plan", email: "story+test-translated-old-plan@example.test")
+
+      plan = translated_old_plan_rough!(story)
+
+      summary =
+        capture_return(fn ->
+          Story.show_plan_summary!(story, plan)
+        end)
+
+      assert summary.items == 10
+      assert summary.event_types == 6
+      assert summary.direct_goals == 11
+      assert summary.session_templates == 2
+      assert summary.schedules == 13
+
+      before_state =
+        capture_return(fn ->
+          Story.show_item_state!(story, plan, "retatrutide")
+        end)
+
+      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(20))
+      assert before_state.calculated_state.unit == "mg"
+
+      monday = Story.project_today!(story, plan, on: ~D[2026-06-22])
+      assert projected_titles(monday, :session) == []
+      assert "Retatrutide" in projected_titles(monday, :direct_goal)
+      assert "Daily habits" in projected_titles(monday, :direct_goal)
+      assert "Reading" in projected_titles(monday, :direct_goal)
+      assert "Steps" in projected_titles(monday, :direct_goal)
+
+      dose =
+        Story.log_event!(story, plan,
+          event: "dose_taken",
+          goal: "retatrutide_dose",
+          on: ~D[2026-06-22],
+          summary: "Took 2 mg Retatrutide",
+          links: %{source_vial: "retatrutide"},
+          payload: %{amount: 2, unit: "mg", site: "abdomen"}
+        )
+
+      assert dose.event.direct_goal_id
+      assert dose.event.quantity == Decimal.new(2)
+      assert dose.event.unit == "mg"
+      assert [%{role: "source_vial"}] = dose.event_item_links
+
+      assert [%{effect_type: :subtract_quantity, quantity: quantity, unit: "mg"}] =
+               dose.item_effects
+
+      assert Decimal.equal?(quantity, Decimal.new(2))
+
+      after_state =
+        capture_return(fn ->
+          Story.show_item_state!(story, plan, "retatrutide")
+        end)
+
+      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(18))
+
+      assert [%{id: event_id, direct_goal_id: direct_goal_id}] =
+               Journal.read_journal!(plan, actor: story.user)
+
+      assert event_id == dose.event.id
+      assert direct_goal_id == dose.event.direct_goal_id
+
+      monday_after = Story.project_today!(story, plan, on: ~D[2026-06-22])
+      assert work_status(monday_after, "Retatrutide") == :completed
+
+      tuesday = Story.project_today!(story, plan, on: ~D[2026-06-23])
+      assert projected_titles(tuesday, :session) == ["Upper body gym visit"]
+      assert "Cycling" in projected_titles(tuesday, :direct_goal)
+      assert "Measure waist" in projected_titles(tuesday, :direct_goal)
+      assert "Listen to music or audiobook" in projected_titles(tuesday, :direct_goal)
+
+      assert [
+               %{
+                 session_template_name: "Upper body gym visit",
+                 recommendations: upper_recommendations
+               }
+             ] = tuesday.projected_session_occurrences
+
+      assert Enum.map(upper_recommendations, & &1.slot_key) == [
+               "upper_cardio",
+               "upper_push",
+               "upper_pull",
+               "upper_shoulders"
+             ]
+
+      ai_tuesday =
+        capture_return(fn ->
+          Story.show_ai_today_context!(story, plan, on: ~D[2026-06-23])
+        end)
+
+      assert [%{kind: "session", title: "Upper body gym visit"} | _] = ai_tuesday.projected_work
+      assert ai_tuesday.input_summary.journal_events == 1
+
+      saturday = Story.project_today!(story, plan, on: ~D[2026-06-27])
+      assert projected_titles(saturday, :session) == ["Lower body gym visit"]
+      assert "Cycling" in projected_titles(saturday, :direct_goal)
+      assert "Listen to music or audiobook" in projected_titles(saturday, :direct_goal)
+      refute "Measure waist" in projected_titles(saturday, :direct_goal)
+    end
+  end
+
   defp capture_return(fun) do
     ref = make_ref()
 
@@ -581,5 +687,270 @@ defmodule Improve.StoriesTest do
     )
 
     plan
+  end
+
+  defp translated_old_plan_rough!(story) do
+    plan =
+      Story.create_plan!(story, "Improve myself!",
+        intention: "Improve my fitness and mental health",
+        from: ~D[2026-06-16],
+        until: ~D[2026-08-06]
+      )
+
+    add_translated_event_types!(story, plan)
+    add_translated_inventory!(story, plan)
+    add_translated_direct_goals!(story, plan)
+    add_translated_session_items!(story, plan)
+    add_translated_sessions!(story, plan)
+
+    plan
+  end
+
+  defp add_translated_event_types!(story, plan) do
+    Story.add_event_type!(story, plan, "Metric logged",
+      key: "metric_logged",
+      payload: %{required: ["value", "unit"]}
+    )
+
+    Story.add_event_type!(story, plan, "Quantity logged",
+      key: "quantity_logged",
+      payload: %{required: ["amount", "unit"]}
+    )
+
+    Story.add_event_type!(story, plan, "Checklist completed",
+      key: "checklist_completed",
+      payload: %{required: ["completed_items"]}
+    )
+
+    Story.add_event_type!(story, plan, "Exercise performed",
+      key: "exercise_performed",
+      required_links: ["exercise"],
+      payload: %{required: ["sets", "reps"]}
+    )
+
+    Story.add_event_type!(story, plan, "Cardio performed",
+      key: "cardio_performed",
+      required_links: ["activity"],
+      payload: %{required: ["amount", "unit"]}
+    )
+
+    Story.add_event_type!(story, plan, "Dose taken",
+      key: "dose_taken",
+      required_links: ["source_vial"],
+      payload: %{required: ["amount", "unit"]},
+      effects: [
+        Story.subtract_quantity(
+          from: "source_vial",
+          quantity: "payload.amount",
+          unit: "payload.unit"
+        )
+      ]
+    )
+  end
+
+  defp add_translated_inventory!(story, plan) do
+    Story.add_item_type!(story, plan, "Peptide vial",
+      key: "peptide_vial",
+      display_hints: %{kind: "inventory"}
+    )
+
+    Story.add_item!(story, plan, "Retatrutide",
+      key: "retatrutide",
+      type: "peptide_vial",
+      stateful: true,
+      facts: %{
+        starting_quantity: 20,
+        unit: "mg",
+        prepared_volume_ml: 20,
+        contents: "Retatrutide"
+      }
+    )
+  end
+
+  defp add_translated_direct_goals!(story, plan) do
+    Story.add_direct_goal!(story, plan, "Weigh myself",
+      key: "weigh_myself",
+      event: "metric_logged",
+      schedule: Story.every_day(),
+      target: %{unit: "kg", quantity_path: "payload.value"}
+    )
+
+    Story.add_direct_goal!(story, plan, "Measure waist",
+      key: "measure_waist",
+      event: "metric_logged",
+      schedule: Story.every_week(times: 1, on: [:tuesday]),
+      target: %{unit: "cm", quantity_path: "payload.value"}
+    )
+
+    Story.add_direct_goal!(story, plan, "Steps",
+      key: "steps",
+      event: "quantity_logged",
+      schedule: Story.every_day(),
+      target: %{
+        quantity: 10_000,
+        unit: "steps",
+        quantity_path: "payload.amount",
+        progression: %{from: 1_000, to: 10_000, shape: "linear"}
+      }
+    )
+
+    Story.add_direct_goal!(story, plan, "Cycling",
+      key: "cycling",
+      event: "cardio_performed",
+      schedule: Story.every_week(times: 3, on: [:tuesday, :thursday, :saturday]),
+      target: %{
+        quantity: 60,
+        unit: "min",
+        quantity_path: "payload.amount",
+        progression: %{from: 20, to: 60, shape: "linear"},
+        default_links: %{activity: "cycling"}
+      }
+    )
+
+    Story.add_direct_goal!(story, plan, "Daily habits",
+      key: "daily_habits",
+      event: "checklist_completed",
+      schedule: Story.every_day(),
+      target: %{
+        checklist_items: [
+          %{key: "tidy_bedroom", label: "Tidy Bedroom"},
+          %{key: "make_parents_breakfast", label: "Make parents breakfast"},
+          %{key: "shower_brush_teeth", label: "Shower / Brush teeth"},
+          %{key: "diet_followed", label: "16-8 diet followed"},
+          %{key: "commit_code", label: "Commit code"},
+          %{key: "avoid_alcohol", label: "Avoid Alcohol"},
+          %{key: "avoid_junk_food", label: "Avoid Junk Food"}
+        ]
+      }
+    )
+
+    Story.add_direct_goal!(story, plan, "Drink water",
+      key: "drink_water",
+      event: "quantity_logged",
+      schedule: Story.every_day(),
+      target: %{quantity: 3, unit: "litres", quantity_path: "payload.amount"}
+    )
+
+    Story.add_direct_goal!(story, plan, "Retatrutide",
+      key: "retatrutide_dose",
+      event: "dose_taken",
+      schedule: Story.every_week(times: 1, on: [:monday]),
+      target: %{
+        quantity: 2,
+        unit: "mg",
+        quantity_path: "payload.amount",
+        default_links: %{source_vial: "retatrutide"}
+      }
+    )
+
+    Story.add_direct_goal!(story, plan, "Put bins out",
+      key: "put_bins_out",
+      event: "checklist_completed",
+      schedule: Story.every_week(times: 1, on: [:wednesday]),
+      target: %{checklist_items: [%{key: "put_bins_out", label: "Put bins out"}]}
+    )
+
+    Story.add_direct_goal!(story, plan, "Reading",
+      key: "reading",
+      event: "quantity_logged",
+      schedule: Story.every_day(),
+      target: %{quantity: 15, unit: "pages", quantity_path: "payload.amount"}
+    )
+
+    Story.add_direct_goal!(story, plan, "Watch a film or TV series",
+      key: "watch_film_or_tv",
+      event: "quantity_logged",
+      schedule: Story.every_week(times: 3, on: [:wednesday, :friday, :sunday]),
+      target: %{quantity: 90, unit: "min", quantity_path: "payload.amount"}
+    )
+
+    Story.add_direct_goal!(story, plan, "Listen to music or audiobook",
+      key: "listen_music_or_audiobook",
+      event: "quantity_logged",
+      schedule: Story.every_week(times: 3, on: [:tuesday, :thursday, :saturday]),
+      target: %{quantity: 1, unit: "album", quantity_path: "payload.amount"}
+    )
+  end
+
+  defp add_translated_session_items!(story, plan) do
+    Story.add_item_type!(story, plan, "Cardio activity", key: "cardio_activity")
+    Story.add_item!(story, plan, "Cycling", key: "cycling", type: "cardio_activity")
+    Story.add_item!(story, plan, "Rowing", key: "rowing", type: "cardio_activity")
+    Story.add_item!(story, plan, "Elliptical", key: "elliptical", type: "cardio_activity")
+
+    Story.add_item_type!(story, plan, "Exercise", key: "exercise")
+    Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
+    Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
+    Story.add_exercise!(story, plan, "Shoulder Press", key: "shoulder_press")
+    Story.add_exercise!(story, plan, "Leg Press", key: "leg_press")
+    Story.add_exercise!(story, plan, "Leg Curl", key: "leg_curl")
+    Story.add_exercise!(story, plan, "Leg Extension", key: "leg_extension")
+
+    Story.add_pool!(story, plan, "Upper cardio warm-up",
+      key: "upper_cardio",
+      items: ["rowing", "elliptical"]
+    )
+
+    Story.add_pool!(story, plan, "Upper body push", key: "upper_push", items: ["chest_press"])
+    Story.add_pool!(story, plan, "Upper body pull", key: "upper_pull", items: ["lat_pulldown"])
+
+    Story.add_pool!(story, plan, "Upper body shoulders",
+      key: "upper_shoulders",
+      items: ["shoulder_press"]
+    )
+
+    Story.add_pool!(story, plan, "Lower cardio warm-up",
+      key: "lower_cardio",
+      items: ["rowing", "elliptical"]
+    )
+
+    Story.add_pool!(story, plan, "Lower body press", key: "lower_press", items: ["leg_press"])
+
+    Story.add_pool!(story, plan, "Lower body hamstrings",
+      key: "lower_hamstrings",
+      items: ["leg_curl"]
+    )
+
+    Story.add_pool!(story, plan, "Lower body quads", key: "lower_quads", items: ["leg_extension"])
+  end
+
+  defp add_translated_sessions!(story, plan) do
+    Story.add_session!(story, plan, "Upper body gym visit",
+      key: "upper_body_gym",
+      schedule: Story.every_week(times: 2, on: [:tuesday, :thursday]),
+      slots: [
+        Story.choose(2, from: "upper_cardio", key: "upper_cardio", name: "Warm-up cardio"),
+        Story.choose(1, from: "upper_push", key: "upper_push", name: "Push pattern"),
+        Story.choose(1, from: "upper_pull", key: "upper_pull", name: "Pull pattern"),
+        Story.choose(1, from: "upper_shoulders", key: "upper_shoulders", name: "Shoulder pattern")
+      ]
+    )
+
+    Story.add_session!(story, plan, "Lower body gym visit",
+      key: "lower_body_gym",
+      schedule: Story.every_week(times: 1, on: [:saturday]),
+      slots: [
+        Story.choose(2, from: "lower_cardio", key: "lower_cardio", name: "Warm-up cardio"),
+        Story.choose(1, from: "lower_press", key: "lower_press", name: "Press pattern"),
+        Story.choose(1,
+          from: "lower_hamstrings",
+          key: "lower_hamstrings",
+          name: "Hamstring pattern"
+        ),
+        Story.choose(1, from: "lower_quads", key: "lower_quads", name: "Quad pattern")
+      ]
+    )
+  end
+
+  defp projected_titles(projection, kind) do
+    projection.projected_work
+    |> Enum.filter(&(&1.kind == kind))
+    |> Enum.map(& &1.title)
+  end
+
+  defp work_status(projection, title) do
+    projection.projected_work
+    |> Enum.find(&(&1.title == title))
+    |> Map.fetch!(:status)
   end
 end

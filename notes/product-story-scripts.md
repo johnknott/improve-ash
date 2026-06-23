@@ -47,14 +47,15 @@ priv/scripts/stories/03_log_dose_and_check_vial_state.exs
 priv/scripts/stories/04_correct_logged_event.exs
 priv/scripts/stories/05_submit_offline_duplicate_and_stale.exs
 priv/scripts/stories/06_hybrid_today.exs
+priv/scripts/stories/07_translate_old_plan_rough.exs
 ```
 
 Possible future scripts:
 
 ```text
-priv/scripts/stories/07_project_today.exs
-priv/scripts/stories/08_log_direct_goal.exs
-priv/scripts/stories/09_ai_today_context.exs
+priv/scripts/stories/08_project_today.exs
+priv/scripts/stories/09_log_direct_goal.exs
+priv/scripts/stories/10_ai_today_context.exs
 ```
 
 Story runs quiet SQL/debug logs by default so the product output stays readable.
