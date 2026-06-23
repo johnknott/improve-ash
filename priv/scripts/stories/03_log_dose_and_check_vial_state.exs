@@ -1,22 +1,28 @@
+alias Improve.App
 alias Improve.Stories, as: Story
 
 story =
   Story.begin!("vial_inventory_basic", reset?: true)
   |> Story.user!("John", email: "story+vial-inventory-basic@example.test")
 
+actor = story.user
+
 plan =
-  Story.create_plan!(story, "Vial inventory plan",
+  App.create_plan!("Vial inventory plan",
+    actor: actor,
     intention: "Track vial quantity and dose history",
     from: ~D[2026-06-22],
     until: ~D[2026-09-14]
   )
 
-Story.add_item_type!(story, plan, "Peptide vial",
+App.add_item_type!(plan, "Peptide vial",
+  actor: actor,
   key: "peptide_vial",
   display_hints: %{kind: "inventory"}
 )
 
-Story.add_item!(story, plan, "Retatrutide vial 1",
+App.add_item!(plan, "Retatrutide vial 1",
+  actor: actor,
   key: "reta_vial_1",
   type: "peptide_vial",
   stateful: true,
@@ -27,7 +33,8 @@ Story.add_item!(story, plan, "Retatrutide vial 1",
   }
 )
 
-Story.add_event_type!(story, plan, "Dose taken",
+App.add_event_type!(plan, "Dose taken",
+  actor: actor,
   key: "dose_taken",
   required_links: ["source_vial"],
   payload: %{
@@ -40,7 +47,7 @@ Story.add_event_type!(story, plan, "Dose taken",
     }
   },
   effects: [
-    Story.subtract_quantity(
+    App.subtract_quantity(
       from: "source_vial",
       quantity: "payload.amount",
       unit: "payload.unit"
@@ -51,7 +58,8 @@ Story.add_event_type!(story, plan, "Dose taken",
 Story.show_plan_summary!(story, plan)
 Story.show_item_state!(story, plan, "reta_vial_1")
 
-Story.log_event!(story, plan,
+App.log_event!(plan,
+  actor: actor,
   event: "dose_taken",
   on: ~D[2026-06-22],
   summary: "Dose taken from Retatrutide vial 1",

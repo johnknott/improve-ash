@@ -68,6 +68,23 @@ defmodule Improve.App.Authoring do
     )
   end
 
+  def add_exercise!(plan, name, opts) do
+    actor = actor!(opts)
+
+    unless Enum.any?(Lookup.item_types(actor, plan), &(&1.key == "exercise")) do
+      add_item_type!(plan, "Exercise", actor: actor, key: "exercise")
+    end
+
+    add_item!(
+      plan,
+      name,
+      opts
+      |> Keyword.put(:actor, actor)
+      |> Keyword.put(:type, "exercise")
+      |> Keyword.put_new(:facts, %{})
+    )
+  end
+
   def add_pool!(plan, name, opts) do
     actor = actor!(opts)
 

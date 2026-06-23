@@ -1,17 +1,22 @@
+alias Improve.App
 alias Improve.Stories, as: Story
 
 story =
   Story.begin!("gym_session_basic", reset?: true)
   |> Story.user!("John", email: "story+gym-session-basic@example.test")
 
+actor = story.user
+
 plan =
-  Story.create_plan!(story, "Gym starter plan",
+  App.create_plan!("Gym starter plan",
+    actor: actor,
     intention: "Build a consistent upper body routine",
     from: ~D[2026-06-22],
     until: ~D[2026-07-23]
   )
 
-Story.add_event_type!(story, plan, "Exercise performed",
+App.add_event_type!(plan, "Exercise performed",
+  actor: actor,
   key: "exercise_performed",
   required_links: ["exercise"],
   payload: %{
@@ -27,40 +32,44 @@ Story.add_event_type!(story, plan, "Exercise performed",
   }
 )
 
-Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
-Story.add_exercise!(story, plan, "Shoulder Press", key: "shoulder_press")
-Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
-Story.add_exercise!(story, plan, "Seated Row", key: "seated_row")
-Story.add_exercise!(story, plan, "Cable Fly", key: "cable_fly")
+App.add_exercise!(plan, "Chest Press", actor: actor, key: "chest_press")
+App.add_exercise!(plan, "Shoulder Press", actor: actor, key: "shoulder_press")
+App.add_exercise!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown")
+App.add_exercise!(plan, "Seated Row", actor: actor, key: "seated_row")
+App.add_exercise!(plan, "Cable Fly", actor: actor, key: "cable_fly")
 
-Story.add_pool!(story, plan, "Push exercises",
+App.add_pool!(plan, "Push exercises",
+  actor: actor,
   key: "push",
   items: ["chest_press", "shoulder_press"]
 )
 
-Story.add_pool!(story, plan, "Pull exercises",
+App.add_pool!(plan, "Pull exercises",
+  actor: actor,
   key: "pull",
   items: ["lat_pulldown", "seated_row"]
 )
 
-Story.add_session!(story, plan, "Upper body gym visit",
+App.add_session!(plan, "Upper body gym visit",
+  actor: actor,
   key: "upper_body",
-  schedule: Story.every_week(times: 2, on: [:monday, :thursday]),
+  schedule: App.every_week(times: 2, on: [:monday, :thursday]),
   slots: [
-    Story.choose(2, from: "push"),
-    Story.choose(2, from: "pull")
+    App.choose(2, from: "push"),
+    App.choose(2, from: "pull")
   ]
 )
 
 Story.show_plan_summary!(story, plan)
 
-today = Story.project_today!(story, plan, on: ~D[2026-06-22])
+today = App.project_today!(plan, actor: actor, date: ~D[2026-06-22])
 Story.show_projection!(story, today)
 
-session = Story.start_session!(story, today, "upper_body")
+session = App.start_session!(today, "upper_body", actor: actor)
 Story.show_session!(story, session)
 
-Story.log_slot!(story, session,
+App.log_session_slot!(session,
+  actor: actor,
   slot: "push",
   item: "chest_press",
   event: "exercise_performed",
@@ -68,7 +77,8 @@ Story.log_slot!(story, session,
   note: "Felt solid"
 )
 
-Story.log_slot!(story, session,
+App.log_session_slot!(session,
+  actor: actor,
   slot: "push",
   recommended: "shoulder_press",
   actual: "cable_fly",

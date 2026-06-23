@@ -1,17 +1,22 @@
+alias Improve.App
 alias Improve.Stories, as: Story
 
 story =
   Story.begin!("direct_goal_reading", reset?: true)
   |> Story.user!("John", email: "story+direct-goal-reading@example.test")
 
+actor = story.user
+
 plan =
-  Story.create_plan!(story, "Read more consistently",
+  App.create_plan!("Read more consistently",
+    actor: actor,
     intention: "Read a little every day",
     from: ~D[2026-06-23],
     until: ~D[2026-07-23]
   )
 
-Story.add_event_type!(story, plan, "Pages read",
+App.add_event_type!(plan, "Pages read",
+  actor: actor,
   key: "pages_read",
   payload: %{
     required: ["pages"],
@@ -22,10 +27,11 @@ Story.add_event_type!(story, plan, "Pages read",
   }
 )
 
-Story.add_direct_goal!(story, plan, "Read 20 pages",
+App.add_direct_goal!(plan, "Read 20 pages",
+  actor: actor,
   key: "daily_reading",
   event: "pages_read",
-  schedule: Story.every_day(),
+  schedule: App.every_day(),
   target: %{
     quantity: 20,
     unit: "pages",
@@ -36,10 +42,11 @@ Story.add_direct_goal!(story, plan, "Read 20 pages",
 
 Story.show_plan_summary!(story, plan)
 
-today = Story.project_today!(story, plan, on: ~D[2026-06-23])
+today = App.project_today!(plan, actor: actor, date: ~D[2026-06-23])
 Story.show_projection!(story, today)
 
-Story.log_direct_goal!(story, today,
+App.log_direct_goal!(today,
+  actor: actor,
   goal: "daily_reading",
   payload: %{pages: 25, note: "Read before bed"}
 )

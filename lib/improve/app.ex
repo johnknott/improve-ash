@@ -21,6 +21,7 @@ defmodule Improve.App do
   defdelegate add_event_type!(plan, name, opts), to: Authoring
   defdelegate add_item_type!(plan, name, opts), to: Authoring
   defdelegate add_item!(plan, name, opts), to: Authoring
+  defdelegate add_exercise!(plan, name, opts), to: Authoring
   defdelegate add_pool!(plan, name, opts), to: Authoring
   defdelegate add_direct_goal!(plan, name, opts), to: Authoring
   defdelegate add_session!(plan, name, opts), to: Authoring

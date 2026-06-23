@@ -1,25 +1,31 @@
+alias Improve.App
 alias Improve.Stories, as: Story
 
 story =
   Story.begin!("offline_duplicate_and_stale", reset?: true)
   |> Story.user!("John", email: "story+offline-duplicate-and-stale@example.test")
 
+actor = story.user
+
 plan =
-  Story.create_plan!(story, "Offline resilience plan",
+  App.create_plan!("Offline resilience plan",
+    actor: actor,
     intention: "Accept offline logs safely without duplicating or overwriting stale work",
     from: ~D[2026-06-22],
     until: ~D[2026-07-23]
   )
 
-Story.add_event_type!(story, plan, "Pages read",
+App.add_event_type!(plan, "Pages read",
+  actor: actor,
   key: "pages_read",
   payload: %{required: ["pages"]}
 )
 
-Story.add_direct_goal!(story, plan, "Read 20 pages",
+App.add_direct_goal!(plan, "Read 20 pages",
+  actor: actor,
   key: "daily_reading",
   event: "pages_read",
-  schedule: Story.every_day(),
+  schedule: App.every_day(),
   target: %{
     quantity: 20,
     unit: "pages",
@@ -28,32 +34,35 @@ Story.add_direct_goal!(story, plan, "Read 20 pages",
   }
 )
 
-Story.add_event_type!(story, plan, "Exercise performed",
+App.add_event_type!(plan, "Exercise performed",
+  actor: actor,
   key: "exercise_performed",
   required_links: ["exercise"],
   payload: %{required: ["sets", "reps"]}
 )
 
-Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
-Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
+App.add_exercise!(plan, "Chest Press", actor: actor, key: "chest_press")
+App.add_exercise!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown")
 
-Story.add_pool!(story, plan, "Push exercises", key: "push", items: ["chest_press"])
-Story.add_pool!(story, plan, "Pull exercises", key: "pull", items: ["lat_pulldown"])
+App.add_pool!(plan, "Push exercises", actor: actor, key: "push", items: ["chest_press"])
+App.add_pool!(plan, "Pull exercises", actor: actor, key: "pull", items: ["lat_pulldown"])
 
-Story.add_session!(story, plan, "Upper body gym visit",
+App.add_session!(plan, "Upper body gym visit",
+  actor: actor,
   key: "upper_body",
-  schedule: Story.every_week(times: 1, on: [:monday]),
+  schedule: App.every_week(times: 1, on: [:monday]),
   slots: [
-    Story.choose(1, from: "push"),
-    Story.choose(1, from: "pull")
+    App.choose(1, from: "push"),
+    App.choose(1, from: "pull")
   ]
 )
 
-today = Story.project_today!(story, plan, on: ~D[2026-06-22])
-session = Story.start_session!(story, today, "upper_body")
+today = App.project_today!(plan, actor: actor, date: ~D[2026-06-22])
+session = App.start_session!(today, "upper_body", actor: actor)
 
 reading =
-  Story.offline_event(story, plan,
+  App.offline_event(plan,
+    actor: actor,
     event: "pages_read",
     goal: "daily_reading",
     on: ~D[2026-06-22],
@@ -65,7 +74,8 @@ reading =
   )
 
 logged_slot =
-  Story.log_slot!(story, session,
+  App.log_session_slot!(session,
+    actor: actor,
     slot: "push",
     item: "chest_press",
     event: "exercise_performed",
@@ -75,7 +85,8 @@ logged_slot =
   |> Map.fetch!(:slot_result)
 
 stale_slot =
-  Story.offline_event(story, plan,
+  App.offline_event(plan,
+    actor: actor,
     event: "exercise_performed",
     on: ~D[2026-06-22],
     summary: "Offline chest press retry",
@@ -88,7 +99,7 @@ stale_slot =
     idempotency_key: "offline-slot-001-key"
   )
 
-results = Story.submit_offline_events!(story, [reading, reading, stale_slot])
+results = App.submit_offline_events!([reading, reading, stale_slot], actor: actor)
 
 Story.show_offline_results!(story, results)
 Story.show_journal!(story, plan)
