@@ -68,6 +68,24 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
+  resend_api_key =
+    System.get_env("RESEND_API_KEY") ||
+      raise """
+      environment variable RESEND_API_KEY is missing.
+      """
+
+  resend_from =
+    System.get_env("RESEND_FROM_EMAIL") ||
+      raise """
+      environment variable RESEND_FROM_EMAIL is missing.
+      """
+
+  config :improve, Improve.Emails, adapter: Improve.Emails.Resend
+
+  config :improve, Improve.Emails.Resend,
+    api_key: resend_api_key,
+    from: resend_from
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key

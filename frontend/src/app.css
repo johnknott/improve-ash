@@ -124,6 +124,22 @@ form > button,
   font-weight: 700;
 }
 
+.text-button:disabled {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+.resend-button {
+  justify-self: start;
+  margin-top: -0.2rem;
+}
+
+.hint {
+  color: #66748b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 .email-row {
   display: flex;
   align-items: center;
@@ -149,6 +165,52 @@ form > button,
   padding: 0.75rem;
   font-size: 0.9rem;
   line-height: 1.35;
+}
+
+.pin-root {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.pin-cell {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1;
+  min-width: 0;
+  place-items: center;
+  border: 1px solid #c6cfdd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172033;
+  font-size: 1.35rem;
+  font-weight: 750;
+}
+
+.pin-cell[data-active] {
+  border-color: #2d6cdf;
+  outline: 3px solid rgb(45 108 223 / 16%);
+}
+
+.pin-caret {
+  width: 2px;
+  height: 1.45rem;
+  border-radius: 999px;
+  background: #2d6cdf;
+  animation: caret-blink 1s ease-out infinite;
+}
+
+@keyframes caret-blink {
+  0%,
+  70%,
+  100% {
+    opacity: 1;
+  }
+
+  20%,
+  50% {
+    opacity: 0;
+  }
 }
 
 .loading-shell {

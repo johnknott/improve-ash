@@ -1,28 +1,53 @@
 <script lang="ts">
+  import { onDestroy, tick } from 'svelte'
+  import { PinInput, REGEXP_ONLY_DIGITS } from 'bits-ui'
   import { requestLoginCode, verifyLoginCode } from './authClient'
   import { setCurrentUser } from './authStore'
+
+  const resendCooldownSeconds = 30
 
   let step: 'email' | 'code' = $state('email')
   let email = $state('')
   let code = $state('')
   let loading = $state(false)
   let error = $state<string | null>(null)
+  let resendCooldown = $state(0)
+  let codeInput = $state<HTMLInputElement | null>(null)
+  let cooldownTimer: number | undefined
+
+  let canSubmitEmail = $derived(email.trim().length > 0 && !loading)
+  let canSubmitCode = $derived(normalizeCode(code).length === 6 && !loading)
+
+  $effect(() => {
+    if (step === 'code') {
+      tick().then(() => codeInput?.focus())
+    }
+  })
+
+  onDestroy(() => {
+    window.clearInterval(cooldownTimer)
+  })
 
   async function submitEmail() {
+    if (!canSubmitEmail) return
+
     loading = true
     error = null
 
     try {
       await requestLoginCode(email)
       step = 'code'
+      startResendCooldown()
     } catch (err) {
-      error = err instanceof Error ? err.message : 'We could not send a code right now.'
+      error = requestErrorMessage(err)
     } finally {
       loading = false
     }
   }
 
   async function submitCode() {
+    if (!canSubmitCode) return
+
     loading = true
     error = null
 
@@ -30,7 +55,27 @@
       const user = await verifyLoginCode(email, normalizeCode(code))
       setCurrentUser(user)
     } catch (err) {
-      error = err instanceof Error ? err.message : 'That code was invalid or expired.'
+      code = ''
+      error = verifyErrorMessage(err)
+    } finally {
+      loading = false
+    }
+  }
+
+  async function resendCode() {
+    if (loading || resendCooldown > 0) return
+
+    loading = true
+    error = null
+    code = ''
+
+    try {
+      await requestLoginCode(email)
+      startResendCooldown()
+      await tick()
+      codeInput?.focus()
+    } catch (err) {
+      error = requestErrorMessage(err)
     } finally {
       loading = false
     }
@@ -46,8 +91,37 @@
     return value.replace(/\D/g, '').slice(0, 6)
   }
 
-  function handleCodeInput(event: Event) {
-    code = normalizeCode((event.currentTarget as HTMLInputElement).value)
+  function transformPastedCode(value: string) {
+    return normalizeCode(value)
+  }
+
+  function startResendCooldown() {
+    window.clearInterval(cooldownTimer)
+    resendCooldown = resendCooldownSeconds
+
+    cooldownTimer = window.setInterval(() => {
+      resendCooldown = Math.max(0, resendCooldown - 1)
+
+      if (resendCooldown === 0) {
+        window.clearInterval(cooldownTimer)
+      }
+    }, 1000)
+  }
+
+  function requestErrorMessage(err: unknown) {
+    if (err instanceof Error && err.message.includes('wait')) {
+      return 'Please wait before trying again.'
+    }
+
+    return 'We could not send a code right now.'
+  }
+
+  function verifyErrorMessage(err: unknown) {
+    if (err instanceof Error && err.message.includes('wait')) {
+      return 'Please wait before trying again.'
+    }
+
+    return 'That code was invalid or expired.'
   }
 </script>
 
@@ -74,7 +148,7 @@
           required
         />
 
-        <button type="submit" disabled={loading}>
+        <button type="submit" disabled={!canSubmitEmail}>
           {loading ? 'Sending code' : 'Continue'}
         </button>
       </form>
@@ -91,21 +165,43 @@
         </div>
 
         <label for="code">Code</label>
-        <input
-          id="code"
+        <PinInput.Root
           bind:value={code}
-          type="text"
-          autocomplete="one-time-code"
-          inputmode="numeric"
-          maxlength="6"
-          placeholder="123456"
-          oninput={handleCodeInput}
-          required
-        />
+          bind:inputRef={codeInput}
+          class="pin-root"
+          disabled={loading}
+          inputId="code"
+          maxlength={6}
+          pattern={REGEXP_ONLY_DIGITS}
+          pasteTransformer={transformPastedCode}
+          pushPasswordManagerStrategy="none"
+        >
+          {#snippet children({ cells })}
+            {#each cells as cell, index (index)}
+              <PinInput.Cell {cell} class="pin-cell">
+                {#if cell.char !== null}
+                  <span>{cell.char}</span>
+                {/if}
 
-        <button type="submit" disabled={loading}>
+                {#if cell.hasFakeCaret}
+                  <span class="pin-caret"></span>
+                {/if}
+              </PinInput.Cell>
+            {/each}
+          {/snippet}
+        </PinInput.Root>
+
+        <button type="submit" disabled={!canSubmitCode}>
           {loading ? 'Checking code' : 'Enter Improve'}
         </button>
+
+        {#if resendCooldown > 0}
+          <p class="hint">Resend code in {resendCooldown}s</p>
+        {:else}
+          <button type="button" class="text-button resend-button" disabled={loading} onclick={resendCode}>
+            Resend code
+          </button>
+        {/if}
       </form>
     {/if}
 

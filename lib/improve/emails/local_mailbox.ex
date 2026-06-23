@@ -5,11 +5,13 @@ defmodule Improve.Emails.LocalMailbox do
     Agent.start_link(fn -> [] end, name: __MODULE__)
   end
 
-  def deliver_otp(email, otp_code) do
+  def deliver_otp(email, otp_code, email_message) do
     message = %{
       kind: :otp,
       to: email,
       code: otp_code,
+      subject: email_message.subject,
+      text: email_message.text,
       sent_at: DateTime.utc_now()
     }
 

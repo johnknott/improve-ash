@@ -31,6 +31,10 @@ AshAI experiment. Do not build a React UI, LiveView UI, admin area, billing,
 Stripe integration, full passwordless auth, mobile client, or full offline sync
 system for this spike.
 
+When building Svelte UI for this spike, prefer Bits UI primitives/components
+where they fit the interaction. Style them locally so the interface still feels
+like Improve rather than a generic component demo.
+
 The main product model is:
 
 - users own plans
