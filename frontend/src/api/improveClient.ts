@@ -1,4 +1,4 @@
-import type { DashboardData, LogEventInput, JournalEntry } from './types'
+import type { DashboardData, DemoPlanKind, LogEventInput, JournalEntry } from './types'
 
 type ApiError = {
   error?: {
@@ -40,6 +40,13 @@ export async function logEvent(input: LogEventInput): Promise<JournalEntry> {
   })
 
   return response.event
+}
+
+export async function installDemoPlan(kind: DemoPlanKind): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/demo-plans', {
+    method: 'POST',
+    body: JSON.stringify({ kind }),
+  })
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {

@@ -5,6 +5,7 @@
   import LoadingState from '../../components/ui/LoadingState.svelte'
   import { greeting } from '../../lib/dates'
   import JournalEntryRow from '../journal/JournalEntryRow.svelte'
+  import DemoPlanSetup from '../setup/DemoPlanSetup.svelte'
   import ProjectedWorkRow from './ProjectedWorkRow.svelte'
   import TodaySummaryCard from './TodaySummaryCard.svelte'
 
@@ -90,7 +91,7 @@
     </div>
   {:else}
     <Card>
-      <EmptyState title="No active plan" message="Install a demo plan or select a plan to start projecting today." />
+      <DemoPlanSetup title="Install a plan to see Today" />
     </Card>
   {/if}
 </section>

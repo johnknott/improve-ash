@@ -3,6 +3,8 @@ defmodule ImproveWeb.AppController do
 
   alias Improve.Journal
   alias Improve.Plans
+  alias Improve.Fixtures.GymPlan
+  alias Improve.Fixtures.VialPlan
 
   def dashboard(conn, params) do
     with {:ok, actor} <- current_actor(conn),
@@ -36,6 +38,24 @@ defmodule ImproveWeb.AppController do
 
       {:error, _error} ->
         app_error(conn, 422, "We could not log that event.")
+    end
+  end
+
+  def install_demo_plan(conn, params) do
+    with {:ok, actor} <- current_actor(conn),
+         {:ok, plan} <- install_or_select_demo_plan(actor, Map.get(params, "kind")),
+         {:ok, plans} <- Plans.list_plans(actor: actor),
+         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+      json(conn, payload)
+    else
+      {:error, :unauthenticated} ->
+        app_error(conn, 401, "Please sign in to continue.")
+
+      {:error, :unknown_demo_plan} ->
+        app_error(conn, 422, "Choose a demo plan to install.")
+
+      {:error, _error} ->
+        app_error(conn, 422, "We could not install that demo plan.")
     end
   end
 
@@ -93,6 +113,28 @@ defmodule ImproveWeb.AppController do
         List.first(plans)
 
     {:ok, plan}
+  end
+
+  defp install_or_select_demo_plan(actor, kind) do
+    with {:ok, source_key, installer} <- demo_plan(kind),
+         {:ok, plans} <- Plans.list_plans(actor: actor) do
+      case Enum.find(plans, &(&1.source_kind == :demo and &1.source_key == source_key)) do
+        nil -> install_demo_plan_with(actor, installer)
+        plan -> {:ok, plan}
+      end
+    end
+  end
+
+  defp demo_plan("gym"), do: {:ok, "gym", &GymPlan.install!/2}
+  defp demo_plan("vial_inventory"), do: {:ok, "vial_inventory", &VialPlan.install!/2}
+  defp demo_plan("vial"), do: demo_plan("vial_inventory")
+  defp demo_plan(_kind), do: {:error, :unknown_demo_plan}
+
+  defp install_demo_plan_with(actor, installer) do
+    result = installer.(actor, starts_on: Date.utc_today())
+    {:ok, Map.fetch!(result, :plan)}
+  rescue
+    _error -> {:error, :install_failed}
   end
 
   defp upcoming_work(plan, actor, date) do

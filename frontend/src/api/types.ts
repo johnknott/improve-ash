@@ -126,3 +126,5 @@ export type LogEventInput = {
   payload?: Record<string, unknown>
   itemLinks?: Array<{ role: string; itemId: string; metadata?: Record<string, unknown> }>
 }
+
+export type DemoPlanKind = 'gym' | 'vial_inventory'

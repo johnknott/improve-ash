@@ -4,6 +4,7 @@
   import Card from '../../components/ui/Card.svelte'
   import EmptyState from '../../components/ui/EmptyState.svelte'
   import LoadingState from '../../components/ui/LoadingState.svelte'
+  import DemoPlanSetup from '../setup/DemoPlanSetup.svelte'
   import PlanItemRow from './PlanItemRow.svelte'
 
   let { data, loading }: { data: DashboardData | null; loading: boolean } = $props()
@@ -74,7 +75,7 @@
     </Card>
   {:else}
     <Card>
-      <EmptyState title="No plan selected" message="Install a demo plan to see the plan model." />
+      <DemoPlanSetup title="Install a plan to inspect the model" />
     </Card>
   {/if}
 </section>

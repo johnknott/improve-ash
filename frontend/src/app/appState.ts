@@ -1,6 +1,10 @@
 import { get, writable } from 'svelte/store'
-import { loadDashboard as fetchDashboard, logEvent as submitLogEvent } from '../api/improveClient'
-import type { DashboardData, LogEventInput, ProjectedWork } from '../api/types'
+import {
+  installDemoPlan as installDemoPlanRequest,
+  loadDashboard as fetchDashboard,
+  logEvent as submitLogEvent,
+} from '../api/improveClient'
+import type { DashboardData, DemoPlanKind, LogEventInput, ProjectedWork } from '../api/types'
 
 type DashboardState = {
   loading: boolean
@@ -30,6 +34,7 @@ export const logDialogState = writable<LogDialogState>({
 
 export const checkInDialogOpen = writable(false)
 export const toastMessage = writable<string | null>(null)
+export const installingDemoPlan = writable<DemoPlanKind | null>(null)
 
 let lastLoadedPlanId: string | null = null
 
@@ -65,6 +70,7 @@ export function resetDashboard(): void {
   logDialogState.set({ open: false, work: null })
   checkInDialogOpen.set(false)
   toastMessage.set(null)
+  installingDemoPlan.set(null)
 }
 
 export function openLogDialog(work: ProjectedWork | null = null): void {
@@ -80,6 +86,28 @@ export async function submitLog(input: LogEventInput): Promise<void> {
   closeLogDialog()
   showToast('Logged.')
   await loadDashboard(lastLoadedPlanId)
+}
+
+export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
+  installingDemoPlan.set(kind)
+  dashboardState.update((state) => ({ ...state, refreshing: true, error: null }))
+
+  try {
+    const data = await installDemoPlanRequest(kind)
+    lastLoadedPlanId = data.currentPlan?.id ?? null
+    selectedPlanId.set(lastLoadedPlanId)
+    dashboardState.set({ loading: false, refreshing: false, error: null, data })
+    showToast(kind === 'gym' ? 'Gym demo ready.' : 'Inventory demo ready.')
+  } catch {
+    dashboardState.update((state) => ({
+      ...state,
+      loading: false,
+      refreshing: false,
+      error: 'We could not install that demo plan.',
+    }))
+  } finally {
+    installingDemoPlan.set(null)
+  }
 }
 
 export function showToast(message: string): void {

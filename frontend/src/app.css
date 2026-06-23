@@ -864,6 +864,33 @@ form > button,
   line-height: 1.45;
 }
 
+.demo-plan-setup {
+  display: grid;
+  gap: 1rem;
+  min-height: 10rem;
+  align-content: center;
+}
+
+.demo-plan-setup h2 {
+  margin-bottom: 0.35rem;
+}
+
+.demo-plan-setup p:not(.eyebrow) {
+  max-width: 44rem;
+  color: #5b6a83;
+  line-height: 1.5;
+}
+
+.demo-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.demo-plan-button {
+  justify-content: flex-start;
+}
+
 .toast {
   position: fixed;
   right: 1rem;
@@ -943,7 +970,8 @@ form > button,
   }
 
   .compact-button,
-  .toolbar-line label {
+  .toolbar-line label,
+  .demo-plan-button {
     width: 100%;
   }
 }
