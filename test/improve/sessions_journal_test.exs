@@ -194,6 +194,138 @@ defmodule Improve.SessionsJournalTest do
                  actor: other_user
                )
     end
+
+    test "resource actions reject terminal state rewrites" do
+      user = user!("session-transition@example.com")
+      plan = plan!(user)
+      %{event_type: event_type, item: exercise, pool: pool} = authored_content!(user, plan)
+
+      session_template =
+        Plans.create_session_template!(
+          %{
+            plan_id: plan.id,
+            key: "transition_session",
+            name: "Transition session"
+          },
+          actor: user
+        )
+
+      session_slot =
+        Plans.create_session_slot!(
+          %{
+            plan_id: plan.id,
+            session_template_id: session_template.id,
+            key: "transition_slot",
+            name: "Transition slot",
+            pool_id: pool.id
+          },
+          actor: user
+        )
+
+      occurrence =
+        Sessions.create_session_occurrence!(
+          %{
+            plan_id: plan.id,
+            session_template_id: session_template.id,
+            planned_for: ~D[2026-06-22]
+          },
+          actor: user
+        )
+
+      slot_result =
+        Sessions.create_slot_result!(
+          %{
+            plan_id: plan.id,
+            session_occurrence_id: occurrence.id,
+            session_slot_id: session_slot.id,
+            recommended_item_id: exercise.id,
+            actual_item_id: exercise.id
+          },
+          actor: user
+        )
+
+      event =
+        Journal.log_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            session_occurrence_id: occurrence.id,
+            slot_result_id: slot_result.id,
+            effective_at: ~U[2026-06-22 12:00:00Z],
+            recorded_at: ~U[2026-06-22 12:05:00Z],
+            summary: "Transition event"
+          },
+          actor: user
+        )
+
+      effect =
+        Journal.create_item_effect!(
+          %{
+            plan_id: plan.id,
+            item_id: exercise.id,
+            event_instance_id: event.id,
+            effect_type: :set_fact,
+            payload: %{"transition" => true}
+          },
+          actor: user
+        )
+
+      completed_occurrence =
+        Sessions.complete_session_occurrence!(
+          occurrence,
+          %{completed_at: ~U[2026-06-22 13:00:00Z]},
+          actor: user
+        )
+
+      completed_slot =
+        Sessions.complete_slot_result!(
+          slot_result,
+          %{actual_item_id: exercise.id, event_instance_id: event.id},
+          actor: user
+        )
+
+      voided_event =
+        Journal.void_event!(
+          event,
+          %{voided_at: ~U[2026-06-22 13:05:00Z]},
+          actor: user
+        )
+
+      voided_effect =
+        Journal.void_item_effect!(
+          effect,
+          %{voided_at: ~U[2026-06-22 13:05:00Z]},
+          actor: user
+        )
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               Sessions.start_session_occurrence(
+                 completed_occurrence,
+                 %{started_at: ~U[2026-06-22 13:10:00Z]},
+                 actor: user
+               )
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               Sessions.swap_slot_result(
+                 completed_slot,
+                 %{actual_item_id: exercise.id, event_instance_id: event.id},
+                 actor: user
+               )
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               Journal.mark_event_corrected(
+                 voided_event,
+                 %{voided_at: ~U[2026-06-22 13:10:00Z]},
+                 actor: user
+               )
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               Journal.void_item_effect(
+                 voided_effect,
+                 %{voided_at: ~U[2026-06-22 13:10:00Z]},
+                 actor: user
+               )
+    end
   end
 
   defp user!(email) do

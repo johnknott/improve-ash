@@ -62,11 +62,21 @@ defmodule Improve.Journal.EventInstance do
 
     update :void do
       accept [:voided_at, :note]
+
+      validate data_one_of(:status, [:active]) do
+        message "can only be voided from active"
+      end
+
       change set_attribute(:status, :voided)
     end
 
     update :mark_corrected do
       accept [:voided_at, :note]
+
+      validate data_one_of(:status, [:active]) do
+        message "can only be corrected from active"
+      end
+
       change set_attribute(:status, :corrected)
     end
   end

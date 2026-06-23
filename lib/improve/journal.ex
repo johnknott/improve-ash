@@ -62,7 +62,10 @@ defmodule Improve.Journal do
           {:ok, result}
 
         {:error, error} ->
-          {:error, error}
+          case existing_idempotent_log(command, actor) do
+            nil -> {:error, error}
+            result -> {:ok, result}
+          end
       end
     else
       {:duplicate, result} -> {:ok, result}
@@ -638,9 +641,10 @@ defmodule Improve.Journal do
     actor = Keyword.fetch!(opts, :actor)
     item_id = id(item_or_id)
 
-    with {:ok, links} <- list_event_item_links(actor: actor, query: [filter: [item_id: item_id]]) do
+    with {:ok, links} <- list_event_item_links(actor: actor, query: [filter: [item_id: item_id]]),
+         {:ok, links} <- Ash.load(links, :event_instance, actor: actor) do
       links
-      |> Enum.map(&get_event!(&1.event_instance_id, actor: actor))
+      |> Enum.map(& &1.event_instance)
       |> Enum.sort_by(&DateTime.to_unix(&1.effective_at, :microsecond))
       |> then(&{:ok, &1})
     end
@@ -657,11 +661,11 @@ defmodule Improve.Journal do
     actor = Keyword.fetch!(opts, :actor)
 
     with {:ok, item} <- Plans.get_item(id(item), actor: actor),
-         {:ok, effects} <- list_item_effects(actor: actor, query: [filter: [item_id: item.id]]) do
+         {:ok, item} <- Ash.load(item, :item_effects, actor: actor) do
       {:ok,
        Improve.Planning.ItemState.calculate(
          item,
-         effects,
+         item.item_effects,
          Keyword.take(opts, [:future_quantity_required])
        )}
     end

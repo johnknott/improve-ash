@@ -39,21 +39,41 @@ defmodule Improve.Sessions.SessionOccurrence do
 
     update :start do
       accept [:started_at, :notes]
+
+      validate data_one_of(:status, [:planned]) do
+        message "can only be started from planned"
+      end
+
       change set_attribute(:status, :started)
     end
 
     update :complete do
       accept [:completed_at, :feedback, :notes]
+
+      validate data_one_of(:status, [:planned, :started, :partially_completed]) do
+        message "can only be completed from planned, started, or partially completed"
+      end
+
       change set_attribute(:status, :completed)
     end
 
     update :mark_skipped do
       accept [:notes]
+
+      validate data_one_of(:status, [:planned, :started, :partially_completed]) do
+        message "can only be skipped from planned, started, or partially completed"
+      end
+
       change set_attribute(:status, :skipped)
     end
 
     update :mark_missed do
       accept [:notes]
+
+      validate data_one_of(:status, [:planned, :started, :partially_completed]) do
+        message "can only be marked missed from planned, started, or partially completed"
+      end
+
       change set_attribute(:status, :missed)
     end
   end

@@ -43,6 +43,11 @@ defmodule Improve.Journal.ItemEffect do
 
     update :void do
       accept [:voided_at]
+
+      validate data_one_of(:status, [:active]) do
+        message "can only be voided from active"
+      end
+
       change set_attribute(:status, :voided)
     end
   end

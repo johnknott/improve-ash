@@ -114,6 +114,20 @@ defmodule Improve.Plans.Plan do
     has_many :session_slots, Improve.Plans.SessionSlot
     has_many :direct_goals, Improve.Plans.DirectGoal
     has_many :session_occurrences, Improve.Sessions.SessionOccurrence
+    has_many :slot_results, Improve.Sessions.SlotResult
     has_many :event_instances, Improve.Journal.EventInstance
+  end
+
+  aggregates do
+    count :item_type_count, :item_types
+    count :item_count, :items
+    count :pool_count, :pools
+    count :pool_membership_count, :pool_memberships
+    count :environment_count, :environments
+    count :event_type_count, :event_types
+    count :session_template_count, :session_templates
+    count :session_slot_count, :session_slots
+    count :direct_goal_count, :direct_goals
+    count :schedule_count, :schedules
   end
 end

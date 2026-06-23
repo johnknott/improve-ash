@@ -40,6 +40,11 @@ defmodule Improve.Sessions.SlotResult do
     update :complete do
       require_atomic? false
       accept [:actual_item_id, :event_instance_id, :notes]
+
+      validate data_one_of(:status, [:planned, :swapped]) do
+        message "can only be completed from planned or swapped"
+      end
+
       change set_attribute(:status, :completed)
 
       validate {Improve.Validations.SamePlan,
@@ -55,6 +60,11 @@ defmodule Improve.Sessions.SlotResult do
     update :swap do
       require_atomic? false
       accept [:actual_item_id, :event_instance_id, :notes]
+
+      validate data_one_of(:status, [:planned, :swapped]) do
+        message "can only be swapped from planned or swapped"
+      end
+
       change set_attribute(:status, :swapped)
 
       validate {Improve.Validations.SamePlan,

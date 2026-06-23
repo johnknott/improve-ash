@@ -88,30 +88,8 @@ defmodule Improve.Plans do
     actor = Keyword.fetch!(opts, :actor)
 
     with {:ok, plan} <- fetch_plan(plan_or_id, actor),
-         plan_filter = [filter: [plan_id: plan.id]],
-         {:ok, item_types} <- list_item_types(actor: actor, query: plan_filter),
-         {:ok, items} <- list_items(actor: actor, query: plan_filter),
-         {:ok, pools} <- list_pools(actor: actor, query: plan_filter),
-         {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
-         {:ok, environments} <- list_environments(actor: actor, query: plan_filter),
-         {:ok, event_types} <- list_event_types(actor: actor, query: plan_filter),
-         {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
-         {:ok, session_slots} <- list_session_slots(actor: actor, query: plan_filter),
-         {:ok, direct_goals} <- list_direct_goals(actor: actor, query: plan_filter),
-         {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter) do
-      {:ok,
-       %{
-         item_types: length(item_types),
-         items: length(items),
-         pools: length(pools),
-         pool_memberships: length(pool_memberships),
-         environments: length(environments),
-         event_types: length(event_types),
-         session_templates: length(session_templates),
-         session_slots: length(session_slots),
-         direct_goals: length(direct_goals),
-         schedules: length(schedules)
-       }}
+         {:ok, plan} <- Ash.load(plan, summary_aggregates(), actor: actor) do
+      {:ok, summary_from_aggregates(plan)}
     end
   end
 
@@ -163,37 +141,69 @@ defmodule Improve.Plans do
   defp fetch_plan(id, actor), do: get_plan(id, actor: actor)
 
   defp projection_input(plan, actor, date, opts) do
-    plan_filter = [filter: [plan_id: plan.id]]
-
-    with {:ok, session_templates} <- list_session_templates(actor: actor, query: plan_filter),
-         {:ok, session_slots} <- list_session_slots(actor: actor, query: plan_filter),
-         {:ok, schedules} <- list_schedules(actor: actor, query: plan_filter),
-         {:ok, direct_goals} <- list_direct_goals(actor: actor, query: plan_filter),
-         {:ok, journal_events} <- Improve.Journal.list_events(actor: actor, query: plan_filter),
-         {:ok, session_occurrences} <-
-           Improve.Sessions.list_session_occurrences(actor: actor, query: plan_filter),
-         {:ok, slot_results} <-
-           Improve.Sessions.list_slot_results(actor: actor, query: plan_filter),
-         {:ok, items} <- list_items(actor: actor, query: plan_filter),
-         {:ok, pool_memberships} <- list_pool_memberships(actor: actor, query: plan_filter),
-         {:ok, environments} <- list_environments(actor: actor, query: plan_filter) do
+    with {:ok, plan} <- Ash.load(plan, projection_load(), actor: actor) do
       {:ok,
        %{
          date: date,
          plan: plan,
-         session_templates: session_templates,
-         session_slots: session_slots,
-         schedules: schedules,
-         direct_goals: direct_goals,
-         journal_events: journal_events,
-         session_occurrences: session_occurrences,
-         slot_results: slot_results,
-         items: items,
-         pool_memberships: pool_memberships,
-         environments: environments,
+         session_templates: plan.session_templates,
+         session_slots: plan.session_slots,
+         schedules: plan.schedules,
+         direct_goals: plan.direct_goals,
+         journal_events: plan.event_instances,
+         session_occurrences: plan.session_occurrences,
+         slot_results: plan.slot_results,
+         items: plan.items,
+         pool_memberships: plan.pool_memberships,
+         environments: plan.environments,
          as_of_date: Keyword.get(opts, :as_of_date, date),
          recent_item_ids: Keyword.get(opts, :recent_item_ids, [])
        }}
     end
+  end
+
+  defp summary_aggregates do
+    [
+      :item_type_count,
+      :item_count,
+      :pool_count,
+      :pool_membership_count,
+      :environment_count,
+      :event_type_count,
+      :session_template_count,
+      :session_slot_count,
+      :direct_goal_count,
+      :schedule_count
+    ]
+  end
+
+  defp summary_from_aggregates(plan) do
+    %{
+      item_types: plan.item_type_count,
+      items: plan.item_count,
+      pools: plan.pool_count,
+      pool_memberships: plan.pool_membership_count,
+      environments: plan.environment_count,
+      event_types: plan.event_type_count,
+      session_templates: plan.session_template_count,
+      session_slots: plan.session_slot_count,
+      direct_goals: plan.direct_goal_count,
+      schedules: plan.schedule_count
+    }
+  end
+
+  defp projection_load do
+    [
+      :session_templates,
+      :session_slots,
+      :schedules,
+      :direct_goals,
+      :event_instances,
+      :session_occurrences,
+      :slot_results,
+      :items,
+      :pool_memberships,
+      :environments
+    ]
   end
 end

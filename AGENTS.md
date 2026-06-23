@@ -51,6 +51,24 @@ The main product model is:
 
 ## Architectural Boundaries
 
+Keep building the Ash way: **Model your domain, derive the rest.**
+
+When a rule is part of the durable product model, prefer expressing it where Ash
+can see and reuse it:
+
+- resources and relationships for domain structure
+- named actions for business operations
+- attributes, identities, validations, changes, preparations, policies,
+  calculations, aggregates, and atomics for enforceable rules
+- code interfaces, generated contracts, and AshAI tools as thin exposures of
+  those actions
+
+Use service/facade modules for orchestration, input translation, demo fixture
+installation, and explicit multi-step transactions, but do not hide core rules
+there if they can live clearly on an Ash resource/action. Phoenix controllers,
+frontend code, story scripts, and assistant tools should not become alternate
+business-rule engines.
+
 Use Ash where it makes the product model clearer:
 
 - resources and relationships
