@@ -1,411 +1,756 @@
-Here’s a short spec capturing the auth direction. The key external constraints are: AshAuthentication supports magic-link-style auth, including registration by email when enabled; Apple’s Sign in with Apple requirement is mainly triggered when offering third-party/social login; and Google Play requires account deletion support if an app allows account creation. ([Hexdocs][1])
-
-# Plain-English Auth Spec
+# Plain-English Spec: Integrate OTP Authentication into Improve
 
 ## Goal
 
-Improve should have a simple, low-friction signup and login flow.
+Add authentication to Improve using AshAuthentication 5.0.0-rc.11 and its built-in OTP strategy.
 
-The default account should be free. Users should not have to choose a plan, enter payment details, create a password, or pick a social login provider before they can use the app.
+The app should support a simple email-code signup and login flow:
 
-The first auth method should be email-code login.
-
-This gives us one clean identity flow across web and mobile:
-
-1. User enters email.
-2. Improve sends a short login code.
+1. User enters their email.
+2. Improve sends a short code to that email.
 3. User enters the code.
-4. If the user does not exist, create a free account.
-5. If the user already exists, sign them in.
-6. Issue a session/token.
-7. Send them into the app.
+4. If the code is valid, the user is signed in.
+5. If the user does not exist yet, Improve creates a free account.
+6. The user lands in the app.
 
-The email may also include a magic sign-in link for convenience, but the code should be the core flow because it works well on web and mobile.
+This should work first for the Svelte web app.
 
-## Initial auth methods
+The design should also leave room for native mobile apps later.
 
-For v1, Improve should support:
+## Main decision
 
-```text
-Email code signup
-Email code login
-Logout
-Session/token refresh if needed
-Account deletion
-```
+Use AshAuthentication’s built-in OTP strategy.
 
-For v1, Improve should not support:
+Do not build a custom `ash_magic_code_auth` package.
+
+Do not build a custom auth strategy unless the built-in OTP strategy cannot support the Improve flow.
+
+The old magic-code package was useful research, but the new implementation should be much smaller:
 
 ```text
-Password login
-Google login
-Apple login
-Microsoft login
-Passkeys
-Stripe billing
-Full account merging UI
+AshAuthentication owns:
+  OTP generation
+  OTP validation
+  brute-force protection
+  token/session integration
+  auth resource integration
+
+Improve owns:
+  Svelte login UI
+  email templates
+  Resend/Cloudflare email delivery
+  app-specific signup/onboarding flow
+  account settings later
 ```
 
-Those can come later.
+## Non-goals
 
-## Why email code first
+Do not add password login.
 
-Email code auth is simple and elegant.
+Do not add Apple login.
 
-It avoids most of the complexity caused by social login providers:
+Do not add Google login.
+
+Do not add Microsoft login.
+
+Do not add passkeys yet.
+
+Do not add Stripe or billing.
+
+Do not add account linking or merging yet.
+
+Do not add onboarding yet unless it is required to finish auth.
+
+Do not build a reusable Hex package.
+
+Do not use the old LiveView magic-code UI.
+
+## User-facing auth flow
+
+The first version should have two screens or two states:
 
 ```text
-Different provider emails
-Apple private relay emails
-Duplicate accounts
-Provider-specific subject IDs
-Identity linking
-Social login policy rules
-OAuth setup and callback edge cases
+Email step:
+  "Enter your email"
+
+Code step:
+  "Enter the code we sent to you"
 ```
 
-It also works consistently across:
+The user should not have to choose between signup and login.
+
+The wording should be neutral:
 
 ```text
-desktop web
-mobile web
-native iOS
-native Android
+Continue with email
 ```
 
-The canonical Improve account identity is therefore:
+not:
 
 ```text
-Your Improve account is your email.
+Sign up
 ```
 
-Other sign-in methods may be added later, but they are not needed for the first version.
+or:
 
-## Account model
+```text
+Log in
+```
 
-Even though v1 only ships email-code auth, the data model should allow future sign-in methods.
+The app should treat signup and login as one flow.
+
+If the email is new, create a free account.
+
+If the email already belongs to a user, sign in to that account.
+
+## Backend resources
+
+Add an Accounts domain if it does not already exist.
+
+Core resources:
+
+```text
+Improve.Accounts.User
+Improve.Accounts.Token
+```
+
+Optional later resources:
+
+```text
+Improve.Accounts.UserIdentity
+Improve.Accounts.AccountEvent
+Improve.Accounts.LoginAttempt
+```
+
+For the first version, do not add `UserIdentity` unless AshAuthentication needs it for the chosen setup.
+
+A simple user is enough:
+
+```text
+User
+  id
+  email
+  inserted_at
+  updated_at
+```
+
+Possible later fields:
+
+```text
+display_name
+primary_email
+confirmed_at
+deleted_at
+onboarding_state
+```
+
+Do not add billing fields yet.
+
+## User resource requirements
+
+The user resource must have:
+
+```text
+primary key
+email field
+unique identity on email
+AshAuthentication extension
+tokens enabled
+OTP strategy enabled
+```
+
+The email field should be a case-insensitive string if practical.
+
+The email identity should be unique.
+
+Conceptually:
+
+```elixir
+attributes do
+  uuid_primary_key :id
+  attribute :email, :ci_string, allow_nil?: false, public?: true
+end
+
+identities do
+  identity :unique_email, [:email]
+end
+```
+
+## Token resource
+
+Create a token resource for AshAuthentication.
+
+The token resource is where AshAuthentication stores token state when needed.
+
+The OTP strategy requires tokens to be enabled.
+
+Use the standard AshAuthentication token resource pattern.
+
+The token resource should not be exposed as a normal product API.
+
+## OTP strategy configuration
+
+Configure the OTP strategy on the user resource.
+
+Use email as the identity field.
+
+Enable registration so a new email can create a free account.
+
+Use a short lifetime.
+
+Use a six-digit code.
+
+Use digits only for the first product version because numeric codes are familiar and mobile-friendly.
+
+Conceptually:
+
+```elixir
+authentication do
+  tokens do
+    enabled? true
+    token_resource Improve.Accounts.Token
+    signing_secret Improve.Accounts.Secrets
+    store_all_tokens? true
+  end
+
+  strategies do
+    otp do
+      identity_field :email
+      registration_enabled? true
+
+      brute_force_strategy :rate_limit
+
+      otp_lifetime {10, :minutes}
+      otp_length 6
+      otp_characters :digits_only
+      otp_param_name :otp
+
+      sender Improve.Accounts.OtpSender
+    end
+  end
+end
+```
+
+The exact module names may change during implementation.
+
+The intended generated action names are:
+
+```text
+request_otp
+sign_in_with_otp
+```
+
+If the strategy name changes, action names will change with it.
+
+## Brute-force protection
+
+Brute-force protection is mandatory.
+
+Do not ship OTP auth without it.
+
+Use AshAuthentication’s OTP brute-force strategy.
+
+For the first version, prefer the simplest secure setup that works with registration enabled.
+
+If `registration_enabled? true` makes the audit-log brute-force strategy awkward, use the rate-limit strategy.
+
+The implementation should prove:
+
+```text
+too many requested codes are blocked
+too many wrong code attempts are blocked
+valid codes expire
+valid codes are single-use
+```
+
+Do not rely only on the frontend to prevent abuse.
+
+## Code policy
+
+Default policy:
+
+```text
+6 digits
+10 minute lifetime
+single-use token
+digits only
+case-insensitive does not matter for digits
+```
+
+The email should say:
+
+```text
+Your Improve code is 123456.
+
+This code expires in 10 minutes.
+
+If you did not request this, you can ignore this email.
+```
+
+Do not include product details, account existence information, or sensitive data in the email.
+
+A magic link fallback can be added later, but it is not required for the first version.
+
+## Email sender
+
+Create an app-owned OTP sender module.
+
+The OTP strategy should call this sender.
+
+The sender should pass the email/code to an app email module.
 
 Conceptually:
 
 ```text
-User
-  The actual Improve account.
+Improve.Accounts.OtpSender
+  called by AshAuthentication
 
-Identity
-  A way to sign in to that account.
+Improve.Emails
+  builds email content
+
+Improve.Emails.ResendClient
+  sends via Resend
+
+Improve.Emails.LocalMailbox
+  used in dev/test
 ```
 
-A user may eventually have many identities:
+The auth strategy should not know about Resend directly.
+
+Use an email behaviour or boundary so the provider can be changed later.
+
+Possible providers:
 
 ```text
-email_code
-apple
-google
-passkey
+Resend first
+Cloudflare Email later if it becomes attractive
+Local/test sender for development and tests
 ```
 
-But in v1, every user will normally have just one identity:
+## Public backend API for Svelte
+
+Expose a tiny app-level auth API for Svelte.
+
+The frontend should not call random low-level Ash actions directly.
+
+Preferred API shape:
 
 ```text
-provider: email_code
-provider_subject: normalized email address
+POST /api/auth/request-code
+POST /api/auth/verify-code
+POST /api/auth/logout
+GET  /api/auth/me
 ```
 
-The important rule is:
+Or, if this fits better with AshTypescript RPC:
 
 ```text
-User is the account.
-Identity is a sign-in method.
-Email is contact information and, for email-code auth, also the provider subject.
+requestLoginCode(email)
+verifyLoginCode(email, otp)
+logout()
+currentUser()
 ```
 
-This keeps the system ready for future Apple, Google, or passkey login without forcing that complexity into the first release.
-
-## Suggested data shape
+The product-level names should be friendly:
 
 ```text
-User
-  id
-  primary_email
-  name / display_name optional
-  confirmed_at
-  onboarding_state
-  inserted_at
-  updated_at
-  deleted_at optional
-
-Identity
-  id
-  user_id
-  provider
-  provider_subject
-  email_claim
-  email_verified_at
-  metadata
-  inserted_at
-  updated_at
-
-LoginChallenge
-  id
-  email
-  code_hash
-  expires_at
-  consumed_at
-  attempts
-  purpose
-  ip_address optional
-  user_agent optional
-  inserted_at
+requestLoginCode
+verifyLoginCode
+currentUser
+logout
 ```
 
-`provider_subject` should be unique per provider.
+They can delegate internally to AshAuthentication’s generated OTP actions.
 
-For email-code auth:
+## Session strategy for web
+
+For the Svelte web app, prefer an HTTP-only secure cookie session.
+
+The Svelte app should not store long-lived auth tokens in localStorage.
+
+The browser should receive a secure session cookie after successful OTP verification.
+
+The frontend then asks:
 
 ```text
-provider: email_code
-provider_subject: normalized email
+GET /api/auth/me
 ```
 
-For future OAuth:
+to determine whether the user is signed in.
+
+Frontend requests should include credentials.
+
+The app should work like this:
 
 ```text
-provider: apple/google
-provider_subject: stable provider subject id
-email_claim: email returned by provider, if any
+verify code succeeds
+backend stores auth/session cookie
+frontend calls currentUser
+frontend navigates to app shell
 ```
 
-Do not rely on social-provider email addresses as permanent identity.
+## Future mobile strategy
 
-## Signup flow
+Native mobile apps may use bearer tokens later.
+
+Do not force the web app to use bearer tokens just because mobile will exist later.
+
+Design the backend so both are possible:
 
 ```text
+web:
+  secure HTTP-only session cookie
+
+mobile:
+  bearer token or native secure token storage later
+```
+
+The same OTP strategy can remain the identity mechanism.
+
+Mobile can use the same flow:
+
+```text
+enter email
+receive code
+enter code
+receive authenticated session/token
+```
+
+Apple/Google sign-in is not required for the first mobile version if Improve only uses its own email-code account system.
+
+## Svelte app flow
+
+The Svelte app should have a simple auth client.
+
+Suggested files:
+
+```text
+frontend/src/api/authClient.ts
+frontend/src/features/auth/LoginPage.svelte
+frontend/src/features/auth/EmailStep.svelte
+frontend/src/features/auth/CodeStep.svelte
+frontend/src/features/auth/authStore.ts
+```
+
+Keep it boring.
+
+The UI flow:
+
+```text
+LoginPage starts on email step.
 User enters email.
-Normalize email.
-Create login challenge.
-Email code to user.
-User enters code.
-Verify code.
-If no user exists for this email, create user.
-Create email_code identity if needed.
-Mark email as verified.
-Create session/token.
-Return current user/session to frontend.
+Frontend calls requestLoginCode(email).
+If successful, move to code step.
+User enters six-digit code.
+Frontend calls verifyLoginCode(email, code).
+If successful, call currentUser().
+Store current user in frontend state.
+Navigate to app shell.
 ```
 
-This should feel like signup and login are the same action.
-
-The user should not need to know whether they are signing up or signing in.
-
-## Login code rules
-
-Login codes should be:
+Errors should be generic:
 
 ```text
-short-lived
-single-use
-rate-limited
-attempt-limited
-stored hashed, not plain text
+We could not send a code right now.
+That code was invalid or expired.
+Please wait before trying again.
 ```
 
-Example policy:
+Do not show:
 
 ```text
-6 digit code
-expires after 10-15 minutes
-maximum 5 attempts
-consumed after successful verification
-newer challenge invalidates or supersedes older challenges for the same email/purpose
+No account exists for that email.
+This account exists but has no token.
+Code was correct but sign-in failed internally.
 ```
 
-The exact numbers can change later.
+## Svelte dev setup
 
-## Email delivery
+During development, the Svelte Vite app should proxy API requests to Phoenix.
 
-Email sending should be behind a small app-level behaviour.
+Example intent:
 
 ```text
-Improve.Accounts.EmailSender
+frontend dev server:
+  http://localhost:5173
+
+Phoenix backend:
+  http://localhost:4000
+
+Svelte calls:
+  /api/auth/request-code
+  /api/auth/verify-code
+  /api/auth/me
+
+Vite proxy forwards:
+  /api -> http://localhost:4000
 ```
 
-Implementations can include:
+This keeps frontend code using relative API paths.
+
+Production can serve the built frontend and API from the same origin.
+
+Same-origin deployment keeps cookie-based auth much simpler.
+
+## CORS and cookies
+
+Prefer same-origin deployment.
+
+If frontend and backend are on different origins, configure CORS and cookies deliberately.
+
+Do not casually allow credentials from every origin.
+
+For production, cookies should be:
 
 ```text
-Resend
-Cloudflare Email
-Local/dev logger
-Test adapter
+HttpOnly
+Secure
+SameSite=Lax or stricter if possible
+proper domain
+reasonable expiry
 ```
 
-The auth system should not depend directly on Resend or Cloudflare.
+For local development, use the least weird setup that still resembles production.
 
-The email content should include:
+## Authenticated API access
+
+Protected API routes should load the current user from the session or bearer token.
+
+If there is no current user, return `401`.
+
+Do not let product actions run without an actor.
+
+Every protected product action should receive the current user as the actor.
+
+The product API rule is:
 
 ```text
-The login code
-A short expiry message
-A magic link if we choose to support one
-A note to ignore the email if the user did not request it
+No actor, no private data.
 ```
 
-## Mobile strategy
+## Frontend auth state
 
-Email code should remain the default mobile sign-in method.
+The frontend should treat the backend as the source of truth.
 
-This avoids needing Apple/Google sign-in on day one.
-
-If Improve later adds Google login to iOS, then Apple login should also be offered. But if Improve only uses its own email-code login system, social sign-in is not required just because the app is on mobile.
-
-For native apps, code entry is preferable to relying only on magic links because it avoids deep-link and email-client awkwardness.
-
-## Future sign-in methods
-
-Later, Improve may add:
+On app load:
 
 ```text
-Passkeys
-Apple Sign in
-Google Sign-In
-Microsoft login
+call currentUser()
+if user exists:
+  show app
+else:
+  show login
 ```
 
-When that happens, they should be added as extra identities on the same user account.
+Do not rely only on a frontend boolean like `isLoggedIn`.
 
-They should not replace the user model.
+The frontend can cache the current user in a Svelte store, but it should be refreshed from `/api/auth/me` after reloads.
 
-A future Account Settings page can show:
+## Logout
+
+Logout should:
 
 ```text
-Primary email
-Sign-in methods
-  Email code
-  Apple
-  Google
-  Passkey
-Add sign-in method
-Remove sign-in method
+revoke/clear server-side auth where appropriate
+clear the session cookie
+clear frontend current user state
+navigate back to login
 ```
 
-## Account linking rule
-
-Do not auto-merge accounts just because emails match.
-
-Do not assume accounts are separate just because emails differ.
-
-To link or merge accounts, the user must prove control of both.
-
-Safe linking examples:
+Frontend should call:
 
 ```text
-User is signed in with email code.
-User clicks "Add Apple sign-in".
-User completes Apple sign-in.
-Attach Apple identity to the current user.
+POST /api/auth/logout
 ```
 
-Or:
+and then clear local auth state regardless of response details.
+
+## Account creation
+
+New users get a free account by default.
+
+Signup should not require:
 
 ```text
-User is signed in with Apple.
-User clicks "Link existing email account".
-User enters email.
-User verifies email code.
-Attach email identity or offer account merge.
+password
+plan selection
+payment method
+profile setup
+social login
 ```
 
-Full account merging can be deferred.
+After first successful sign-in, the user can land on:
 
-For v1, it is enough to avoid painting ourselves into a corner.
+```text
+Today placeholder
+plan creation
+or a simple welcome screen
+```
+
+Do not build a heavy onboarding flow yet.
 
 ## Account deletion
 
-Because Improve creates user accounts, account deletion should be planned from the beginning.
+Because Improve creates accounts, include a basic account deletion path in the backend plan.
 
-At minimum, the system should have a clear account deletion action.
+This does not have to be the first screen in the first auth commit, but the model should not make deletion impossible.
 
-The product can decide later whether deletion means:
+Later, account deletion should be available from account settings.
+
+## Security requirements
+
+The implementation must:
 
 ```text
-hard delete
-soft delete
-scheduled deletion after grace period
-anonymise user data
+use AshAuthentication 5.0.0-rc.11 or newer compatible release
+enable tokens
+use a unique email identity
+enable brute-force protection
+keep OTP lifetime short
+make OTP tokens single-use
+avoid account enumeration
+avoid logging OTP codes
+avoid logging auth tokens
+use secure cookies for web sessions
+use HTTPS in production
+return generic auth errors
+rate-limit request and verify paths
+test wrong, expired, reused, and rate-limited codes
 ```
 
-But the first implementation should not make deletion impossible.
+The frontend should never store auth tokens in localStorage for web.
 
-## Stripe and plans
+## Testing requirements
 
-Billing is not part of initial auth.
-
-Every new user gets a free account by default.
-
-Later, Improve can add:
+Backend tests should cover:
 
 ```text
-Plans page
-Stripe checkout
-Subscription status
-Feature limits
-Billing portal
-```
-
-This should be separate from signup.
-
-Signup should stay frictionless.
-
-## Implementation direction
-
-Use AshAuthentication as the auth foundation where it fits well.
-
-Use its user/token/session patterns and magic-link support where useful.
-
-If the exact code-entry UX is not provided directly, build a small email-code layer around the same account/session model.
-
-The important product behaviour is:
-
-```text
-Enter email.
-Receive code.
-Verify code.
-Get a free account.
-Use Improve.
-```
-
-## First auth story/spec
-
-Create a story/spec for:
-
-```text
-request code for new email
-email sender receives a code
-verify code
-free user is created
-email_code identity is created
-session/token is issued
-
-request code for same email
-verify code
-same user is reused
-
+request code for new email succeeds
+request code sends email through test sender
+verify valid code creates a user when registration is enabled
+verify valid code signs in existing user
+same email reuses same user
 wrong code fails
 expired code fails
 used code cannot be reused
-too many attempts fails
+too many wrong attempts are blocked
+too many request attempts are blocked
+generic response does not reveal whether account exists
+currentUser works after sign-in
+logout clears authentication
+protected API returns 401 when signed out
+protected API works when signed in
 ```
 
-This story should prove the whole signup/login loop without adding social login, billing, or passkeys.
+Frontend tests can be light at first:
+
+```text
+email form submits request
+code form submits verification
+invalid code shows generic error
+successful verification loads current user
+logout clears current user
+```
+
+Do not overbuild frontend auth tests before the backend API shape settles.
+
+## Implementation order
+
+Step 1:
+
+```text
+Add AshAuthentication 5.0.0-rc.11.
+Add or update Accounts.User.
+Add Accounts.Token.
+Enable OTP strategy.
+Enable registration.
+Configure sender.
+Run migrations.
+```
+
+Step 2:
+
+```text
+Create test email sender.
+Write backend auth story/spec.
+Prove request code and verify code work.
+```
+
+Step 3:
+
+```text
+Create Phoenix JSON auth endpoints or AshTypescript RPC actions.
+Implement requestLoginCode.
+Implement verifyLoginCode.
+Implement currentUser.
+Implement logout.
+```
+
+Step 4:
+
+```text
+Build simple Svelte login page.
+Email step.
+Code step.
+Basic loading and error states.
+Current user store.
+```
+
+Step 5:
+
+```text
+Protect the first real app route.
+Redirect signed-out users to login.
+Redirect signed-in users into the app.
+```
+
+Step 6:
+
+```text
+Swap dev/test email sender for Resend in production.
+Keep email provider behind an app boundary.
+```
+
+## First auth story
+
+Create a story/spec called something like:
+
+```text
+08_email_otp_signup_and_login
+```
+
+It should prove:
+
+```text
+A new user can request a code.
+The code is sent.
+The code can be verified.
+A free user is created.
+The user is authenticated.
+The current user endpoint returns that user.
+The user can log out.
+The same email can log in again.
+The same user is reused.
+Invalid/reused/expired codes fail.
+```
+
+This is the auth equivalent of the product stories.
+
+It should describe the user journey, but assert the important security behaviour.
 
 ## Main decision
 
-Ship email-code auth first.
+Use the built-in OTP strategy.
 
-Design the account model so Apple, Google, Microsoft, and passkeys can be added later.
+Keep auth simple.
 
-Do not ship OAuth providers until there is a real product reason.
+Keep Svelte in charge of the UI.
 
-Keep signup simple.
+Keep AshAuthentication in charge of authentication mechanics.
 
-[1]: https://hexdocs.pm/ash_authentication/magic-links.html?utm_source=chatgpt.com "Magic Links Tutorial — ash_authentication v4.13.7"
+Do not ship OAuth yet.
+
+Do not ship passkeys yet.
+
+[1]: https://hex.pm/packages/ash_authentication/5.0.0-rc.11 "ash_authentication | Hex"
 
