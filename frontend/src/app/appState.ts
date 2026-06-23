@@ -3,10 +3,10 @@ import {
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
   completeSession as completeSessionRequest,
-  correctDose as correctDoseRequest,
+  correctLinkedEvent as correctLinkedEventRequest,
   createDirectGoal as createDirectGoalRequest,
   createPlan as createPlanRequest,
-  logDose as logDoseRequest,
+  logLinkedEvent as logLinkedEventRequest,
   logSessionSlot as submitSessionSlotEvent,
   logEvent as submitLogEvent,
   skipSession as skipSessionRequest,
@@ -16,12 +16,12 @@ import {
 } from '../api/improveClient'
 import type {
   DashboardData,
-  CorrectDoseInput,
+  CorrectLinkedEventInput,
   CreateDirectGoalInput,
   CreatePlanInput,
   DemoPlanKind,
-  DoseInput,
   JournalEntry,
+  LinkedEventInput,
   LogEventInput,
   LogSessionSlotInput,
   ProjectedWork,
@@ -49,10 +49,12 @@ type SessionSlotDialogState = {
   slotResult: SessionSlotResult | null
 }
 
-type DoseDialogState = {
+type LinkedEventDialogState = {
   open: boolean
   item: PlanItem | null
   event: JournalEntry | null
+  eventTypeId: string | null
+  role: string | null
 }
 
 export const dashboardState = writable<DashboardState>({
@@ -76,10 +78,12 @@ export const sessionSlotDialogState = writable<SessionSlotDialogState>({
   slotResult: null,
 })
 
-export const doseDialogState = writable<DoseDialogState>({
+export const linkedEventDialogState = writable<LinkedEventDialogState>({
   open: false,
   item: null,
   event: null,
+  eventTypeId: null,
+  role: null,
 })
 
 export const newPlanDialogOpen = writable(false)
@@ -121,7 +125,7 @@ export function resetDashboard(): void {
   dashboardState.set({ loading: false, refreshing: false, error: null, data: null })
   logDialogState.set({ open: false, work: null })
   sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
-  doseDialogState.set({ open: false, item: null, event: null })
+  linkedEventDialogState.set({ open: false, item: null, event: null, eventTypeId: null, role: null })
   newPlanDialogOpen.set(false)
   checkInDialogOpen.set(false)
   toastMessage.set(null)
@@ -147,12 +151,17 @@ export function closeSessionSlotDialog(): void {
   sessionSlotDialogState.set({ open: false, work: null, slotResult: null })
 }
 
-export function openDoseDialog(item: PlanItem, event: JournalEntry | null = null): void {
-  doseDialogState.set({ open: true, item, event })
+export function openLinkedEventDialog(
+  item: PlanItem,
+  eventTypeId: string,
+  role: string,
+  event: JournalEntry | null = null
+): void {
+  linkedEventDialogState.set({ open: true, item, event, eventTypeId, role })
 }
 
-export function closeDoseDialog(): void {
-  doseDialogState.set({ open: false, item: null, event: null })
+export function closeLinkedEventDialog(): void {
+  linkedEventDialogState.set({ open: false, item: null, event: null, eventTypeId: null, role: null })
 }
 
 export function openNewPlanDialog(): void {
@@ -187,18 +196,18 @@ export async function submitLog(input: LogEventInput): Promise<void> {
   await loadDashboard(lastLoadedPlanId, get(selectedDate))
 }
 
-export async function submitDose(input: DoseInput): Promise<void> {
-  const data = await logDoseRequest({ ...input, date: get(selectedDate) })
-  closeDoseDialog()
+export async function submitLinkedEvent(input: LinkedEventInput): Promise<void> {
+  const data = await logLinkedEventRequest({ ...input, date: get(selectedDate) })
+  closeLinkedEventDialog()
   setDashboardData(data)
-  showToast('Dose logged.')
+  showToast('Event logged.')
 }
 
-export async function submitDoseCorrection(input: CorrectDoseInput): Promise<void> {
-  const data = await correctDoseRequest({ ...input, date: get(selectedDate) })
-  closeDoseDialog()
+export async function submitLinkedEventCorrection(input: CorrectLinkedEventInput): Promise<void> {
+  const data = await correctLinkedEventRequest({ ...input, date: get(selectedDate) })
+  closeLinkedEventDialog()
   setDashboardData(data)
-  showToast('Dose corrected.')
+  showToast('Event corrected.')
 }
 
 export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
@@ -207,7 +216,7 @@ export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
 
   try {
     setDashboardData(await installDemoPlanRequest(kind, get(selectedDate)))
-    showToast(kind === 'gym' ? 'Gym demo ready.' : 'Inventory demo ready.')
+    showToast(kind === 'gym' ? 'Training demo ready.' : 'Inventory demo ready.')
   } catch {
     dashboardState.update((state) => ({
       ...state,

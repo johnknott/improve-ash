@@ -68,21 +68,6 @@ defmodule Improve.App.Authoring do
     )
   end
 
-  def add_exercise!(plan, name, opts) do
-    actor = actor!(opts)
-    ensure_item_type!(plan, "exercise", "Exercise", actor)
-
-    add_item!(
-      plan,
-      name,
-      opts
-      |> Keyword.put(:actor, actor)
-      |> Keyword.put(:type, "exercise")
-      |> Keyword.put_new(:key, Value.key_from(name))
-      |> Keyword.put_new(:facts, %{})
-    )
-  end
-
   def add_pool!(plan, name, opts) do
     actor = actor!(opts)
 
@@ -177,13 +162,6 @@ defmodule Improve.App.Authoring do
 
     create_schedule!(plan, :session_template, session_template, schedule, actor)
     session_template
-  end
-
-  defp ensure_item_type!(plan, key, name, actor) do
-    case Enum.find(Lookup.item_types(actor, plan), &(&1.key == key)) do
-      nil -> add_item_type!(plan, name, key: key, actor: actor)
-      item_type -> item_type
-    end
   end
 
   defp create_schedule!(plan, owner_type, owner, schedule, actor) do

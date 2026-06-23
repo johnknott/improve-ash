@@ -6,7 +6,7 @@ defmodule Improve.Journal.DoseCorrectionTest do
   alias Improve.Journal
   alias Improve.Plans
 
-  describe "correct_dose_event!/2" do
+  describe "correct_linked_item_event!/2" do
     test "voids the original effect and replaces the dose without deleting history" do
       user =
         Accounts.create_user!(%{
@@ -25,15 +25,15 @@ defmodule Improve.Journal.DoseCorrectionTest do
         |> Map.new(&{&1.key, &1})
 
       original =
-        Journal.log_dose_event!(
+        Journal.log_linked_item_event!(
           %{
             plan: plan,
             event_type: event_types["take_dose"],
-            source_vial: items["retatrutide_vial_1"],
-            amount: 250,
+            linked_item: items["retatrutide_vial_1"],
+            role: "source_vial",
+            quantity: 250,
             unit: "mcg",
-            route: "subcutaneous",
-            site: "abdomen",
+            payload: %{"route" => "subcutaneous", "site" => "abdomen"},
             effective_at: ~U[2026-06-22 08:00:00Z],
             recorded_at: ~U[2026-06-22 08:01:00Z],
             summary: "Dose recorded from Retatrutide vial 1"
@@ -44,17 +44,17 @@ defmodule Improve.Journal.DoseCorrectionTest do
       assert [original_effect] = original.item_effects
 
       correction =
-        Journal.correct_dose_event!(
+        Journal.correct_linked_item_event!(
           %{
             plan: plan,
             event_type: event_types["take_dose"],
-            source_vial: items["retatrutide_vial_1"],
+            linked_item: items["retatrutide_vial_1"],
+            role: "source_vial",
             original_event: original.event,
             original_effect: original_effect,
-            amount: 300,
+            quantity: 300,
             unit: "mcg",
-            route: "subcutaneous",
-            site: "abdomen",
+            payload: %{"route" => "subcutaneous", "site" => "abdomen"},
             effective_at: ~U[2026-06-22 08:00:00Z],
             recorded_at: ~U[2026-06-22 08:05:00Z],
             corrected_at: ~U[2026-06-22 08:05:00Z],

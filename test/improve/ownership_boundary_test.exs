@@ -45,12 +45,13 @@ defmodule Improve.OwnershipBoundaryTest do
         |> Map.new(&{&1.key, &1})
 
       original =
-        Journal.log_dose_event!(
+        Journal.log_linked_item_event!(
           %{
             plan: vial_plan,
             event_type: event_types["take_dose"],
-            source_vial: items["retatrutide_vial_1"],
-            amount: 250,
+            linked_item: items["retatrutide_vial_1"],
+            role: "source_vial",
+            quantity: 250,
             unit: "mcg",
             effective_at: ~U[2026-06-22 08:00:00Z],
             recorded_at: ~U[2026-06-22 08:01:00Z]
@@ -64,12 +65,13 @@ defmodule Improve.OwnershipBoundaryTest do
                Journal.get_item_state(items["retatrutide_vial_1"], actor: other_user)
 
       assert_forbidden(fn ->
-        Journal.log_dose_event!(
+        Journal.log_linked_item_event!(
           %{
             plan: vial_plan,
             event_type: event_types["take_dose"],
-            source_vial: items["retatrutide_vial_1"],
-            amount: 250,
+            linked_item: items["retatrutide_vial_1"],
+            role: "source_vial",
+            quantity: 250,
             unit: "mcg",
             effective_at: ~U[2026-06-22 09:00:00Z],
             recorded_at: ~U[2026-06-22 09:01:00Z]
@@ -81,14 +83,15 @@ defmodule Improve.OwnershipBoundaryTest do
       [original_effect] = original.item_effects
 
       assert_forbidden(fn ->
-        Journal.correct_dose_event!(
+        Journal.correct_linked_item_event!(
           %{
             plan: vial_plan,
             event_type: event_types["take_dose"],
-            source_vial: items["retatrutide_vial_1"],
+            linked_item: items["retatrutide_vial_1"],
+            role: "source_vial",
             original_event: original.event,
             original_effect: original_effect,
-            amount: 300,
+            quantity: 300,
             unit: "mcg",
             effective_at: ~U[2026-06-22 08:00:00Z],
             recorded_at: ~U[2026-06-22 08:05:00Z],

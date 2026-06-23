@@ -160,40 +160,42 @@ defmodule Improve.Journal do
     }
   end
 
-  def log_dose_event!(attrs, opts) do
+  def log_linked_item_event!(attrs, opts) do
     actor = Keyword.fetch!(opts, :actor)
     plan = Map.fetch!(attrs, :plan)
     event_type = Map.fetch!(attrs, :event_type)
-    source_vial = Map.fetch!(attrs, :source_vial)
+    linked_item = Map.fetch!(attrs, :linked_item)
+    role = Map.fetch!(attrs, :role)
 
-    ensure_actor_owns_plan!(:log_dose_event, plan, actor)
+    ensure_actor_owns_plan!(:log_linked_item_event, plan, actor)
 
     result =
       log_generic_event!(
-        dose_event_command_attrs(attrs, plan, event_type, source_vial),
+        linked_item_event_command_attrs(attrs, plan, event_type, linked_item, role),
         actor: actor
       )
 
     %{
       event: result.event,
-      source_vial_link: List.first(result.event_item_links),
+      event_item_link: List.first(result.event_item_links),
       item_effects: result.item_effects
     }
   end
 
-  def correct_dose_event!(attrs, opts) do
+  def correct_linked_item_event!(attrs, opts) do
     actor = Keyword.fetch!(opts, :actor)
     plan = Map.fetch!(attrs, :plan)
     event_type = Map.fetch!(attrs, :event_type)
-    source_vial = Map.fetch!(attrs, :source_vial)
+    linked_item = Map.fetch!(attrs, :linked_item)
+    role = Map.fetch!(attrs, :role)
     original_event = Map.fetch!(attrs, :original_event)
     original_effect = Map.fetch!(attrs, :original_effect)
 
-    ensure_actor_owns_plan!(:correct_dose_event, plan, actor)
+    ensure_actor_owns_plan!(:correct_linked_item_event, plan, actor)
 
     replacement_attrs =
-      dose_event_command_attrs(attrs, plan, event_type, source_vial,
-        default_summary: "Dose corrected",
+      linked_item_event_command_attrs(attrs, plan, event_type, linked_item, role,
+        default_summary: "Event corrected",
         link_metadata: %{"corrects_event_instance_id" => original_event.id}
       )
 
@@ -836,38 +838,37 @@ defmodule Improve.Journal do
   defp effect_id(%{id: id}), do: id
   defp effect_id(_effect), do: nil
 
-  defp dose_event_command_attrs(attrs, plan, event_type, source_vial, opts \\ []) do
+  defp linked_item_event_command_attrs(attrs, plan, event_type, linked_item, role, opts \\ []) do
+    quantity = Map.get(attrs, :quantity) || Map.get(attrs, :amount)
+    unit = Map.fetch!(attrs, :unit)
+
     %{
       plan_id: plan.id,
       event_type_id: event_type.id,
       effective_at: Map.fetch!(attrs, :effective_at),
       recorded_at: Map.fetch!(attrs, :recorded_at),
-      summary: Map.get(attrs, :summary, Keyword.get(opts, :default_summary, "Dose recorded")),
-      quantity: Map.fetch!(attrs, :amount),
-      unit: Map.fetch!(attrs, :unit),
-      payload: dose_payload(attrs),
-      note: Map.get(attrs, :notes),
+      summary: Map.get(attrs, :summary, Keyword.get(opts, :default_summary, "Event recorded")),
+      quantity: quantity,
+      unit: unit,
+      payload: linked_item_event_payload(attrs, quantity, unit),
+      note: Map.get(attrs, :note) || Map.get(attrs, :notes),
       replaces_event_instance_id: Keyword.get(opts, :replaces_event_instance_id),
       replaces_item_effect_id: Keyword.get(opts, :replaces_item_effect_id),
       item_links: [
         %{
-          role: "source_vial",
-          item_id: source_vial.id,
+          role: role,
+          item_id: linked_item.id,
           metadata: Keyword.get(opts, :link_metadata, %{})
         }
       ]
     }
   end
 
-  defp dose_payload(attrs) do
-    %{
-      "amount" => Map.fetch!(attrs, :amount),
-      "unit" => Map.fetch!(attrs, :unit),
-      "route" => Map.get(attrs, :route),
-      "site" => Map.get(attrs, :site),
-      "subjective_feedback" => Map.get(attrs, :subjective_feedback),
-      "notes" => Map.get(attrs, :notes)
-    }
+  defp linked_item_event_payload(attrs, quantity, unit) do
+    attrs
+    |> Map.get(:payload, %{})
+    |> Map.put_new("amount", quantity)
+    |> Map.put_new("unit", unit)
   end
 
   defp create_item_effect_from_spec!(spec, plan_or_id, event, actor, opts) do

@@ -2,15 +2,15 @@
   import { Dialog } from 'bits-ui'
   import type { DashboardData } from '../../api/types'
   import {
-    closeDoseDialog,
-    doseDialogState,
-    submitDose,
-    submitDoseCorrection,
+    closeLinkedEventDialog,
+    linkedEventDialogState,
+    submitLinkedEvent,
+    submitLinkedEventCorrection,
   } from '../../app/appState'
 
   let { data }: { data: DashboardData | null } = $props()
 
-  let amount = $state('')
+  let quantity = $state('')
   let unit = $state('')
   let effectiveAt = $state('')
   let site = $state('')
@@ -20,16 +20,18 @@
   let error = $state<string | null>(null)
   let seededFor = $state('')
 
-  let item = $derived($doseDialogState.item)
-  let event = $derived($doseDialogState.event)
+  let item = $derived($linkedEventDialogState.item)
+  let event = $derived($linkedEventDialogState.event)
+  let eventTypeId = $derived($linkedEventDialogState.eventTypeId)
+  let role = $derived($linkedEventDialogState.role)
   let planId = $derived(data?.currentPlan?.id ?? '')
   let isCorrection = $derived(!!event)
 
   $effect(() => {
-    const seedKey = $doseDialogState.open ? `${item?.id ?? ''}:${event?.id ?? 'new'}` : ''
+    const seedKey = $linkedEventDialogState.open ? `${item?.id ?? ''}:${event?.id ?? 'new'}` : ''
 
     if (seedKey && seedKey !== seededFor) {
-      amount = event?.quantity ?? ''
+      quantity = event?.quantity ?? ''
       unit = event?.unit ?? stateValue(item?.state?.calculatedState.unit) ?? stateValue(item?.facts.unit) ?? ''
       effectiveAt = event?.effectiveAt ? toLocalDateTime(event.effectiveAt) : ''
       site = ''
@@ -39,18 +41,18 @@
       seededFor = seedKey
     }
 
-    if (!$doseDialogState.open) {
+    if (!$linkedEventDialogState.open) {
       seededFor = ''
     }
   })
 
   async function handleSubmit() {
-    if (!planId || !item) {
-      error = 'Choose a vial before logging.'
+    if (!planId || !item || !eventTypeId || !role) {
+      error = 'Choose an item and event before logging.'
       return
     }
 
-    if (!amount.trim() || !unit.trim()) {
+    if (!quantity.trim() || !unit.trim()) {
       error = 'Enter an amount and unit.'
       return
     }
@@ -61,25 +63,27 @@
     try {
       const input = {
         planId,
-        sourceVialItemId: item.id,
-        amount: amount.trim(),
+        itemId: item.id,
+        eventTypeId,
+        role,
+        quantity: quantity.trim(),
         unit: unit.trim(),
         effectiveAt: effectiveAt ? new Date(effectiveAt).toISOString() : null,
-        site: site.trim() || null,
         note: note.trim() || null,
+        payload: payload(site.trim(), note.trim(), quantity.trim(), unit.trim()),
       }
 
       if (event) {
-        await submitDoseCorrection({
+        await submitLinkedEventCorrection({
           ...input,
           originalEventId: event.id,
           correctionNote: correctionNote.trim() || 'Corrected from inventory',
         })
       } else {
-        await submitDose(input)
+        await submitLinkedEvent(input)
       }
     } catch {
-      error = isCorrection ? 'We could not correct that dose.' : 'We could not log that dose.'
+      error = isCorrection ? 'We could not correct that event.' : 'We could not log that event.'
     } finally {
       saving = false
     }
@@ -102,16 +106,25 @@
     const offset = date.getTimezoneOffset() * 60000
     return new Date(date.getTime() - offset).toISOString().slice(0, 16)
   }
+
+  function payload(site: string, note: string, quantity: string, unit: string): Record<string, unknown> {
+    return {
+      amount: quantity,
+      unit,
+      ...(site ? { site } : {}),
+      ...(note ? { notes: note } : {}),
+    }
+  }
 </script>
 
-<Dialog.Root open={$doseDialogState.open} onOpenChange={(open) => !open && closeDoseDialog()}>
+<Dialog.Root open={$linkedEventDialogState.open} onOpenChange={(open) => !open && closeLinkedEventDialog()}>
   <Dialog.Portal>
     <Dialog.Overlay class="dialog-overlay" />
     <Dialog.Content class="dialog-content small-dialog">
       <div class="dialog-header">
         <div>
-          <Dialog.Title>{isCorrection ? 'Correct dose' : 'Log dose'}</Dialog.Title>
-          <Dialog.Description>{item?.name ?? 'Choose a vial'} inventory event.</Dialog.Description>
+          <Dialog.Title>{isCorrection ? 'Correct event' : 'Log event'}</Dialog.Title>
+          <Dialog.Description>{item?.name ?? 'Choose an item'} inventory event.</Dialog.Description>
         </div>
         <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
       </div>
@@ -120,7 +133,7 @@
         <div class="form-grid">
           <label>
             Amount
-            <input bind:value={amount} disabled={saving} inputmode="decimal" placeholder="250" />
+            <input bind:value={quantity} disabled={saving} inputmode="decimal" placeholder="250" />
           </label>
           <label>
             Unit
@@ -155,11 +168,11 @@
         {/if}
 
         <div class="dialog-actions">
-          <button class="secondary-button" type="button" disabled={saving} onclick={closeDoseDialog}>
+          <button class="secondary-button" type="button" disabled={saving} onclick={closeLinkedEventDialog}>
             Cancel
           </button>
           <button class="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Saving' : isCorrection ? 'Save correction' : 'Log dose'}
+            {saving ? 'Saving' : isCorrection ? 'Save correction' : 'Log event'}
           </button>
         </div>
       </form>

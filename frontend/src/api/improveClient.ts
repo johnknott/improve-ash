@@ -1,10 +1,10 @@
 import type {
   DashboardData,
-  CorrectDoseInput,
+  CorrectLinkedEventInput,
   CreateDirectGoalInput,
   CreatePlanInput,
   DemoPlanKind,
-  DoseInput,
+  LinkedEventInput,
   LogEventInput,
   JournalEntry,
   LogSessionSlotInput,
@@ -55,18 +55,18 @@ export async function logEvent(input: LogEventInput): Promise<JournalEntry> {
   return response.event
 }
 
-export async function logDose(input: DoseInput): Promise<DashboardData> {
-  return apiFetch<DashboardData>('/api/app/log-dose', {
+export async function logLinkedEvent(input: LinkedEventInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/log-linked-event', {
     method: 'POST',
-    body: JSON.stringify(doseBody(input)),
+    body: JSON.stringify(linkedEventBody(input)),
   })
 }
 
-export async function correctDose(input: CorrectDoseInput): Promise<DashboardData> {
-  return apiFetch<DashboardData>('/api/app/correct-dose', {
+export async function correctLinkedEvent(input: CorrectLinkedEventInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/correct-linked-event', {
     method: 'POST',
     body: JSON.stringify({
-      ...doseBody(input),
+      ...linkedEventBody(input),
       original_event_id: input.originalEventId,
       correction_note: input.correctionNote,
     }),
@@ -170,16 +170,17 @@ function updateSessionStatus(path: string, input: SessionStatusInput): Promise<D
   })
 }
 
-function doseBody(input: DoseInput): Record<string, unknown> {
+function linkedEventBody(input: LinkedEventInput): Record<string, unknown> {
   return {
     plan_id: input.planId,
-    source_vial_item_id: input.sourceVialItemId,
-    amount: input.amount,
+    item_id: input.itemId,
+    event_type_id: input.eventTypeId,
+    role: input.role,
+    quantity: input.quantity,
     unit: input.unit,
     effective_at: input.effectiveAt,
     note: input.note,
-    site: input.site,
-    route: input.route,
+    payload: input.payload ?? {},
     date: input.date,
   }
 }

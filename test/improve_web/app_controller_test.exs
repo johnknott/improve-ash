@@ -271,15 +271,18 @@ defmodule ImproveWeb.AppControllerTest do
     response = json_response(conn, 200)
     plan_id = get_in(response, ["currentPlan", "id"])
     vial = plan_item(response, "retatrutide_vial_1")
+    event_type = plan_event_type(response, "take_dose")
 
     assert get_in(vial, ["state", "calculatedState", "current_quantity"]) == "5000"
     assert get_in(vial, ["state", "calculatedState", "unit"]) == "mcg"
 
     conn =
-      post(conn, ~p"/api/app/log-dose", %{
+      post(conn, ~p"/api/app/log-linked-event", %{
         plan_id: plan_id,
-        source_vial_item_id: vial["id"],
-        amount: "250",
+        item_id: vial["id"],
+        event_type_id: event_type["id"],
+        role: "source_vial",
+        quantity: "250",
         unit: "mcg",
         effective_at: "2026-06-23T08:00:00Z",
         note: "Left abdomen"
@@ -305,11 +308,13 @@ defmodule ImproveWeb.AppControllerTest do
            ] = response["journal"]
 
     conn =
-      post(conn, ~p"/api/app/correct-dose", %{
+      post(conn, ~p"/api/app/correct-linked-event", %{
         plan_id: plan_id,
         original_event_id: original_event_id,
-        source_vial_item_id: vial["id"],
-        amount: "200",
+        item_id: vial["id"],
+        event_type_id: event_type["id"],
+        role: "source_vial",
+        quantity: "200",
         unit: "mcg",
         effective_at: "2026-06-23T08:05:00Z",
         correction_note: "Dose amount corrected"
@@ -335,7 +340,7 @@ defmodule ImproveWeb.AppControllerTest do
 
     assert Enum.any?(
              response["journal"],
-             &(&1["summary"] == "Corrected dose from Retatrutide vial 1")
+             &(&1["summary"] == "Corrected Take Dose for Retatrutide vial 1")
            )
   end
 
@@ -346,6 +351,12 @@ defmodule ImproveWeb.AppControllerTest do
   defp plan_item(response, key) do
     response
     |> get_in(["planDetail", "items"])
+    |> Enum.find(&(&1["key"] == key))
+  end
+
+  defp plan_event_type(response, key) do
+    response
+    |> get_in(["planDetail", "eventTypes"])
     |> Enum.find(&(&1["key"] == key))
   end
 

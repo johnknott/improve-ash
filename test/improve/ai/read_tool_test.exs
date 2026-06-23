@@ -36,12 +36,13 @@ defmodule Improve.Ai.ReadToolTest do
         Plans.list_event_types!(actor: user, query: [filter: [plan_id: vial_plan.id]])
         |> Map.new(&{&1.key, &1})
 
-      Journal.log_dose_event!(
+      Journal.log_linked_item_event!(
         %{
           plan: vial_plan,
           event_type: vial_event_types["take_dose"],
-          source_vial: vial_items["retatrutide_vial_1"],
-          amount: 250,
+          linked_item: vial_items["retatrutide_vial_1"],
+          role: "source_vial",
+          quantity: 250,
           unit: "mcg",
           effective_at: ~U[2026-06-22 08:00:00Z],
           recorded_at: ~U[2026-06-22 08:01:00Z],

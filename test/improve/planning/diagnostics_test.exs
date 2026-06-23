@@ -103,7 +103,7 @@ defmodule Improve.Planning.DiagnosticsTest do
       assert diagnostic(diagnostics, :unsupported_schedule_rule).ref == "after_completion"
 
       assert diagnostic(diagnostics, :missing_required_item_link_role).message ==
-               "This dose event is missing the required source vial link."
+               "This event is missing a required item link role."
 
       assert diagnostic(diagnostics, :missing_required_item_link_role).path == [
                "events",
@@ -113,7 +113,7 @@ defmodule Improve.Planning.DiagnosticsTest do
              ]
 
       assert diagnostic(diagnostics, :effect_rule_quantity_incompatible).message ==
-               "This dose event quantity cannot be used by its item effect rule."
+               "This event quantity cannot be used by its item effect rule."
 
       assert diagnostic(diagnostics, :effect_rule_quantity_incompatible).path == [
                "events",

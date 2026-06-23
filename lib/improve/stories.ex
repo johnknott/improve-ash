@@ -68,7 +68,23 @@ defmodule Improve.Stories do
   end
 
   def add_exercise!(%Story{} = story, plan, name, opts) do
-    App.add_exercise!(plan, name, Keyword.put(opts, :actor, actor!(story)))
+    actor = actor!(story)
+
+    if not Enum.any?(
+         Plans.list_item_types!(actor: actor, query: [filter: [plan_id: plan.id]]),
+         &(&1.key == "exercise")
+       ) do
+      App.add_item_type!(plan, "Exercise", actor: actor, key: "exercise")
+    end
+
+    App.add_item!(
+      plan,
+      name,
+      opts
+      |> Keyword.put(:actor, actor)
+      |> Keyword.put(:type, "exercise")
+      |> Keyword.put_new(:facts, %{})
+    )
   end
 
   def add_pool!(%Story{} = story, plan, name, opts) do

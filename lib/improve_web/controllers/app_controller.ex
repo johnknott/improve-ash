@@ -17,19 +17,19 @@ defmodule ImproveWeb.AppController do
     )
   end
 
-  def log_dose(conn, params) do
-    call_app(conn, params, &UiApi.log_dose/2,
-      not_found_message: "That vial is not available.",
+  def log_linked_event(conn, params) do
+    call_app(conn, params, &UiApi.log_linked_event/2,
+      not_found_message: "That item or event type is not available.",
       fallback_status: 422,
-      fallback_message: "We could not log that dose."
+      fallback_message: "We could not log that event."
     )
   end
 
-  def correct_dose(conn, params) do
-    call_app(conn, params, &UiApi.correct_dose/2,
-      not_found_message: "That dose is not available to correct.",
+  def correct_linked_event(conn, params) do
+    call_app(conn, params, &UiApi.correct_linked_event/2,
+      not_found_message: "That event is not available to correct.",
       fallback_status: 422,
-      fallback_message: "We could not correct that dose."
+      fallback_message: "We could not correct that event."
     )
   end
 

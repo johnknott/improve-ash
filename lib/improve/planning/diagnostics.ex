@@ -631,7 +631,7 @@ defmodule Improve.Planning.Diagnostics do
         [
           diagnostic(
             :effect_rule_quantity_incompatible,
-            "This dose event quantity cannot be used by its item effect rule.",
+            "This event quantity cannot be used by its item effect rule.",
             %{
               event_key: event_ref(event),
               event_type_key: value(event_type, "key"),
@@ -785,10 +785,6 @@ defmodule Improve.Planning.Diagnostics do
   end
 
   defp decimal_like?(_value), do: false
-
-  defp missing_required_link_message("source_vial") do
-    "This dose event is missing the required source vial link."
-  end
 
   defp missing_required_link_message(_role) do
     "This event is missing a required item link role."

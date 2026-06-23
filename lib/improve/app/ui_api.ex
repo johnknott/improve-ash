@@ -12,8 +12,7 @@ defmodule Improve.App.UiApi do
   alias Improve.App
   alias Improve.Plans
   alias Improve.Sessions
-  alias Improve.Fixtures.GymPlan
-  alias Improve.Fixtures.VialPlan
+  alias Improve.Fixtures.DemoPlans
 
   def dashboard(actor, params) do
     with {:ok, plans} <- Plans.list_plans(actor: actor),
@@ -42,12 +41,11 @@ defmodule Improve.App.UiApi do
     end
   end
 
-  def log_dose(actor, params) do
+  def log_linked_event(actor, params) do
     with {:ok, plan} <- get_owned_plan(params, actor),
-         {:ok, source_vial} <- get_plan_item(params, plan.id, actor),
-         {:ok, event_type} <-
-           get_plan_event_type(plan.id, Map.get(params, "event_key", "take_dose"), actor),
-         {:ok, _result} <- log_dose_event(plan, source_vial, event_type, params, actor),
+         {:ok, linked_item} <- get_plan_item(params, plan.id, actor),
+         {:ok, event_type} <- get_plan_event_type(params, plan.id, actor),
+         {:ok, _result} <- log_linked_event(plan, linked_item, event_type, params, actor),
          {:ok, plans} <- Plans.list_plans(actor: actor),
          {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
       {:ok, payload}
@@ -60,18 +58,17 @@ defmodule Improve.App.UiApi do
     end
   end
 
-  def correct_dose(actor, params) do
+  def correct_linked_event(actor, params) do
     with {:ok, plan} <- get_owned_plan(params, actor),
          {:ok, original_event} <- get_event(params, actor),
          :ok <- ensure_event_plan(original_event, plan),
-         {:ok, source_vial} <- get_plan_item(params, plan.id, actor),
-         {:ok, original_effect} <- get_active_effect(original_event, source_vial, actor),
-         {:ok, event_type} <-
-           get_plan_event_type(plan.id, Map.get(params, "event_key", "take_dose"), actor),
+         {:ok, linked_item} <- get_plan_item(params, plan.id, actor),
+         {:ok, original_effect} <- get_active_effect(original_event, linked_item, actor),
+         {:ok, event_type} <- get_plan_event_type(params, plan.id, actor),
          {:ok, _result} <-
-           correct_dose_event(
+           correct_linked_event(
              plan,
-             source_vial,
+             linked_item,
              event_type,
              original_event,
              original_effect,
@@ -424,10 +421,8 @@ defmodule Improve.App.UiApi do
   end
 
   defp get_plan_item(params, plan_id, actor) do
-    item_id = blank_to_nil(Map.get(params, "source_vial_item_id") || Map.get(params, "item_id"))
-
-    item_key =
-      blank_to_nil(Map.get(params, "source_vial_item_key") || Map.get(params, "item_key"))
+    item_id = blank_to_nil(Map.get(params, "item_id"))
+    item_key = blank_to_nil(Map.get(params, "item_key"))
 
     cond do
       item_id ->
@@ -450,17 +445,26 @@ defmodule Improve.App.UiApi do
     end
   end
 
-  defp get_plan_event_type(plan_id, event_key, actor) do
+  defp get_plan_event_type(%{"event_type_id" => id}, plan_id, actor) when is_binary(id) do
+    case Plans.get_event_type(id, actor: actor) do
+      {:ok, %{plan_id: ^plan_id} = event_type} -> {:ok, event_type}
+      _other -> {:error, :not_found}
+    end
+  end
+
+  defp get_plan_event_type(%{"event_key" => key}, plan_id, actor) when is_binary(key) do
     with {:ok, event_types} <-
            Plans.list_event_types(actor: actor, query: [filter: [plan_id: plan_id]]) do
       event_types
-      |> Enum.find(&(&1.key == event_key))
+      |> Enum.find(&(&1.key == key))
       |> case do
         nil -> {:error, :not_found}
         event_type -> {:ok, event_type}
       end
     end
   end
+
+  defp get_plan_event_type(_params, _plan_id, _actor), do: {:error, :not_found}
 
   defp get_event(%{"original_event_id" => id}, actor) when is_binary(id) do
     case Journal.get_event(id, actor: actor) do
@@ -474,14 +478,14 @@ defmodule Improve.App.UiApi do
   defp ensure_event_plan(%{plan_id: plan_id}, %{id: plan_id}), do: :ok
   defp ensure_event_plan(_event, _plan), do: {:error, :not_found}
 
-  defp get_active_effect(original_event, source_vial, actor) do
+  defp get_active_effect(original_event, linked_item, actor) do
     with {:ok, effects} <-
            Journal.list_item_effects(
              actor: actor,
              query: [
                filter: [
                  event_instance_id: original_event.id,
-                 item_id: source_vial.id,
+                 item_id: linked_item.id,
                  status: :active
                ]
              ]
@@ -493,15 +497,15 @@ defmodule Improve.App.UiApi do
     end
   end
 
-  defp log_dose_event(plan, source_vial, event_type, params, actor) do
+  defp log_linked_event(plan, linked_item, event_type, params, actor) do
     now = DateTime.utc_now()
 
     attrs =
       params
-      |> dose_attrs(plan, source_vial, event_type, now)
-      |> Map.put(:summary, dose_summary(params, "Dose recorded from #{source_vial.name}"))
+      |> linked_event_attrs(plan, linked_item, event_type, now)
+      |> Map.put(:summary, event_summary(params, "#{event_type.name} for #{linked_item.name}"))
 
-    {:ok, Journal.log_dose_event!(attrs, actor: actor)}
+    {:ok, Journal.log_linked_item_event!(attrs, actor: actor)}
   rescue
     error in [KeyError, ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
@@ -510,9 +514,9 @@ defmodule Improve.App.UiApi do
       {:error, [Exception.message(error)]}
   end
 
-  defp correct_dose_event(
+  defp correct_linked_event(
          plan,
-         source_vial,
+         linked_item,
          event_type,
          original_event,
          original_effect,
@@ -523,17 +527,17 @@ defmodule Improve.App.UiApi do
 
     attrs =
       params
-      |> dose_attrs(plan, source_vial, event_type, now)
+      |> linked_event_attrs(plan, linked_item, event_type, now)
       |> Map.merge(%{
         original_event: original_event,
         original_effect: original_effect,
         corrected_at: now,
         correction_note:
           blank_to_nil(Map.get(params, "correction_note")) || "Corrected by replacement event",
-        summary: dose_summary(params, "Corrected dose from #{source_vial.name}")
+        summary: event_summary(params, "Corrected #{event_type.name} for #{linked_item.name}")
       })
 
-    {:ok, Journal.correct_dose_event!(attrs, actor: actor)}
+    {:ok, Journal.correct_linked_item_event!(attrs, actor: actor)}
   rescue
     error in [KeyError, ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
@@ -542,22 +546,28 @@ defmodule Improve.App.UiApi do
       {:error, [Exception.message(error)]}
   end
 
-  defp dose_attrs(params, plan, source_vial, event_type, now) do
+  defp linked_event_attrs(params, plan, linked_item, event_type, now) do
     %{
       plan: plan,
       event_type: event_type,
-      source_vial: source_vial,
+      linked_item: linked_item,
+      role: Map.fetch!(params, "role"),
       effective_at: parse_datetime(Map.get(params, "effective_at")) || now,
       recorded_at: now,
-      amount: Map.fetch!(params, "amount"),
+      quantity: Map.fetch!(params, "quantity"),
       unit: Map.fetch!(params, "unit"),
-      route: blank_to_nil(Map.get(params, "route")),
-      site: blank_to_nil(Map.get(params, "site")),
-      notes: blank_to_nil(Map.get(params, "note"))
+      payload:
+        payload_with_quantity(
+          Map.get(params, "payload", %{}),
+          Map.fetch!(params, "quantity"),
+          Map.fetch!(params, "unit"),
+          blank_to_nil(Map.get(params, "note"))
+        ),
+      note: blank_to_nil(Map.get(params, "note"))
     }
   end
 
-  defp dose_summary(params, default) do
+  defp event_summary(params, default) do
     blank_to_nil(Map.get(params, "summary")) || default
   end
 
@@ -738,7 +748,7 @@ defmodule Improve.App.UiApi do
   end
 
   defp install_or_select_demo_plan(actor, kind) do
-    with {:ok, source_key, installer} <- demo_plan(kind),
+    with {:ok, source_key, installer} <- DemoPlans.fetch(kind),
          {:ok, plans} <- Plans.list_plans(actor: actor) do
       case Enum.find(plans, &(&1.source_kind == :demo and &1.source_key == source_key)) do
         nil -> install_demo_plan_with(actor, installer)
@@ -746,11 +756,6 @@ defmodule Improve.App.UiApi do
       end
     end
   end
-
-  defp demo_plan("gym"), do: {:ok, "gym", &GymPlan.install!/2}
-  defp demo_plan("vial_inventory"), do: {:ok, "vial_inventory", &VialPlan.install!/2}
-  defp demo_plan("vial"), do: demo_plan("vial_inventory")
-  defp demo_plan(_kind), do: {:error, :unknown_demo_plan}
 
   defp install_demo_plan_with(actor, installer) do
     result = installer.(actor, starts_on: Date.utc_today())

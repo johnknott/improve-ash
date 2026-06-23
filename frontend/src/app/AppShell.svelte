@@ -2,7 +2,7 @@
   import type { DashboardData } from '../api/types'
   import type { CurrentUser } from '../features/auth/authClient'
   import EventTypesPage from '../features/eventTypes/EventTypesPage.svelte'
-  import DoseDialog from '../features/inventory/DoseDialog.svelte'
+  import InventoryEventDialog from '../features/inventory/InventoryEventDialog.svelte'
   import InventoryPage from '../features/inventory/InventoryPage.svelte'
   import CheckInDialog from '../features/logging/CheckInDialog.svelte'
   import LogDialog from '../features/logging/LogDialog.svelte'
@@ -83,7 +83,7 @@
 <LogDialog {data} />
 <SessionSlotLogDialog {data} />
 <CheckInDialog {data} />
-<DoseDialog {data} />
+<InventoryEventDialog {data} />
 <NewPlanDialog />
 
 {#if $toastMessage}

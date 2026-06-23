@@ -155,7 +155,8 @@ defmodule Improve.AppTest do
           payload: %{required: ["sets", "reps"]}
         )
 
-      App.add_exercise!(plan, "Chest Press", actor: user, key: "chest_press")
+      App.add_item_type!(plan, "Exercise", actor: user, key: "exercise")
+      App.add_item!(plan, "Chest Press", actor: user, key: "chest_press", type: "exercise")
       App.add_pool!(plan, "Push exercises", actor: user, key: "push", items: ["chest_press"])
 
       App.add_session!(plan, "Upper body gym visit",

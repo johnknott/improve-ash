@@ -54,7 +54,12 @@ defmodule Improve.App.Logging do
           slot_result: slot_result,
           event_type: event_type,
           item: actual_item,
-          role: Keyword.get(opts, :role, Value.value(slot.rules, "default_role") || "exercise"),
+          role:
+            Keyword.get(
+              opts,
+              :role,
+              Value.value(slot.rules, "default_role") || default_role!(event_type)
+            ),
           effective_at: effective_at,
           recorded_at: Keyword.get(opts, :recorded_at, effective_at),
           summary:
@@ -208,6 +213,20 @@ defmodule Improve.App.Logging do
   defp event_key!(slot, opts) do
     Keyword.get(opts, :event) || Value.value(slot.rules, "default_event") ||
       raise ArgumentError, "A session slot log needs an event key or slot default_event rule."
+  end
+
+  defp default_role!(event_type) do
+    case event_type.item_link_roles |> Value.value("roles") do
+      roles when is_list(roles) ->
+        roles
+        |> Enum.find(&Value.value(&1, "required"))
+        |> Kernel.||(List.first(roles))
+        |> Value.value("role")
+
+      _other ->
+        nil
+    end ||
+      raise(ArgumentError, "A session slot log needs an item link role.")
   end
 
   defp slot_payload(slot, opts) do

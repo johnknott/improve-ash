@@ -60,7 +60,11 @@ defmodule Improve.App.AiContext do
     [
       section(:sessions, "Sessions", sessions),
       section(:daily_goals, "Daily goals", Map.get(grouped_direct_goals, :daily_goals, [])),
-      section(:health, "Health", Map.get(grouped_direct_goals, :health, [])),
+      section(
+        :linked_item_goals,
+        "Linked item goals",
+        Map.get(grouped_direct_goals, :linked_item_goals, [])
+      ),
       section(:recovery, "Recovery and mind", Map.get(grouped_direct_goals, :recovery, [])),
       section(:other_goals, "Other goals", Map.get(grouped_direct_goals, :other_goals, []))
     ]
@@ -83,8 +87,8 @@ defmodule Improve.App.AiContext do
     default_links = target |> get(:default_links, %{}) |> ensure_map()
 
     cond do
-      has_key?(default_links, :source_vial) or title =~ "dose" or title =~ "retatrutide" ->
-        :health
+      map_size(default_links) > 0 ->
+        :linked_item_goals
 
       title =~ "reading" or title =~ "watch" or title =~ "listen" or
           unit in ["pages", "album"] ->
@@ -105,8 +109,6 @@ defmodule Improve.App.AiContext do
   end
 
   defp get(_value, _key, default), do: default
-
-  defp has_key?(map, key), do: Map.has_key?(map, key) or Map.has_key?(map, to_string(key))
 
   defp ensure_map(value) when is_map(value), do: value
   defp ensure_map(_value), do: %{}

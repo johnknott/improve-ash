@@ -21,7 +21,7 @@
   <div class="demo-plan-actions">
     <button class="secondary-button demo-plan-button" type="button" disabled={!!$installingDemoPlan} onclick={() => installDemoPlan('gym')}>
       <Dumbbell size={18} />
-      <span>{$installingDemoPlan === 'gym' ? 'Installing gym' : 'Install Gym Demo'}</span>
+      <span>{$installingDemoPlan === 'gym' ? 'Installing training' : 'Install Training Demo'}</span>
     </button>
     <button
       class="secondary-button demo-plan-button"
@@ -30,7 +30,7 @@
       onclick={() => installDemoPlan('vial_inventory')}
     >
       <FlaskConical size={18} />
-      <span>{$installingDemoPlan === 'vial_inventory' ? 'Installing inventory' : 'Install Vial Demo'}</span>
+      <span>{$installingDemoPlan === 'vial_inventory' ? 'Installing inventory' : 'Install Inventory Demo'}</span>
     </button>
   </div>
 </div>

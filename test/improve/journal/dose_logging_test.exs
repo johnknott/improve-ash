@@ -6,7 +6,7 @@ defmodule Improve.Journal.DoseLoggingTest do
   alias Improve.Journal
   alias Improve.Plans
 
-  describe "log_dose_event!/2" do
+  describe "log_linked_item_event!/2" do
     test "creates an event, source vial link, item effect, and derived vial state" do
       user =
         Accounts.create_user!(%{
@@ -25,15 +25,15 @@ defmodule Improve.Journal.DoseLoggingTest do
         |> Map.new(&{&1.key, &1})
 
       log =
-        Journal.log_dose_event!(
+        Journal.log_linked_item_event!(
           %{
             plan: plan,
             event_type: event_types["take_dose"],
-            source_vial: items["retatrutide_vial_1"],
-            amount: 250,
+            linked_item: items["retatrutide_vial_1"],
+            role: "source_vial",
+            quantity: 250,
             unit: "mcg",
-            route: "subcutaneous",
-            site: "abdomen",
+            payload: %{"route" => "subcutaneous", "site" => "abdomen"},
             effective_at: ~U[2026-06-22 08:00:00Z],
             recorded_at: ~U[2026-06-22 08:01:00Z],
             summary: "Dose recorded from Retatrutide vial 1"
@@ -47,8 +47,8 @@ defmodule Improve.Journal.DoseLoggingTest do
       assert log.event.payload["amount"] == 250
       assert log.event.payload["unit"] == "mcg"
 
-      assert log.source_vial_link.role == "source_vial"
-      assert log.source_vial_link.item_id == items["retatrutide_vial_1"].id
+      assert log.event_item_link.role == "source_vial"
+      assert log.event_item_link.item_id == items["retatrutide_vial_1"].id
 
       assert [effect] = log.item_effects
       assert effect.status == :active

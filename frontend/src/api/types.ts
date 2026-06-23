@@ -316,19 +316,20 @@ export type SessionStatusInput = {
   date?: string | null
 }
 
-export type DoseInput = {
+export type LinkedEventInput = {
   planId: string
-  sourceVialItemId: string
-  amount: string
+  itemId: string
+  eventTypeId: string
+  role: string
+  quantity: string
   unit: string
   effectiveAt?: string | null
   note?: string | null
-  site?: string | null
-  route?: string | null
+  payload?: Record<string, unknown>
   date?: string | null
 }
 
-export type CorrectDoseInput = DoseInput & {
+export type CorrectLinkedEventInput = LinkedEventInput & {
   originalEventId: string
   correctionNote?: string | null
 }
