@@ -108,7 +108,8 @@ defmodule Improve.Ai.ReadTool do
       owner_id: work.owner_id,
       title: work.title,
       explanation: work.explanation,
-      session_occurrence: projected_occurrence_json(occurrence)
+      session_occurrence: projected_occurrence_json(occurrence),
+      session_state: Map.get(work.payload, :session_state, %{})
     }
   end
 
@@ -139,7 +140,8 @@ defmodule Improve.Ai.ReadTool do
       session_template_id: occurrence.session_template_id,
       session_template_name: occurrence.session_template_name,
       planned_for: Date.to_iso8601(occurrence.planned_for),
-      recommendations: Enum.map(occurrence.recommendations, &recommendation_json/1)
+      recommendations: Enum.map(occurrence.recommendations, &recommendation_json/1),
+      session_state: Map.get(occurrence, :session_state, %{})
     }
   end
 

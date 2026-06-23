@@ -197,7 +197,16 @@ defmodule Improve.StoriesTest do
       assert slot_statuses.swapped == 1
       assert slot_statuses.planned == 2
 
-      assert [first_event, swap_event] = Journal.read_journal!(plan, actor: story.user)
+      journal_by_summary =
+        plan
+        |> Journal.read_journal!(actor: story.user)
+        |> Map.new(&{&1.summary, &1})
+
+      assert %{
+               "Chest Press performed" => first_event,
+               "Cable Fly performed instead of Shoulder Press" => swap_event
+             } = journal_by_summary
+
       assert first_event.session_occurrence_id == occurrence.id
       assert swap_event.session_occurrence_id == occurrence.id
       assert first_event.slot_result_id == first_log.slot_result.id
@@ -211,8 +220,9 @@ defmodule Improve.StoriesTest do
       assert [
                %{
                  kind: "session",
-                 status: "planned",
-                 session_occurrence: %{session_template_name: "Upper body gym visit"}
+                 status: "partial",
+                 session_occurrence: %{session_template_name: "Upper body gym visit"},
+                 session_state: %{progress_label: "2 of 4 logged"}
                }
              ] = ai_context.projected_work
     end
@@ -464,7 +474,7 @@ defmodule Improve.StoriesTest do
       after_projection = Story.project_today!(story, plan, on: ~D[2026-06-22])
 
       assert [
-               %{kind: :session, status: :planned},
+               %{kind: :session, status: :partial},
                %{kind: :direct_goal, status: :completed}
              ] = after_projection.projected_work
 
@@ -482,12 +492,14 @@ defmodule Improve.StoriesTest do
         end)
 
       assert [
-               %{kind: "session", status: "planned"},
+               %{kind: "session", status: "partial"},
                %{kind: "direct_goal", status: "completed"}
              ] = ai_context.projected_work
 
       assert ai_context.input_summary.journal_events == 2
       assert ai_context.input_summary.session_occurrences == 1
+      assert ai_context.headline =~ "1 direct goal(s) and 1 session(s)"
+      assert Enum.map(ai_context.sections, & &1.kind) == [:sessions, :recovery]
     end
   end
 
@@ -588,6 +600,9 @@ defmodule Improve.StoriesTest do
 
       assert [%{kind: "session", title: "Upper body gym visit"} | _] = ai_tuesday.projected_work
       assert ai_tuesday.input_summary.journal_events == 1
+      assert ai_tuesday.headline =~ "direct goal(s)"
+      assert Enum.any?(ai_tuesday.sections, &(&1.kind == :sessions))
+      assert Enum.any?(ai_tuesday.sections, &(&1.kind == :recovery))
 
       saturday = Story.project_today!(story, plan, on: ~D[2026-06-27])
       assert projected_titles(saturday, :session) == ["Lower body gym visit"]

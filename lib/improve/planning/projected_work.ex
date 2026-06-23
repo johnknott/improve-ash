@@ -9,15 +9,15 @@ defmodule Improve.Planning.ProjectedWork do
   Common fields:
 
   - `:kind` is `:session` or `:direct_goal`.
-  - `:status` is one of `:planned`, `:completed`, `:missed`, `:skipped`, or
-    `:partially_completed`.
+  - `:status` is one of `:planned`, `:started`, `:partial`, `:completed`,
+    `:missed`, `:skipped`, or `:partially_completed`.
   - `:planned_for` is the date the work belongs to.
   - `:owner_type` and `:owner_id` identify the authored definition.
   - `:title` is display-ready enough for diagnostics, AI tools, and tests.
   - `:payload` contains kind-specific projected data.
   """
 
-  @statuses [:planned, :completed, :missed, :skipped, :partially_completed]
+  @statuses [:planned, :started, :partial, :completed, :missed, :skipped, :partially_completed]
 
   def session(occurrence, opts \\ []) do
     status = status!(Keyword.get(opts, :status, :planned))
@@ -32,7 +32,8 @@ defmodule Improve.Planning.ProjectedWork do
       title: occurrence.session_template_name,
       payload: %{
         session_occurrence: occurrence,
-        recommendations: occurrence.recommendations
+        recommendations: occurrence.recommendations,
+        session_state: Map.get(occurrence, :session_state, %{})
       },
       explanation:
         Keyword.get(

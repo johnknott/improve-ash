@@ -174,6 +174,16 @@ defmodule Improve.AppTest do
       projection = App.project_today!(plan, actor: user, date: ~D[2026-06-22])
       session = App.start_session!(projection, "upper_body", actor: user)
 
+      started_projection = App.project_today!(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [
+               %{
+                 kind: :session,
+                 status: :started,
+                 payload: %{session_state: %{progress_label: "0 of 1 logged"}}
+               }
+             ] = started_projection.projected_work
+
       log =
         App.log_session_slot!(session,
           actor: user,
@@ -196,6 +206,16 @@ defmodule Improve.AppTest do
              }
 
       assert [%{role: "exercise"}] = log.event_item_links
+
+      completed_projection = App.project_today!(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [
+               %{
+                 kind: :session,
+                 status: :completed,
+                 payload: %{session_state: %{progress_label: "1 of 1 logged"}}
+               }
+             ] = completed_projection.projected_work
     end
   end
 

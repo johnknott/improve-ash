@@ -29,7 +29,14 @@ defmodule Improve.Planning.Projector do
 
     occurrences = Enum.reverse(occurrences)
     direct_goal_work = Enum.reverse(direct_goal_work)
-    projected_work = Enum.map(occurrences, &ProjectedWork.session/1) ++ direct_goal_work
+
+    projected_work =
+      Enum.map(occurrences, fn occurrence ->
+        ProjectedWork.session(occurrence,
+          status: occurrence.projected_status,
+          explanation: occurrence.projected_explanation
+        )
+      end) ++ direct_goal_work
 
     %{
       plan_id: plan.id,
@@ -139,13 +146,114 @@ defmodule Improve.Planning.Projector do
         }
       end)
 
+    {status, session_state} = session_status(template, input, recommendations)
+
     %{
       plan_id: input.plan.id,
       session_template_id: template.id,
       session_template_name: template.name,
       planned_for: input.date,
-      recommendations: recommendations
+      recommendations: recommendations,
+      projected_status: status,
+      projected_explanation: session_explanation(template, status, session_state),
+      session_state: session_state
     }
+  end
+
+  defp session_status(template, input, recommendations) do
+    occurrence = matching_session_occurrence(template, input)
+    slot_results = slot_results_for(occurrence, input)
+    total = length(slot_results)
+    logged = Enum.count(slot_results, &slot_logged?/1)
+
+    status =
+      cond do
+        occurrence == nil ->
+          :planned
+
+        occurrence.status in [:completed, :missed, :skipped] ->
+          occurrence.status
+
+        total > 0 and logged == total ->
+          :completed
+
+        logged > 0 ->
+          :partial
+
+        occurrence.status == :started ->
+          :started
+
+        true ->
+          :planned
+      end
+
+    {status,
+     %{
+       session_occurrence_id: occurrence && occurrence.id,
+       occurrence_status: occurrence && occurrence.status,
+       slot_results_total: total,
+       slot_results_logged: logged,
+       slot_results_remaining: max(total - logged, 0),
+       progress_label: progress_label(logged, total),
+       recommended_slot_results: recommended_slot_results(recommendations)
+     }}
+  end
+
+  defp matching_session_occurrence(template, input) do
+    input
+    |> Map.get(:session_occurrences, [])
+    |> Enum.find(fn occurrence ->
+      occurrence.session_template_id == template.id and occurrence.planned_for == input.date
+    end)
+  end
+
+  defp slot_results_for(nil, _input), do: []
+
+  defp slot_results_for(occurrence, input) do
+    input
+    |> Map.get(:slot_results, [])
+    |> Enum.filter(&(&1.session_occurrence_id == occurrence.id))
+  end
+
+  defp slot_logged?(slot_result) do
+    not is_nil(slot_result.event_instance_id) or slot_result.status == :completed
+  end
+
+  defp progress_label(_logged, 0), do: nil
+  defp progress_label(logged, total), do: "#{logged} of #{total} logged"
+
+  defp recommended_slot_results(recommendations) do
+    recommendations
+    |> Enum.map(&length(&1.recommended_items))
+    |> Enum.sum()
+  end
+
+  defp session_explanation(template, :planned, _state) do
+    "Projected #{template.name} from its schedule and deterministic slot recommendations."
+  end
+
+  defp session_explanation(template, :started, _state) do
+    "Projected #{template.name} as started from its session occurrence."
+  end
+
+  defp session_explanation(template, :partial, state) do
+    "Projected #{template.name} as partial because #{state.progress_label}."
+  end
+
+  defp session_explanation(template, :completed, state) do
+    if state.progress_label do
+      "Projected #{template.name} as completed because #{state.progress_label}."
+    else
+      "Projected #{template.name} as completed from its session occurrence."
+    end
+  end
+
+  defp session_explanation(template, :skipped, _state) do
+    "Projected #{template.name} as skipped from its session occurrence."
+  end
+
+  defp session_explanation(template, :missed, _state) do
+    "Projected #{template.name} as missed from its session occurrence."
   end
 
   defp direct_goal_work(goal, input) do
@@ -447,6 +555,7 @@ defmodule Improve.Planning.Projector do
       direct_goal_schedules: count_schedules(schedules, :direct_goal),
       journal_events: length(Map.get(input, :journal_events, [])),
       session_occurrences: length(Map.get(input, :session_occurrences, [])),
+      slot_results: length(Map.get(input, :slot_results, [])),
       items: length(Map.get(input, :items, [])),
       pool_memberships: length(Map.get(input, :pool_memberships, [])),
       environments: length(Map.get(input, :environments, []))

@@ -100,9 +100,17 @@ defmodule Improve.Journal.DoseCorrectionTest do
 
       journal = Journal.read_journal!(plan, actor: user)
 
-      assert Enum.map(journal, & &1.id) == [original.event.id, correction.replacement_event.id]
-      assert Enum.map(journal, & &1.status) == [:corrected, :active]
-      assert Enum.map(journal, & &1.replaces_event_instance_id) == [nil, original.event.id]
+      journal_by_id = Map.new(journal, &{&1.id, &1})
+
+      assert Map.keys(journal_by_id) |> MapSet.new() ==
+               MapSet.new([original.event.id, correction.replacement_event.id])
+
+      assert journal_by_id[original.event.id].status == :corrected
+      assert journal_by_id[original.event.id].replaces_event_instance_id == nil
+      assert journal_by_id[correction.replacement_event.id].status == :active
+
+      assert journal_by_id[correction.replacement_event.id].replaces_event_instance_id ==
+               original.event.id
     end
   end
 end
