@@ -21,6 +21,7 @@
   let eventTypes = $derived(data?.planDetail?.eventTypes ?? [])
   let items = $derived(data?.planDetail?.items ?? [])
   let selectedEventType = $derived(eventTypes.find((eventType) => eventType.id === eventTypeId) ?? null)
+  let unitLocked = $derived(!!work?.target.unit)
   let requiredRoles = $derived(requiredItemRoles(selectedEventType?.itemLinkRoles))
   let requiredPayloadFields = $derived(
     requiredPayloadPaths(selectedEventType?.payloadSchema).filter((path) => path !== 'amount' && path !== 'unit')
@@ -197,7 +198,11 @@
           </label>
           <label>
             Unit
-            <input bind:value={unit} disabled={saving} placeholder="reps, ml, minutes" />
+            {#if unitLocked}
+              <span class="form-static-value">{unit}</span>
+            {:else}
+              <input bind:value={unit} disabled={saving} placeholder="reps, ml, minutes" />
+            {/if}
           </label>
         </div>
 

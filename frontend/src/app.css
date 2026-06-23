@@ -927,6 +927,18 @@ form > button,
   gap: 0.75rem;
 }
 
+.form-static-value {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  border: 1px solid #d9e1ec;
+  border-radius: 6px;
+  background: #f6f8fb;
+  color: #1f2937;
+  font-weight: 800;
+  padding: 0.7rem 0.85rem;
+}
+
 .form-fieldset {
   display: grid;
   gap: 0.65rem;
