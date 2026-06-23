@@ -63,6 +63,8 @@ export type SessionSlotResult = {
   sessionSlotId: string
   slotKey: string | null
   slotName: string | null
+  poolId: string | null
+  poolName: string | null
   recommendedItemId: string | null
   recommendedItemKey: string | null
   recommendedItemName: string | null
@@ -98,6 +100,33 @@ export type JournalEntry = {
   status: string
   effectiveAt: string
   recordedAt: string
+  sessionOccurrenceId: string | null
+  slotResultId: string | null
+  directGoalId: string | null
+  slot: {
+    id: string
+    status: string
+    slotKey: string | null
+    slotName: string | null
+  } | null
+  itemLinks: Array<{
+    id: string
+    role: string
+    itemId: string
+    itemKey: string | null
+    itemName: string | null
+    metadata: Record<string, unknown>
+  }>
+  itemEffects: Array<{
+    id: string
+    itemId: string
+    itemKey: string | null
+    itemName: string | null
+    effectType: string
+    quantity: string | null
+    unit: string | null
+    status: string
+  }>
 }
 
 export type PlanItem = {
@@ -230,4 +259,15 @@ export type LogSessionSlotInput = {
   unit?: string | null
   note?: string | null
   payload: Record<string, unknown>
+}
+
+export type SwapSessionSlotInput = {
+  slotResultId: string
+  actualItemKey: string
+  note?: string | null
+}
+
+export type SessionStatusInput = {
+  sessionOccurrenceId: string
+  note?: string | null
 }

@@ -2,9 +2,12 @@ import { get, writable } from 'svelte/store'
 import {
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
+  completeSession as completeSessionRequest,
   logSessionSlot as submitSessionSlotEvent,
   logEvent as submitLogEvent,
+  skipSession as skipSessionRequest,
   startSession as startSessionRequest,
+  swapSessionSlot as swapSessionSlotRequest,
 } from '../api/improveClient'
 import type {
   DashboardData,
@@ -12,7 +15,9 @@ import type {
   LogEventInput,
   LogSessionSlotInput,
   ProjectedWork,
+  SessionStatusInput,
   SessionSlotResult,
+  SwapSessionSlotInput,
 } from '../api/types'
 
 type DashboardState = {
@@ -57,6 +62,8 @@ export const checkInDialogOpen = writable(false)
 export const toastMessage = writable<string | null>(null)
 export const installingDemoPlan = writable<DemoPlanKind | null>(null)
 export const startingSessionId = writable<string | null>(null)
+export const selectedSessionWorkId = writable<string | null>(null)
+export const updatingSession = writable(false)
 
 let lastLoadedPlanId: string | null = null
 
@@ -95,6 +102,8 @@ export function resetDashboard(): void {
   toastMessage.set(null)
   installingDemoPlan.set(null)
   startingSessionId.set(null)
+  selectedSessionWorkId.set(null)
+  updatingSession.set(false)
 }
 
 export function openLogDialog(work: ProjectedWork | null = null): void {
@@ -174,10 +183,51 @@ export async function startSession(work: ProjectedWork): Promise<void> {
 export async function submitSessionSlot(input: LogSessionSlotInput): Promise<void> {
   const data = await submitSessionSlotEvent(input)
   closeSessionSlotDialog()
+  setDashboardData(data)
+  showToast('Slot logged.')
+}
+
+export function selectSession(work: ProjectedWork): void {
+  selectedSessionWorkId.set(work.id)
+}
+
+export async function swapSessionSlot(input: SwapSessionSlotInput): Promise<void> {
+  updatingSession.set(true)
+
+  try {
+    setDashboardData(await swapSessionSlotRequest(input))
+    showToast('Slot swapped.')
+  } finally {
+    updatingSession.set(false)
+  }
+}
+
+export async function completeSession(input: SessionStatusInput): Promise<void> {
+  updatingSession.set(true)
+
+  try {
+    setDashboardData(await completeSessionRequest(input))
+    showToast('Session completed.')
+  } finally {
+    updatingSession.set(false)
+  }
+}
+
+export async function skipSession(input: SessionStatusInput): Promise<void> {
+  updatingSession.set(true)
+
+  try {
+    setDashboardData(await skipSessionRequest(input))
+    showToast('Session skipped.')
+  } finally {
+    updatingSession.set(false)
+  }
+}
+
+function setDashboardData(data: DashboardData): void {
   lastLoadedPlanId = data.currentPlan?.id ?? null
   selectedPlanId.set(lastLoadedPlanId)
   dashboardState.set({ loading: false, refreshing: false, error: null, data })
-  showToast('Slot logged.')
 }
 
 export function showToast(message: string): void {

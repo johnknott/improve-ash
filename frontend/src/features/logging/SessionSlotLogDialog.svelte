@@ -22,6 +22,7 @@
   let slotResult = $derived($sessionSlotDialogState.slotResult)
   let eventTypes = $derived(data?.planDetail?.eventTypes ?? [])
   let items = $derived(data?.planDetail?.items ?? [])
+  let memberships = $derived(data?.planDetail?.poolMemberships ?? [])
   let selectedEventType = $derived(eventTypes.find((eventType) => eventType.id === eventTypeId) ?? null)
   let selectedRole = $derived(roleForEvent(selectedEventType, actualItem(items, actualItemKey)))
   let requiredPayloadFields = $derived(listField(selectedEventType?.payloadSchema, 'required'))
@@ -114,7 +115,15 @@
 
   function itemsForRole(eventType: EventType | null, allItems: PlanItem[]): PlanItem[] {
     const role = roleForEvent(eventType, actualItem(allItems, actualItemKey))
-    return role?.itemTypeKey ? allItems.filter((item) => item.typeKey === role.itemTypeKey) : allItems
+    const poolItemIds = slotResult?.poolId
+      ? memberships.filter((membership) => membership.poolId === slotResult.poolId).map((membership) => membership.itemId)
+      : []
+
+    return allItems.filter((item) => {
+      const typeMatches = role?.itemTypeKey ? item.typeKey === role.itemTypeKey : true
+      const poolMatches = poolItemIds.length ? poolItemIds.includes(item.id) : true
+      return typeMatches && poolMatches
+    })
   }
 
   function actualItem(allItems: PlanItem[], key: string): PlanItem | null {

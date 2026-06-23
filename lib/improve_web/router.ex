@@ -21,6 +21,9 @@ defmodule ImproveWeb.Router do
     post "/app/demo-plans", AppController, :install_demo_plan
     post "/app/start-session", AppController, :start_session
     post "/app/log-session-slot", AppController, :log_session_slot
+    post "/app/swap-session-slot", AppController, :swap_session_slot
+    post "/app/complete-session", AppController, :complete_session
+    post "/app/skip-session", AppController, :skip_session
     post "/app/log-event", AppController, :log_event
 
     post "/rpc/run", AshTypescriptRpcController, :run

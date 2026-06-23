@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { DashboardData, Pool, SessionTemplate } from '../../api/types'
+  import type { DashboardData, Pool, ProjectedWork, SessionTemplate } from '../../api/types'
+  import { selectedSessionWorkId } from '../../app/appState'
   import Badge from '../../components/ui/Badge.svelte'
   import Card from '../../components/ui/Card.svelte'
   import EmptyState from '../../components/ui/EmptyState.svelte'
@@ -7,6 +8,7 @@
   import LoadingState from '../../components/ui/LoadingState.svelte'
   import { formatKey } from '../../lib/modelDisplay'
   import DemoPlanSetup from '../setup/DemoPlanSetup.svelte'
+  import SessionDetail from './SessionDetail.svelte'
 
   let { data, loading }: { data: DashboardData | null; loading: boolean } = $props()
 
@@ -15,6 +17,7 @@
   let pools = $derived(data?.planDetail?.pools ?? [])
   let memberships = $derived(data?.planDetail?.poolMemberships ?? [])
   let items = $derived(data?.planDetail?.items ?? [])
+  let selectedWork = $derived(findSelectedSession(data, $selectedSessionWorkId))
 
   function slotsForTemplate(template: SessionTemplate) {
     return slots
@@ -30,8 +33,21 @@
     const itemIds = memberships.filter((membership) => membership.poolId === pool.id).map((membership) => membership.itemId)
     return items.filter((item) => itemIds.includes(item.id))
   }
+
+  function findSelectedSession(dashboard: DashboardData | null, selectedId: string | null): ProjectedWork | null {
+    const sessions = dashboard?.today?.work.filter((work) => work.kind === 'session') ?? []
+
+    if (selectedId) {
+      return sessions.find((work) => work.id === selectedId) ?? null
+    }
+
+    return null
+  }
 </script>
 
+{#if data && selectedWork}
+  <SessionDetail {data} work={selectedWork} />
+{:else}
 <section class="page-stack">
   {#if loading}
     <LoadingState message="Loading sessions" />
@@ -118,3 +134,4 @@
     </Card>
   {/if}
 </section>
+{/if}

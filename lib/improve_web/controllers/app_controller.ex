@@ -106,6 +106,38 @@ defmodule ImproveWeb.AppController do
     end
   end
 
+  def swap_session_slot(conn, params) do
+    with {:ok, actor} <- current_actor(conn),
+         {:ok, slot_result} <- get_slot_result(params, actor),
+         {:ok, item} <- get_slot_actual_item(params, slot_result.plan_id, actor),
+         {:ok, _slot_result} <- swap_slot_result(slot_result, item, params, actor),
+         {:ok, plan} <- Plans.get_plan(slot_result.plan_id, actor: actor),
+         {:ok, plans} <- Plans.list_plans(actor: actor),
+         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+      json(conn, payload)
+    else
+      {:error, :unauthenticated} ->
+        app_error(conn, 401, "Please sign in to continue.")
+
+      {:error, :not_found} ->
+        app_error(conn, 404, "That session slot is not available.")
+
+      {:error, diagnostics} when is_list(diagnostics) ->
+        app_error(conn, 422, Enum.join(diagnostics, " "))
+
+      {:error, _error} ->
+        app_error(conn, 422, "We could not swap that session slot.")
+    end
+  end
+
+  def complete_session(conn, params) do
+    update_session_status(conn, params, :complete)
+  end
+
+  def skip_session(conn, params) do
+    update_session_status(conn, params, :skip)
+  end
+
   defp dashboard_payload(plan, plans, actor, params) do
     date = parse_date(Map.get(params, "date")) || Date.utc_today()
 
@@ -128,6 +160,10 @@ defmodule ImproveWeb.AppController do
            Plans.list_schedules(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, slot_results} <-
            Sessions.list_slot_results(actor: actor, query: [filter: [plan_id: plan.id]]),
+         {:ok, event_item_links} <-
+           Journal.list_event_item_links(actor: actor, query: [filter: [plan_id: plan.id]]),
+         {:ok, item_effects} <-
+           Journal.list_item_effects(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, upcoming} <- upcoming_work(plan, actor, date) do
       event_types_by_id = Map.new(event_types, &{&1.id, &1})
       item_types_by_id = Map.new(item_types, &{&1.id, &1})
@@ -135,6 +171,14 @@ defmodule ImproveWeb.AppController do
       session_slots_by_id = Map.new(session_slots, &{&1.id, &1})
       items_by_id = Map.new(items, &{&1.id, &1})
       slot_results_by_occurrence = Enum.group_by(slot_results, & &1.session_occurrence_id)
+
+      slot_results_by_event_id =
+        slot_results
+        |> Enum.reject(&is_nil(&1.event_instance_id))
+        |> Map.new(&{&1.event_instance_id, &1})
+
+      event_item_links_by_event_id = Enum.group_by(event_item_links, & &1.event_instance_id)
+      item_effects_by_event_id = Enum.group_by(item_effects, & &1.event_instance_id)
       plan_by_id = Map.new(plans, &{&1.id, &1})
 
       {:ok,
@@ -155,7 +199,18 @@ defmodule ImproveWeb.AppController do
            journal_events
            |> Enum.take(-5)
            |> Enum.reverse()
-           |> Enum.map(&event_json(&1, plan_by_id, event_types_by_id)),
+           |> Enum.map(
+             &event_json(
+               &1,
+               plan_by_id,
+               event_types_by_id,
+               event_item_links_by_event_id,
+               item_effects_by_event_id,
+               slot_results_by_event_id,
+               session_slots_by_id,
+               items_by_id
+             )
+           ),
          planDetail: %{
            summary: plan_json(plan, summary),
            items: Enum.map(items, &item_json(&1, item_types_by_id)),
@@ -242,6 +297,33 @@ defmodule ImproveWeb.AppController do
 
   defp get_session_occurrence(_params, _actor), do: {:error, :not_found}
 
+  defp get_slot_result(%{"slot_result_id" => id}, actor) when is_binary(id) do
+    case Sessions.get_slot_result(id, actor: actor) do
+      {:ok, slot_result} -> {:ok, slot_result}
+      {:error, _error} -> {:error, :not_found}
+    end
+  end
+
+  defp get_slot_result(_params, _actor), do: {:error, :not_found}
+
+  defp get_slot_actual_item(%{"actual_item_key" => key}, plan_id, actor) when is_binary(key) do
+    plan_id
+    |> items_by_key(actor)
+    |> Map.get(key)
+    |> case do
+      nil -> {:error, :not_found}
+      item -> {:ok, item}
+    end
+  end
+
+  defp get_slot_actual_item(_params, _plan_id, _actor), do: {:error, :not_found}
+
+  defp items_by_key(plan_id, actor) do
+    actor
+    |> Improve.App.Lookup.items(plan_id)
+    |> Map.new(&{&1.key, &1})
+  end
+
   defp started_session(occurrence, actor) do
     with {:ok, slot_results} <-
            Sessions.list_slot_results(
@@ -277,6 +359,86 @@ defmodule ImproveWeb.AppController do
 
     error ->
       {:error, [Exception.message(error)]}
+  end
+
+  defp swap_slot_result(slot_result, item, params, actor) do
+    try do
+      {:ok,
+       Sessions.swap_slot_result!(
+         slot_result,
+         %{
+           actual_item_id: item.id,
+           notes: blank_to_nil(Map.get(params, "note"))
+         },
+         actor: actor
+       )}
+    rescue
+      error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+        {:error, [Exception.message(error)]}
+
+      error ->
+        {:error, [Exception.message(error)]}
+    end
+  end
+
+  defp update_session_status(conn, params, action) do
+    with {:ok, actor} <- current_actor(conn),
+         {:ok, occurrence} <- get_session_occurrence(params, actor),
+         {:ok, _occurrence} <- apply_session_status(occurrence, action, params, actor),
+         {:ok, plan} <- Plans.get_plan(occurrence.plan_id, actor: actor),
+         {:ok, plans} <- Plans.list_plans(actor: actor),
+         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+      json(conn, payload)
+    else
+      {:error, :unauthenticated} ->
+        app_error(conn, 401, "Please sign in to continue.")
+
+      {:error, :not_found} ->
+        app_error(conn, 404, "That session is not available.")
+
+      {:error, diagnostics} when is_list(diagnostics) ->
+        app_error(conn, 422, Enum.join(diagnostics, " "))
+
+      {:error, _error} ->
+        app_error(conn, 422, "We could not update that session.")
+    end
+  end
+
+  defp apply_session_status(occurrence, :complete, params, actor) do
+    try do
+      {:ok,
+       Sessions.complete_session_occurrence!(
+         occurrence,
+         %{
+           completed_at: DateTime.utc_now(),
+           notes: blank_to_nil(Map.get(params, "note"))
+         },
+         actor: actor
+       )}
+    rescue
+      error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+        {:error, [Exception.message(error)]}
+
+      error ->
+        {:error, [Exception.message(error)]}
+    end
+  end
+
+  defp apply_session_status(occurrence, :skip, params, actor) do
+    try do
+      {:ok,
+       Sessions.mark_session_occurrence_skipped!(
+         occurrence,
+         %{notes: blank_to_nil(Map.get(params, "note"))},
+         actor: actor
+       )}
+    rescue
+      error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+        {:error, [Exception.message(error)]}
+
+      error ->
+        {:error, [Exception.message(error)]}
+    end
   end
 
   defp install_or_select_demo_plan(actor, kind) do
@@ -457,6 +619,8 @@ defmodule ImproveWeb.AppController do
       sessionSlotId: slot_result.session_slot_id,
       slotKey: slot && slot.key,
       slotName: slot && slot.name,
+      poolId: slot && slot.pool_id,
+      poolName: slot && Map.get(slot, :poolName),
       recommendedItemId: slot_result.recommended_item_id,
       recommendedItemKey: recommended_item && recommended_item.key,
       recommendedItemName: recommended_item && recommended_item.name,
@@ -601,9 +765,20 @@ defmodule ImproveWeb.AppController do
     }
   end
 
-  defp event_json(event, plans_by_id, event_types_by_id) do
+  defp event_json(
+         event,
+         plans_by_id,
+         event_types_by_id,
+         event_item_links_by_event_id \\ %{},
+         item_effects_by_event_id \\ %{},
+         slot_results_by_event_id \\ %{},
+         session_slots_by_id \\ %{},
+         items_by_id \\ %{}
+       ) do
     plan = plans_by_id && Map.get(plans_by_id, event.plan_id)
     event_type = event_types_by_id && Map.get(event_types_by_id, event.event_type_id)
+    slot_result = Map.get(slot_results_by_event_id, event.id)
+    slot = slot_result && Map.get(session_slots_by_id, slot_result.session_slot_id)
 
     %{
       id: event.id,
@@ -617,7 +792,55 @@ defmodule ImproveWeb.AppController do
       note: event.note,
       status: Atom.to_string(event.status),
       effectiveAt: DateTime.to_iso8601(event.effective_at),
-      recordedAt: DateTime.to_iso8601(event.recorded_at)
+      recordedAt: DateTime.to_iso8601(event.recorded_at),
+      sessionOccurrenceId: event.session_occurrence_id,
+      slotResultId: event.slot_result_id,
+      directGoalId: event.direct_goal_id,
+      slot:
+        if(slot_result,
+          do: %{
+            id: slot_result.id,
+            status: Atom.to_string(slot_result.status),
+            slotKey: slot && slot.key,
+            slotName: slot && slot.name
+          }
+        ),
+      itemLinks:
+        event_item_links_by_event_id
+        |> Map.get(event.id, [])
+        |> Enum.map(&event_item_link_json(&1, items_by_id)),
+      itemEffects:
+        item_effects_by_event_id
+        |> Map.get(event.id, [])
+        |> Enum.map(&item_effect_json(&1, items_by_id))
+    }
+  end
+
+  defp event_item_link_json(link, items_by_id) do
+    item = Map.get(items_by_id, link.item_id)
+
+    %{
+      id: link.id,
+      role: link.role,
+      itemId: link.item_id,
+      itemKey: item && item.key,
+      itemName: item && item.name,
+      metadata: link.metadata
+    }
+  end
+
+  defp item_effect_json(effect, items_by_id) do
+    item = Map.get(items_by_id, effect.item_id)
+
+    %{
+      id: effect.id,
+      itemId: effect.item_id,
+      itemKey: item && item.key,
+      itemName: item && item.name,
+      effectType: Atom.to_string(effect.effect_type),
+      quantity: decimal_string(effect.quantity),
+      unit: effect.unit,
+      status: Atom.to_string(effect.status)
     }
   end
 

@@ -759,6 +759,12 @@ form > button,
   color: #303b50;
 }
 
+.journal-context {
+  color: #4c5870;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .toolbar-line {
   display: flex;
   gap: 0.75rem;
@@ -914,6 +920,38 @@ form > button,
 
 .demo-plan-button {
   justify-content: flex-start;
+}
+
+.session-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.session-detail-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.session-detail-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 18rem) auto;
+  gap: 0.75rem;
+  align-items: end;
+  border: 1px solid #e2e7ef;
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.session-detail-row h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 0.98rem;
+}
+
+.session-detail-row p {
+  color: #66748b;
+  line-height: 1.45;
 }
 
 .model-card,
@@ -1077,6 +1115,7 @@ form > button,
   .model-card-grid,
   .model-grid,
   .inventory-row,
+  .session-detail-row,
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -1088,6 +1127,7 @@ form > button,
   .mini-row,
   .session-slot-row,
   .session-slot-mini,
+  .session-detail-actions,
   .error-banner {
     align-items: stretch;
     flex-direction: column;

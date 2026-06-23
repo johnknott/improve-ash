@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { ClipboardPlus, Dumbbell, Play } from '@lucide/svelte'
+  import { ClipboardPlus, Eye, Play } from '@lucide/svelte'
   import type { ProjectedWork } from '../../api/types'
   import {
     openLogDialog,
-    openSessionSlotDialog,
+    selectSession,
     startSession,
     startingSessionId,
   } from '../../app/appState'
   import Badge from '../../components/ui/Badge.svelte'
+  import { navigate } from '../../app/routes'
 
   let { work, actionable = true }: { work: ProjectedWork; actionable?: boolean } = $props()
 
@@ -45,31 +46,23 @@
       </div>
     {/if}
 
-    {#if sessionStarted && work.session?.slotResults.length}
-      <div class="session-slot-list">
-        {#each work.session.slotResults as slotResult (slotResult.id)}
-          <div class="session-slot-mini">
-            <div>
-              <strong>{slotResult.actualItemName ?? slotResult.recommendedItemName}</strong>
-              <small>{slotResult.slotName ?? 'Slot'} · {slotResult.status}</small>
-            </div>
-            {#if slotResult.eventInstanceId}
-              <Badge tone="good">logged</Badge>
-            {:else if actionable}
-              <button
-                class="secondary-button compact-button"
-                type="button"
-                onclick={() => openSessionSlotDialog(work, slotResult)}
-              >
-                <Dumbbell size={16} />
-                <span>Log</span>
-              </button>
-            {/if}
-          </div>
-        {/each}
-      </div>
+    {#if sessionStarted && work.session?.state?.progress_label}
+      <small>{work.session.state.progress_label}</small>
     {/if}
   </div>
+  {#if work.kind === 'session' && actionable}
+    <button
+      class="secondary-button compact-button"
+      type="button"
+      onclick={() => {
+        selectSession(work)
+        navigate('sessions')
+      }}
+    >
+      <Eye size={16} />
+      <span>View</span>
+    </button>
+  {/if}
   {#if canStartSession}
     <button
       class="primary-button compact-button"

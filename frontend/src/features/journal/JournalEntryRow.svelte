@@ -22,6 +22,33 @@
     {#if entry.note}
       <p class="journal-note">{entry.note}</p>
     {/if}
+    {#if entry.slot}
+      <p class="journal-context">
+        {entry.slot.slotName ?? 'Session slot'} · {entry.slot.status}
+      </p>
+    {/if}
+    {#if entry.itemLinks.length}
+      <div class="chip-list compact-chips">
+        {#each entry.itemLinks as link (link.id)}
+          <span class="model-chip">{link.role}: {link.itemName ?? link.itemKey ?? 'item'}</span>
+        {/each}
+      </div>
+    {/if}
+    {#if entry.itemEffects.length}
+      <div class="chip-list compact-chips">
+        {#each entry.itemEffects as effect (effect.id)}
+          <span class="model-chip">
+            {effect.effectType}
+            {#if effect.quantity}
+              {effect.quantity}{effect.unit ? ` ${effect.unit}` : ''}
+            {/if}
+            {#if effect.itemName}
+              · {effect.itemName}
+            {/if}
+          </span>
+        {/each}
+      </div>
+    {/if}
   </div>
   <time class="journal-time" datetime={entry.effectiveAt}>
     <Clock3 size={16} />

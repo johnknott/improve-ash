@@ -5,6 +5,8 @@ import type {
   JournalEntry,
   LogSessionSlotInput,
   StartSessionInput,
+  SessionStatusInput,
+  SwapSessionSlotInput,
 } from './types'
 
 type ApiError = {
@@ -82,6 +84,35 @@ export async function logSessionSlot(input: LogSessionSlotInput): Promise<Dashbo
       unit: input.unit,
       note: input.note,
       payload: input.payload,
+    }),
+  })
+}
+
+export async function swapSessionSlot(input: SwapSessionSlotInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/swap-session-slot', {
+    method: 'POST',
+    body: JSON.stringify({
+      slot_result_id: input.slotResultId,
+      actual_item_key: input.actualItemKey,
+      note: input.note,
+    }),
+  })
+}
+
+export async function completeSession(input: SessionStatusInput): Promise<DashboardData> {
+  return updateSessionStatus('/api/app/complete-session', input)
+}
+
+export async function skipSession(input: SessionStatusInput): Promise<DashboardData> {
+  return updateSessionStatus('/api/app/skip-session', input)
+}
+
+function updateSessionStatus(path: string, input: SessionStatusInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>(path, {
+    method: 'POST',
+    body: JSON.stringify({
+      session_occurrence_id: input.sessionOccurrenceId,
+      note: input.note,
     }),
   })
 }
