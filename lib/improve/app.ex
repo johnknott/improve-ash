@@ -64,29 +64,42 @@ defmodule Improve.App do
 
   def log_event!(plan, opts) do
     actor = Keyword.fetch!(opts, :actor)
-    plan_id = plan_id(plan)
-    event_type = event_type!(plan_id, Keyword.fetch!(opts, :event), actor)
-    payload = stringify_keys(Keyword.get(opts, :payload, %{}))
-    links = item_links(plan_id, Keyword.get(opts, :links, %{}), actor)
-    effective_at = event_datetime(opts)
-    quantity = Keyword.get(opts, :quantity, value(payload, "amount"))
-    unit = Keyword.get(opts, :unit, value(payload, "unit"))
+    Journal.log_generic_event!(event_attrs(plan, opts, actor), actor: actor)
+  end
 
-    Journal.log_generic_event!(
+  def correct_event!(original_log_or_event, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    original_event = event_from(original_log_or_event)
+    original_effects = original_effects(original_log_or_event, actor)
+    replacement = Keyword.fetch!(opts, :replacement)
+
+    Journal.correct_generic_event!(
       %{
-        plan_id: plan_id,
-        event_type_id: event_type.id,
-        effective_at: effective_at,
-        recorded_at: Keyword.get(opts, :recorded_at, effective_at),
-        summary: Keyword.get(opts, :summary, event_summary(event_type, links)),
-        quantity: quantity,
-        unit: unit,
-        payload: payload,
-        note: Keyword.get(opts, :note, value(payload, "note")),
-        item_links: links
+        original_event: original_event,
+        original_effects: original_effects,
+        corrected_at: Keyword.fetch!(opts, :corrected_at),
+        correction_note: Keyword.get(opts, :reason, "Corrected by replacement event"),
+        replacement: event_attrs(original_event.plan_id, replacement, actor)
       },
       actor: actor
     )
+  end
+
+  def offline_event(plan, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    plan
+    |> event_attrs(opts, actor)
+    |> Map.put(:idempotency, idempotency_attrs(opts))
+    |> maybe_put(:origin, Keyword.get(opts, :origin))
+    |> maybe_put(:session_occurrence_id, Keyword.get(opts, :session_occurrence_id))
+    |> maybe_put(:slot_result_id, Keyword.get(opts, :slot_result_id))
+    |> maybe_put(:direct_goal_id, Keyword.get(opts, :direct_goal_id))
+  end
+
+  def submit_offline_events!(entries, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    Journal.submit_offline_event_batch!(entries, actor: actor)
   end
 
   def get_item_state!(plan, item_key, opts) do
@@ -138,6 +151,51 @@ defmodule Improve.App do
       nil -> raise ArgumentError, "No event type #{inspect(key)} exists in this plan."
       event_type -> event_type
     end
+  end
+
+  defp event_attrs(plan, opts, actor) do
+    plan_id = plan_id(plan)
+    event_type = event_type!(plan_id, Keyword.fetch!(opts, :event), actor)
+    payload = stringify_keys(Keyword.get(opts, :payload, %{}))
+    links = item_links(plan_id, Keyword.get(opts, :links, %{}), actor)
+    effective_at = event_datetime(opts)
+    quantity = Keyword.get(opts, :quantity, value(payload, "amount"))
+    unit = Keyword.get(opts, :unit, value(payload, "unit"))
+
+    %{
+      plan_id: plan_id,
+      event_type_id: event_type.id,
+      direct_goal_id: direct_goal_id(plan_id, Keyword.get(opts, :goal), actor),
+      effective_at: effective_at,
+      recorded_at: Keyword.get(opts, :recorded_at, effective_at),
+      summary: Keyword.get(opts, :summary, event_summary(event_type, links)),
+      quantity: quantity,
+      unit: unit,
+      payload: payload,
+      note: Keyword.get(opts, :note, value(payload, "note")),
+      item_links: links
+    }
+  end
+
+  defp event_from(%{event: event}), do: event
+  defp event_from(event), do: event
+
+  defp original_effects(%{item_effects: item_effects}, _actor), do: item_effects
+
+  defp original_effects(%{id: event_id}, actor) do
+    Journal.list_item_effects!(
+      actor: actor,
+      query: [filter: [event_instance_id: event_id]]
+    )
+  end
+
+  defp idempotency_attrs(opts) do
+    %{
+      client_event_id: Keyword.fetch!(opts, :client_event_id),
+      client_operation_id: Keyword.fetch!(opts, :operation),
+      client_device_id: Keyword.get(opts, :device, "story-device"),
+      idempotency_key: Keyword.fetch!(opts, :idempotency_key)
+    }
   end
 
   defp item_links(plan_id, links, actor) when is_map(links) do
@@ -252,6 +310,9 @@ defmodule Improve.App do
     end
   end
 
+  defp direct_goal_id(_plan_id, nil, _actor), do: nil
+  defp direct_goal_id(plan_id, key, actor), do: direct_goal!(plan_id, key, actor).id
+
   defp event_types(actor, plan_id) do
     Plans.list_event_types!(actor: actor, query: [filter: [plan_id: plan_id]])
   end
@@ -292,6 +353,9 @@ defmodule Improve.App do
       :error -> default_datetime(Keyword.fetch!(opts, :on))
     end
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp quantity_from_target(payload, target) do
     case value(target, "quantity_path") do

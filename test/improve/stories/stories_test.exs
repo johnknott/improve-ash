@@ -305,6 +305,192 @@ defmodule Improve.StoriesTest do
     end
   end
 
+  describe "correction story helpers" do
+    test "corrects a logged inventory event while preserving auditable history" do
+      story =
+        Story.begin!("test_correct_logged_event", reset?: true)
+        |> Story.user!("Story Correct", email: "story+test-correct-logged-event@example.test")
+
+      plan = vial_inventory_plan!(story, "Correction inventory plan")
+
+      original =
+        Story.log_event!(story, plan,
+          event: "dose_taken",
+          on: ~D[2026-06-22],
+          summary: "Dose taken from Retatrutide vial 1",
+          links: %{source_vial: "reta_vial_1"},
+          payload: %{amount: 250, unit: "mcg", site: "abdomen"}
+        )
+
+      before_state =
+        capture_return(fn ->
+          Story.show_item_state!(story, plan, "reta_vial_1")
+        end)
+
+      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(4750))
+
+      correction =
+        Story.correct_event!(story, original,
+          corrected_at: ~U[2026-06-22 21:00:00Z],
+          reason: "Amount was entered incorrectly",
+          replacement: [
+            event: "dose_taken",
+            effective_at: ~U[2026-06-22 20:00:00Z],
+            summary: "Corrected dose from Retatrutide vial 1",
+            links: %{source_vial: "reta_vial_1"},
+            payload: %{amount: 200, unit: "mcg", site: "abdomen"}
+          ]
+        )
+
+      assert correction.corrected_event.status == :corrected
+      assert [voided_effect] = correction.voided_effects
+      assert voided_effect.status == :voided
+      assert [replacement_effect] = correction.replacement.item_effects
+      assert replacement_effect.status == :active
+      assert correction.replacement.event.replaces_event_instance_id == original.event.id
+
+      after_state =
+        capture_return(fn ->
+          Story.show_item_state!(story, plan, "reta_vial_1")
+        end)
+
+      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(4800))
+      assert Enum.map(after_state.active_effects, & &1.id) == [replacement_effect.id]
+
+      assert %{corrected: 1, active: 1} =
+               plan
+               |> Journal.read_journal!(actor: story.user)
+               |> Enum.map(& &1.status)
+               |> Enum.frequencies()
+
+      ai_state =
+        capture_return(fn ->
+          Story.show_ai_item_state!(story, plan, "reta_vial_1")
+        end)
+
+      assert ai_state.calculated_state.current_quantity == "4800"
+      assert [%{effect_type: :subtract_quantity, quantity: "200"}] = ai_state.active_effects
+    end
+  end
+
+  describe "offline story helpers" do
+    test "deduplicates offline retries and flags stale slot-linked events" do
+      story =
+        Story.begin!("test_offline_duplicate_and_stale", reset?: true)
+        |> Story.user!("Story Offline", email: "story+test-offline@example.test")
+
+      plan = hybrid_today_plan!(story, "Offline resilience plan")
+      today = Story.project_today!(story, plan, on: ~D[2026-06-22])
+      session = Story.start_session!(story, today, "upper_body")
+
+      reading =
+        Story.offline_event(story, plan,
+          event: "pages_read",
+          goal: "daily_reading",
+          on: ~D[2026-06-22],
+          summary: "Read 20 pages offline",
+          payload: %{pages: 20, note: "Queued while offline"},
+          operation: "offline-reading-001",
+          client_event_id: "offline-reading-001-event",
+          idempotency_key: "offline-reading-001-key"
+        )
+
+      logged_slot =
+        Story.log_slot!(story, session,
+          slot: "push",
+          item: "chest_press",
+          event: "exercise_performed",
+          payload: %{sets: 3, reps: 10}
+        )
+        |> Map.fetch!(:slot_result)
+
+      stale_slot =
+        Story.offline_event(story, plan,
+          event: "exercise_performed",
+          on: ~D[2026-06-22],
+          summary: "Offline chest press retry",
+          links: %{exercise: "chest_press"},
+          payload: %{sets: 3, reps: 10},
+          session_occurrence_id: session.session_occurrence.id,
+          slot_result_id: logged_slot.id,
+          operation: "offline-slot-001",
+          client_event_id: "offline-slot-001-event",
+          idempotency_key: "offline-slot-001-key"
+        )
+
+      result = Story.submit_offline_events!(story, [reading, reading, stale_slot])
+
+      assert [:accepted, :duplicate, :needs_resolution] =
+               Enum.map(result.results, & &1.status)
+
+      [accepted, duplicate, stale] = result.results
+      assert duplicate.event_instance_id == accepted.event_instance_id
+      assert stale.conflict_category == :stale_session_state
+
+      events = Journal.read_journal!(plan, actor: story.user)
+      assert length(events) == 2
+      assert accepted.event_instance_id in Enum.map(events, & &1.id)
+    end
+  end
+
+  describe "hybrid today story helpers" do
+    test "projects direct goals and sessions together before and after logging" do
+      story =
+        Story.begin!("test_hybrid_today", reset?: true)
+        |> Story.user!("Story Hybrid", email: "story+test-hybrid@example.test")
+
+      plan = hybrid_today_plan!(story, "Hybrid today plan")
+
+      before = Story.project_today!(story, plan, on: ~D[2026-06-22])
+      assert Enum.map(before.projected_work, & &1.kind) == [:session, :direct_goal]
+      assert Enum.map(before.projected_work, & &1.status) == [:planned, :planned]
+
+      reading =
+        Story.log_direct_goal!(story, before,
+          goal: "daily_reading",
+          payload: %{pages: 25, note: "Read before breakfast"}
+        )
+
+      session = Story.start_session!(story, before, "upper_body")
+
+      slot =
+        Story.log_slot!(story, session,
+          slot: "push",
+          item: "chest_press",
+          event: "exercise_performed",
+          payload: %{sets: 3, reps: 10}
+        )
+
+      after_projection = Story.project_today!(story, plan, on: ~D[2026-06-22])
+
+      assert [
+               %{kind: :session, status: :planned},
+               %{kind: :direct_goal, status: :completed}
+             ] = after_projection.projected_work
+
+      event_ids =
+        plan
+        |> Journal.read_journal!(actor: story.user)
+        |> Enum.map(& &1.id)
+        |> MapSet.new()
+
+      assert event_ids == MapSet.new([reading.event.id, slot.event.id])
+
+      ai_context =
+        capture_return(fn ->
+          Story.show_ai_today_context!(story, plan, on: ~D[2026-06-22])
+        end)
+
+      assert [
+               %{kind: "session", status: "planned"},
+               %{kind: "direct_goal", status: "completed"}
+             ] = ai_context.projected_work
+
+      assert ai_context.input_summary.journal_events == 2
+      assert ai_context.input_summary.session_occurrences == 1
+    end
+  end
+
   defp capture_return(fun) do
     ref = make_ref()
 
@@ -313,5 +499,87 @@ defmodule Improve.StoriesTest do
     end)
 
     Process.get(ref)
+  end
+
+  defp vial_inventory_plan!(story, name) do
+    plan =
+      Story.create_plan!(story, name,
+        intention: "Track vial quantity and dose history",
+        from: ~D[2026-06-22],
+        until: ~D[2026-09-14]
+      )
+
+    Story.add_item_type!(story, plan, "Peptide vial", key: "peptide_vial")
+
+    Story.add_item!(story, plan, "Retatrutide vial 1",
+      key: "reta_vial_1",
+      type: "peptide_vial",
+      stateful: true,
+      facts: %{starting_quantity: 5000, unit: "mcg"}
+    )
+
+    Story.add_event_type!(story, plan, "Dose taken",
+      key: "dose_taken",
+      required_links: ["source_vial"],
+      payload: %{required: ["amount", "unit"]},
+      effects: [
+        Story.subtract_quantity(
+          from: "source_vial",
+          quantity: "payload.amount",
+          unit: "payload.unit"
+        )
+      ]
+    )
+
+    plan
+  end
+
+  defp hybrid_today_plan!(story, name) do
+    plan =
+      Story.create_plan!(story, name,
+        intention: "See daily goals and gym sessions together",
+        from: ~D[2026-06-22],
+        until: ~D[2026-07-23]
+      )
+
+    Story.add_event_type!(story, plan, "Pages read",
+      key: "pages_read",
+      payload: %{required: ["pages"]}
+    )
+
+    Story.add_direct_goal!(story, plan, "Read 20 pages",
+      key: "daily_reading",
+      event: "pages_read",
+      schedule: Story.every_day(),
+      target: %{
+        quantity: 20,
+        unit: "pages",
+        quantity_path: "payload.pages",
+        summary_template: "Read %{quantity} %{unit}"
+      }
+    )
+
+    Story.add_event_type!(story, plan, "Exercise performed",
+      key: "exercise_performed",
+      required_links: ["exercise"],
+      payload: %{required: ["sets", "reps"]}
+    )
+
+    Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
+    Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
+
+    Story.add_pool!(story, plan, "Push exercises", key: "push", items: ["chest_press"])
+    Story.add_pool!(story, plan, "Pull exercises", key: "pull", items: ["lat_pulldown"])
+
+    Story.add_session!(story, plan, "Upper body gym visit",
+      key: "upper_body",
+      schedule: Story.every_week(times: 1, on: [:monday]),
+      slots: [
+        Story.choose(1, from: "push"),
+        Story.choose(1, from: "pull")
+      ]
+    )
+
+    plan
   end
 end

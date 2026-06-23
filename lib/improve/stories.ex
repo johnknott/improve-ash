@@ -271,6 +271,18 @@ defmodule Improve.Stories do
     App.log_event!(plan, Keyword.put(opts, :actor, actor!(story)))
   end
 
+  def correct_event!(%Story{} = story, original_log_or_event, opts) do
+    App.correct_event!(original_log_or_event, Keyword.put(opts, :actor, actor!(story)))
+  end
+
+  def offline_event(%Story{} = story, plan, opts) do
+    App.offline_event(plan, Keyword.put(opts, :actor, actor!(story)))
+  end
+
+  def submit_offline_events!(%Story{} = story, entries) do
+    App.submit_offline_events!(entries, actor: actor!(story))
+  end
+
   def subtract_quantity(opts) do
     %{
       role: Keyword.fetch!(opts, :from),
@@ -357,6 +369,25 @@ defmodule Improve.Stories do
     end)
 
     events
+  end
+
+  def show_offline_results!(%Story{} = _story, result) do
+    Print.section("Offline Results")
+
+    Print.rows(result.results, fn result ->
+      details =
+        [
+          result.client_operation_id,
+          result.conflict_category,
+          result.event_instance_id
+        ]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join(" ")
+
+      "#{result.status}: #{details}"
+    end)
+
+    result
   end
 
   def show_item_state!(%Story{} = story, plan, item_key) do
