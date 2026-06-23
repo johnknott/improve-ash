@@ -38,12 +38,17 @@ Run a story with:
 mix run priv/scripts/stories/01_direct_goal_reading.exs
 ```
 
+Current scripts:
+
+```text
+priv/scripts/stories/01_direct_goal_reading.exs
+priv/scripts/stories/02_start_and_log_gym_session.exs
+```
+
 Possible future scripts:
 
 ```text
-priv/scripts/stories/01_create_reading_plan.exs
-priv/scripts/stories/02_project_today.exs
-priv/scripts/stories/03_start_and_log_gym_session.exs
+priv/scripts/stories/03_project_today.exs
 priv/scripts/stories/04_log_direct_goal.exs
 priv/scripts/stories/05_log_dose_and_check_vial_state.exs
 priv/scripts/stories/06_correct_logged_event.exs
@@ -51,12 +56,19 @@ priv/scripts/stories/07_submit_offline_batch.exs
 priv/scripts/stories/08_ai_today_context.exs
 ```
 
-Optional modes can be added later:
+Story runs quiet SQL/debug logs by default so the product output stays readable.
+Use `--debug` when the database chatter is useful.
+
+Supported modes:
 
 ```sh
-mix run priv/scripts/stories/03_start_and_log_gym_session.exs --keep
-mix run priv/scripts/stories/03_start_and_log_gym_session.exs --rollback
+mix run priv/scripts/stories/02_start_and_log_gym_session.exs --keep
+mix run priv/scripts/stories/02_start_and_log_gym_session.exs --debug
+mix run priv/scripts/stories/02_start_and_log_gym_session.exs --rollback
 ```
+
+`--rollback` is still a placeholder. It currently announces that it is not
+implemented and then runs the story normally.
 
 ## Core Idea
 

@@ -10,6 +10,57 @@ defmodule Improve.App do
   alias Improve.Journal
   alias Improve.Planning.PathReader
   alias Improve.Plans
+  alias Improve.Sessions
+
+  def start_session!(projection, session_key, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    template = session_template!(projection.plan_id, session_key, actor)
+
+    projected_occurrence =
+      projection.projected_session_occurrences
+      |> Enum.find(&(&1.session_template_id == template.id))
+      |> case do
+        nil -> raise ArgumentError, "No projected session #{inspect(session_key)} exists today."
+        projected_occurrence -> projected_occurrence
+      end
+
+    Sessions.start_projected_session!(projected_occurrence,
+      actor: actor,
+      started_at: Keyword.get(opts, :started_at, default_datetime(projection.date)),
+      actual_item_ids_by_slot_key: Keyword.get(opts, :actual_item_ids_by_slot_key, %{})
+    )
+  end
+
+  def log_session_slot!(started_session, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    occurrence = Map.fetch!(started_session, :session_occurrence)
+    plan_id = occurrence.plan_id
+    slot = session_slot!(occurrence, Keyword.fetch!(opts, :slot), actor)
+    actual_item = item!(plan_id, Keyword.get(opts, :actual, Keyword.get(opts, :item)), actor)
+    recommended_item = maybe_item(plan_id, Keyword.get(opts, :recommended), actor)
+    slot_result = slot_result!(started_session, slot, recommended_item, actual_item, actor)
+    event_type = event_type!(plan_id, Keyword.fetch!(opts, :event), actor)
+    effective_at = Keyword.get(opts, :effective_at, default_datetime(occurrence.planned_for))
+    payload = stringify_keys(Keyword.get(opts, :payload, %{}))
+
+    Journal.log_session_item_event!(
+      %{
+        session_occurrence: occurrence,
+        slot_result: slot_result,
+        event_type: event_type,
+        item: actual_item,
+        role: Keyword.get(opts, :role, "exercise"),
+        effective_at: effective_at,
+        recorded_at: Keyword.get(opts, :recorded_at, effective_at),
+        summary: Keyword.get(opts, :summary, session_slot_summary(actual_item, recommended_item)),
+        quantity: Keyword.get(opts, :quantity, value(payload, "sets")),
+        unit: Keyword.get(opts, :unit, "sets"),
+        payload: payload,
+        note: Keyword.get(opts, :note, value(payload, "note"))
+      },
+      actor: actor
+    )
+  end
 
   def log_direct_goal!(projection, opts) do
     actor = Keyword.fetch!(opts, :actor)
@@ -56,6 +107,91 @@ defmodule Improve.App do
     end
   end
 
+  defp session_template!(plan_id, key, actor) do
+    actor
+    |> session_templates(plan_id)
+    |> Enum.find(&(&1.key == key))
+    |> case do
+      nil -> raise ArgumentError, "No session #{inspect(key)} exists in this plan."
+      session_template -> session_template
+    end
+  end
+
+  defp session_slot!(occurrence, key, actor) do
+    actor
+    |> session_slots(occurrence.plan_id)
+    |> Enum.find(&(&1.key == key and &1.session_template_id == occurrence.session_template_id))
+    |> case do
+      nil -> raise ArgumentError, "No session slot #{inspect(key)} exists in this plan."
+      session_slot -> session_slot
+    end
+  end
+
+  defp item!(plan_id, key, actor) do
+    if is_nil(key) do
+      raise ArgumentError, "A session slot log needs an item or actual item key."
+    end
+
+    actor
+    |> items(plan_id)
+    |> Enum.find(&(&1.key == key))
+    |> case do
+      nil -> raise ArgumentError, "No item #{inspect(key)} exists in this plan."
+      item -> item
+    end
+  end
+
+  defp maybe_item(_plan_id, nil, _actor), do: nil
+  defp maybe_item(plan_id, key, actor), do: item!(plan_id, key, actor)
+
+  defp slot_result!(started_session, slot, recommended_item, actual_item, actor) do
+    occurrence = Map.fetch!(started_session, :session_occurrence)
+
+    actor
+    |> slot_results(occurrence.id)
+    |> Enum.filter(&(&1.session_slot_id == slot.id))
+    |> Enum.filter(&is_nil(&1.event_instance_id))
+    |> prefer_recommended(recommended_item)
+    |> prefer_actual(actual_item)
+    |> case do
+      nil ->
+        raise ArgumentError,
+              "No open slot result exists for slot #{inspect(slot.key)} and item #{inspect(actual_item.key)}."
+
+      slot_result ->
+        slot_result
+    end
+  end
+
+  defp prefer_recommended(slot_results, nil), do: slot_results
+
+  defp prefer_recommended(slot_results, recommended_item) do
+    case Enum.filter(slot_results, &(&1.recommended_item_id == recommended_item.id)) do
+      [] -> slot_results
+      matches -> matches
+    end
+  end
+
+  defp prefer_actual(slot_results, actual_item) do
+    slot_results
+    |> Enum.find(&(&1.actual_item_id == actual_item.id))
+    |> case do
+      nil -> List.first(slot_results)
+      slot_result -> slot_result
+    end
+  end
+
+  defp session_slot_summary(actual_item, nil), do: "#{actual_item.name} performed"
+
+  defp session_slot_summary(actual_item, recommended_item)
+       when actual_item.id == recommended_item.id do
+    "#{actual_item.name} performed"
+  end
+
+  defp session_slot_summary(actual_item, recommended_item) do
+    "#{actual_item.name} performed instead of #{recommended_item.name}"
+  end
+
   defp direct_goal!(plan_id, key, actor) do
     actor
     |> direct_goals(plan_id)
@@ -68,6 +204,25 @@ defmodule Improve.App do
 
   defp event_types(actor, plan_id) do
     Plans.list_event_types!(actor: actor, query: [filter: [plan_id: plan_id]])
+  end
+
+  defp session_templates(actor, plan_id) do
+    Plans.list_session_templates!(actor: actor, query: [filter: [plan_id: plan_id]])
+  end
+
+  defp session_slots(actor, plan_id) do
+    Plans.list_session_slots!(actor: actor, query: [filter: [plan_id: plan_id]])
+  end
+
+  defp items(actor, plan_id) do
+    Plans.list_items!(actor: actor, query: [filter: [plan_id: plan_id]])
+  end
+
+  defp slot_results(actor, session_occurrence_id) do
+    Sessions.list_slot_results!(
+      actor: actor,
+      query: [filter: [session_occurrence_id: session_occurrence_id]]
+    )
   end
 
   defp direct_goals(actor, plan_id) do
