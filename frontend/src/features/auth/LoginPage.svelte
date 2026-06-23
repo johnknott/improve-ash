@@ -27,7 +27,7 @@
     error = null
 
     try {
-      const user = await verifyLoginCode(email, code)
+      const user = await verifyLoginCode(email, normalizeCode(code))
       setCurrentUser(user)
     } catch (err) {
       error = err instanceof Error ? err.message : 'That code was invalid or expired.'
@@ -40,6 +40,14 @@
     step = 'email'
     code = ''
     error = null
+  }
+
+  function normalizeCode(value: string) {
+    return value.replace(/\D/g, '').slice(0, 6)
+  }
+
+  function handleCodeInput(event: Event) {
+    code = normalizeCode((event.currentTarget as HTMLInputElement).value)
   }
 </script>
 
@@ -90,8 +98,8 @@
           autocomplete="one-time-code"
           inputmode="numeric"
           maxlength="6"
-          pattern="[0-9]{6}"
           placeholder="123456"
+          oninput={handleCodeInput}
           required
         />
 
