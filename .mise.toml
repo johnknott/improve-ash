@@ -44,10 +44,6 @@ run = "mix compile --warnings-as-errors"
 description = "Run ExUnit tests"
 run = "mise run db:up && mix test"
 
-[tasks.verify]
-description = "Run local verification"
-run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check"
-
 [tasks."db:create"]
 description = "Start Postgres and create the local database"
 run = "mise run db:up && mix ecto.create"
@@ -71,3 +67,23 @@ run = "mix ash_typescript.codegen"
 [tasks."typescript:check"]
 description = "Type-check generated TypeScript contract smoke imports"
 run = "pnpm exec tsc --noEmit -p tsconfig.json"
+
+[tasks."frontend:install"]
+description = "Install frontend npm dependencies"
+run = "npm --prefix frontend install"
+
+[tasks."frontend:dev"]
+description = "Run the Svelte/Vite frontend dev server"
+run = "npm --prefix frontend run dev -- --host 127.0.0.1"
+
+[tasks."frontend:build"]
+description = "Build the Svelte/Vite frontend"
+run = "npm --prefix frontend run build"
+
+[tasks."frontend:check"]
+description = "Type-check the Svelte/Vite frontend"
+run = "npm --prefix frontend run check"
+
+[tasks.verify]
+description = "Run local verification"
+run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check && mise run frontend:check && mise run frontend:build"

@@ -52,7 +52,17 @@ mise run dev
 ```
 
 The dev session starts Postgres first, then opens panes for the Phoenix server,
-test watcher, and IEx.
+Svelte/Vite frontend, test watcher, and IEx.
+
+Run the frontend on its own:
+
+```sh
+mise run frontend:dev
+```
+
+The first frontend app lives in `frontend/`. It is a plain Svelte + TypeScript
++ Vite app with no routing, auth, styling framework, component library, or API
+wiring yet.
 
 Open a plain IEx session with the app loaded:
 
@@ -148,6 +158,8 @@ That runs:
 - `mix test`
 - `mix ash_typescript.codegen --check`
 - `pnpm exec tsc --noEmit -p tsconfig.json`
+- `npm --prefix frontend run check`
+- `npm --prefix frontend run build`
 
 The test task starts local Postgres automatically before running ExUnit.
 
