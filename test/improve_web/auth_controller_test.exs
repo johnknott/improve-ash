@@ -52,6 +52,38 @@ defmodule ImproveWeb.AuthControllerTest do
     assert Accounts.get_user_by_email!(email).id == user_id
   end
 
+  test "signed-in users can complete their profile", %{conn: conn} do
+    email = "profile-auth-user@example.test"
+
+    conn = request_and_verify!(conn, email)
+
+    assert %{"user" => %{"fullName" => nil}} = json_response(conn, 200)
+
+    conn = post(conn, ~p"/api/auth/profile", %{full_name: "  John Knott  "})
+
+    assert %{"user" => %{"email" => ^email, "fullName" => "John Knott"}} =
+             json_response(conn, 200)
+
+    assert Accounts.get_user_by_email!(email).full_name == "John Knott"
+  end
+
+  test "profile completion requires a signed-in user", %{conn: conn} do
+    conn = post(conn, ~p"/api/auth/profile", %{full_name: "John Knott"})
+
+    assert %{"error" => %{"message" => "Please sign in to continue."}} =
+             json_response(conn, 401)
+  end
+
+  test "profile completion requires a name", %{conn: conn} do
+    conn =
+      conn
+      |> request_and_verify!("blank-profile-auth-user@example.test")
+      |> post(~p"/api/auth/profile", %{full_name: "   "})
+
+    assert %{"error" => %{"message" => "Please enter your name."}} =
+             json_response(conn, 422)
+  end
+
   test "wrong codes return a generic failure and do not create an account", %{conn: conn} do
     email = "wrong-code@example.test"
 

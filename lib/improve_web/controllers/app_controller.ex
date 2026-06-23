@@ -40,6 +40,21 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def create_plan(conn, params) do
+    call_app(conn, params, &UiApi.create_plan/2,
+      fallback_status: 422,
+      fallback_message: "We could not create that plan."
+    )
+  end
+
+  def create_direct_goal(conn, params) do
+    call_app(conn, params, &UiApi.create_direct_goal/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not create that goal."
+    )
+  end
+
   def start_session(conn, params) do
     call_app(conn, params, &UiApi.start_session/2,
       not_found_message: "That projected session is not available.",

@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store'
-import { currentUser, logout, type CurrentUser } from './authClient'
+import { completeProfile, currentUser, logout, type CurrentUser } from './authClient'
 
 type AuthState = {
   loading: boolean
@@ -23,6 +23,17 @@ export async function loadCurrentUser(): Promise<void> {
 
 export function setCurrentUser(user: CurrentUser): void {
   authState.set({ loading: false, user })
+}
+
+export async function completeCurrentUserProfile(fullName: string): Promise<void> {
+  authState.update((state) => ({ ...state, loading: true }))
+
+  try {
+    authState.set({ loading: false, user: await completeProfile(fullName) })
+  } catch (error) {
+    authState.update((state) => ({ ...state, loading: false }))
+    throw error
+  }
 }
 
 export async function logoutCurrentUser(): Promise<void> {

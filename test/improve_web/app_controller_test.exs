@@ -46,6 +46,76 @@ defmodule ImproveWeb.AppControllerTest do
              json_response(conn, 422)
   end
 
+  test "signed-in users can create an empty plan from the app API", %{conn: conn} do
+    conn =
+      conn
+      |> sign_in!("app-plan-create@example.test")
+      |> post(~p"/api/app/plans", %{
+        name: "Reading",
+        intention: "Read a little every day",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    response = json_response(conn, 200)
+
+    assert %{
+             "id" => plan_id,
+             "name" => "Reading",
+             "intention" => "Read a little every day",
+             "status" => "draft"
+           } = response["currentPlan"]
+
+    assert [%{"id" => ^plan_id}] = response["plans"]
+    assert %{"date" => "2026-06-23", "work" => []} = response["today"]
+    assert %{"items" => [], "eventTypes" => []} = response["planDetail"]
+  end
+
+  test "signed-in users can create a daily direct goal from the app API", %{conn: conn} do
+    conn = sign_in!(conn, "app-direct-goal-create@example.test")
+
+    conn =
+      post(conn, ~p"/api/app/plans", %{
+        name: "Reading",
+        intention: "Read a little every day",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
+
+    conn =
+      post(conn, ~p"/api/app/direct-goals", %{
+        plan_id: plan_id,
+        name: "Read for 15 minutes",
+        event_name: "Read",
+        quantity: "15",
+        unit: "minutes",
+        date: "2026-06-23"
+      })
+
+    response = json_response(conn, 200)
+
+    assert [
+             %{
+               "name" => "Read for 15 minutes",
+               "eventTypeName" => "Read",
+               "target" => %{"quantity" => "15", "unit" => "minutes"},
+               "schedule" => %{"kind" => "every_day"}
+             }
+           ] = get_in(response, ["planDetail", "directGoals"])
+
+    assert [
+             %{
+               "title" => "Read for 15 minutes",
+               "target" => %{"quantity" => "15", "unit" => "minutes"},
+               "canLog" => true
+             }
+           ] = get_in(response, ["today", "work"])
+  end
+
   test "signed-in users can start, swap, log, and complete a projected gym session", %{conn: conn} do
     email = "app-session-flow@example.test"
     conn = sign_in!(conn, email)

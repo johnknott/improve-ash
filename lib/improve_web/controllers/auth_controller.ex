@@ -2,6 +2,7 @@ defmodule ImproveWeb.AuthController do
   use ImproveWeb, :controller
 
   alias AshAuthentication.Plug.Helpers
+  alias Improve.Accounts
   alias Improve.Accounts.Auth
 
   def request_code(conn, %{"email" => email}) do
@@ -44,6 +45,24 @@ defmodule ImproveWeb.AuthController do
 
   def me(conn, _params) do
     json(conn, %{user: user_json(conn.assigns[:current_user])})
+  end
+
+  def complete_profile(%{assigns: %{current_user: nil}} = conn, _params) do
+    auth_error(conn, 401, "Please sign in to continue.")
+  end
+
+  def complete_profile(%{assigns: %{current_user: user}} = conn, %{"full_name" => full_name}) do
+    case Accounts.complete_profile(user, %{full_name: String.trim(full_name)}, actor: user) do
+      {:ok, user} ->
+        json(conn, %{user: user_json(user)})
+
+      {:error, _error} ->
+        auth_error(conn, 422, "Please enter your name.")
+    end
+  end
+
+  def complete_profile(conn, _params) do
+    auth_error(conn, 422, "Please enter your name.")
   end
 
   def logout(conn, _params) do

@@ -90,6 +90,37 @@ defmodule Improve.App.UiApi do
     end
   end
 
+  def create_plan(actor, params) do
+    with {:ok, attrs} <- create_plan_attrs(params),
+         {:ok, plan} <- persist_created_plan(attrs, actor),
+         {:ok, plans} <- Plans.list_plans(actor: actor),
+         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  def create_direct_goal(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- create_direct_goal_attrs(params),
+         {:ok, _direct_goal} <- persist_direct_goal(plan, attrs, actor),
+         {:ok, plans} <- Plans.list_plans(actor: actor),
+         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
   def install_demo_plan(actor, params) do
     with {:ok, plan} <- install_or_select_demo_plan(actor, Map.get(params, "kind")),
          {:ok, plans} <- Plans.list_plans(actor: actor),
@@ -166,6 +197,8 @@ defmodule Improve.App.UiApi do
            Plans.list_item_types(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, event_types} <-
            Plans.list_event_types(actor: actor, query: [filter: [plan_id: plan.id]]),
+         {:ok, direct_goals} <-
+           Plans.list_direct_goals(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, pools} <- Plans.list_pools(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, pool_memberships} <-
            Plans.list_pool_memberships(actor: actor, query: [filter: [plan_id: plan.id]]),
@@ -233,6 +266,8 @@ defmodule Improve.App.UiApi do
            items: Enum.map(items, &item_json(&1, item_types_by_id, actor)),
            itemTypes: Enum.map(item_types, &item_type_json(&1, items)),
            eventTypes: Enum.map(event_types, &event_type_json/1),
+           directGoals:
+             Enum.map(direct_goals, &direct_goal_json(&1, event_types_by_id, schedules)),
            pools: Enum.map(pools, &pool_json/1),
            poolMemberships: Enum.map(pool_memberships, &pool_membership_json/1),
            sessionTemplates: Enum.map(session_templates, &session_template_json/1),
@@ -274,6 +309,119 @@ defmodule Improve.App.UiApi do
   defp get_owned_plan(_params, _actor), do: {:error, :not_found}
 
   defp request_date(params), do: parse_date(Map.get(params, "date")) || Date.utc_today()
+
+  defp create_plan_attrs(params) do
+    starts_on = parse_date(Map.get(params, "starts_on")) || request_date(params)
+    ends_on = parse_date(Map.get(params, "ends_on")) || Date.add(starts_on, 56)
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(params, "name")), "Plan name is required.")
+      |> maybe_add(blank?(Map.get(params, "intention")), "Plan intention is required.")
+      |> maybe_add(
+        Date.compare(ends_on, starts_on) == :lt,
+        "Plan end date must be after the start date."
+      )
+
+    case diagnostics do
+      [] ->
+        {:ok,
+         %{
+           name: String.trim(Map.fetch!(params, "name")),
+           intention: String.trim(Map.fetch!(params, "intention")),
+           starts_on: starts_on,
+           ends_on: ends_on
+         }}
+
+      diagnostics ->
+        {:error, diagnostics}
+    end
+  end
+
+  defp persist_created_plan(attrs, actor) do
+    plan =
+      App.create_plan!(attrs.name,
+        actor: actor,
+        intention: attrs.intention,
+        from: attrs.starts_on,
+        until: attrs.ends_on,
+        status: :draft
+      )
+
+    {:ok, plan}
+  rescue
+    error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, [Exception.message(error)]}
+
+    error ->
+      {:error, [Exception.message(error)]}
+  end
+
+  defp create_direct_goal_attrs(params) do
+    quantity = blank_to_nil(Map.get(params, "quantity"))
+    unit = blank_to_nil(Map.get(params, "unit"))
+    event_type_id = blank_to_nil(Map.get(params, "event_type_id"))
+    event_name = blank_to_nil(Map.get(params, "event_name"))
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(params, "name")), "Goal name is required.")
+      |> maybe_add(blank?(quantity), "Goal amount is required.")
+      |> maybe_add(blank?(unit), "Goal unit is required.")
+      |> maybe_add(blank?(event_type_id) and blank?(event_name), "Choose what this goal logs.")
+
+    case diagnostics do
+      [] ->
+        {:ok,
+         %{
+           name: String.trim(Map.fetch!(params, "name")),
+           quantity: quantity,
+           unit: unit,
+           event_type_id: event_type_id,
+           event_name: event_name
+         }}
+
+      diagnostics ->
+        {:error, diagnostics}
+    end
+  end
+
+  defp persist_direct_goal(plan, attrs, actor) do
+    event_type =
+      case attrs.event_type_id do
+        nil ->
+          App.add_event_type!(plan, attrs.event_name,
+            actor: actor,
+            key: key_from(attrs.event_name),
+            payload: %{required: ["amount", "unit"]}
+          )
+
+        event_type_id ->
+          Plans.get_event_type!(event_type_id, actor: actor)
+      end
+
+    direct_goal =
+      App.add_direct_goal!(plan, attrs.name,
+        actor: actor,
+        key: key_from(attrs.name),
+        event: event_type.key,
+        schedule: App.every_day(),
+        target: %{
+          quantity: attrs.quantity,
+          unit: attrs.unit,
+          quantity_path: "payload.amount",
+          summary_template: "#{event_type.name} %{quantity} %{unit}"
+        }
+      )
+
+    {:ok, direct_goal}
+  rescue
+    error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, [Exception.message(error)]}
+
+    error ->
+      {:error, [Exception.message(error)]}
+  end
 
   defp get_plan_item(params, plan_id, actor) do
     item_id = blank_to_nil(Map.get(params, "source_vial_item_id") || Map.get(params, "item_id"))
@@ -869,6 +1017,24 @@ defmodule Improve.App.UiApi do
     }
   end
 
+  defp direct_goal_json(direct_goal, event_types_by_id, schedules) do
+    event_type = Map.get(event_types_by_id, direct_goal.event_type_id)
+
+    schedule =
+      Enum.find(schedules, &(&1.owner_type == :direct_goal and &1.owner_id == direct_goal.id))
+
+    %{
+      id: direct_goal.id,
+      key: direct_goal.key,
+      name: direct_goal.name,
+      description: direct_goal.description,
+      eventTypeId: direct_goal.event_type_id,
+      eventTypeName: event_type && event_type.name,
+      target: target_json(direct_goal.target),
+      schedule: schedule && schedule_json(schedule)
+    }
+  end
+
   defp pool_json(pool) do
     %{
       id: pool.id,
@@ -1103,6 +1269,24 @@ defmodule Improve.App.UiApi do
   defp blank_to_nil(nil), do: nil
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
+
+  defp key_from(value) do
+    value
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "_")
+    |> String.trim("_")
+    |> case do
+      "" -> "item"
+      key -> key
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_value), do: false
+
+  defp maybe_add(diagnostics, true, message), do: diagnostics ++ [message]
+  defp maybe_add(diagnostics, false, _message), do: diagnostics
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import AppShell from './app/AppShell.svelte'
   import { dashboardState, loadDashboard, resetDashboard } from './app/appState'
+  import CompleteProfilePage from './features/auth/CompleteProfilePage.svelte'
   import LoginPage from './features/auth/LoginPage.svelte'
   import { authState, loadCurrentUser } from './features/auth/authStore'
 
@@ -14,12 +15,12 @@
   $effect(() => {
     const user = $authState.user
 
-    if (user && loadedUserId !== user.id) {
+    if (user && user.fullName && loadedUserId !== user.id) {
       loadedUserId = user.id
       loadDashboard()
     }
 
-    if (!user && loadedUserId) {
+    if ((!user || !user.fullName) && loadedUserId) {
       loadedUserId = null
       resetDashboard()
     }
@@ -32,6 +33,8 @@
   </main>
 {:else if !$authState.user}
   <LoginPage />
+{:else if !$authState.user.fullName}
+  <CompleteProfilePage />
 {:else}
   <AppShell
     user={$authState.user}

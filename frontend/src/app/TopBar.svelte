@@ -1,22 +1,26 @@
 <script lang="ts">
-  import { CheckCircle2, ClipboardPlus, Menu } from '@lucide/svelte'
-  import type { DashboardData } from '../api/types'
-  import { checkInDialogOpen, openLogDialog } from './appState'
+  import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardPlus, Menu } from '@lucide/svelte'
+  import {
+    changeSelectedDate,
+    checkInDialogOpen,
+    openLogDialog,
+    resetSelectedDate,
+    selectedDate,
+    stepSelectedDate,
+  } from './appState'
   import type { AppRoute } from './routes'
   import { routeInfo } from './routes'
 
   let {
     route,
-    data,
     onMenu
   }: {
     route: AppRoute
-    data: DashboardData | null
     onMenu: () => void
   } = $props()
 
   let info = $derived(routeInfo(route))
-  let subtitle = $derived(data?.currentPlan?.dayLabel ?? info.subtitle)
+  let subtitle = $derived(info.subtitle)
 </script>
 
 <header class="topbar">
@@ -31,6 +35,23 @@
   </div>
 
   <div class="topbar-actions">
+    <div class="date-controls">
+      <button class="icon-button" type="button" aria-label="Previous day" onclick={() => stepSelectedDate(-1)}>
+        <ChevronLeft size={18} />
+      </button>
+      <label class="date-field">
+        <CalendarDays size={17} />
+        <input
+          type="date"
+          value={$selectedDate}
+          onchange={(event) => changeSelectedDate(event.currentTarget.value)}
+        />
+      </label>
+      <button class="icon-button" type="button" aria-label="Next day" onclick={() => stepSelectedDate(1)}>
+        <ChevronRight size={18} />
+      </button>
+      <button class="secondary-button compact-button" type="button" onclick={resetSelectedDate}>Today</button>
+    </div>
     <button class="secondary-button" type="button" onclick={() => checkInDialogOpen.set(true)}>
       <CheckCircle2 size={18} />
       <span>Check-in</span>

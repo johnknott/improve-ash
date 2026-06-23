@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { ChevronDown, Plus } from '@lucide/svelte'
   import { DropdownMenu } from 'bits-ui'
   import type { Plan } from '../api/types'
-  import { selectedPlanId, loadDashboard } from './appState'
+  import { selectedPlanId, loadDashboard, openNewPlanDialog } from './appState'
 
   let { plans, currentPlan }: { plans: Plan[]; currentPlan: Plan | null } = $props()
 
@@ -9,25 +10,35 @@
     selectedPlanId.set(planId)
     await loadDashboard(planId)
   }
+
 </script>
 
 <DropdownMenu.Root>
-  <DropdownMenu.Trigger class="plan-switcher" disabled={plans.length <= 1}>
-    <span class="plan-switcher-label">Current plan</span>
-    <strong>{currentPlan?.name ?? 'No active plan'}</strong>
-    <span>{currentPlan?.dayLabel ?? 'Create or import a plan'}</span>
+  <DropdownMenu.Trigger class="plan-switcher">
+    <span class="brand-mark">I</span>
+    <span class="plan-switcher-copy">
+      <strong>{currentPlan?.name ?? 'Improve'}</strong>
+      <span>{currentPlan?.dayLabel ?? 'Create or import a plan'}</span>
+    </span>
+    <ChevronDown class="plan-switcher-icon" size={17} />
   </DropdownMenu.Trigger>
 
-  {#if plans.length > 1}
-    <DropdownMenu.Portal>
-      <DropdownMenu.Content class="dropdown-content" sideOffset={8}>
+  <DropdownMenu.Portal>
+    <DropdownMenu.Content class="dropdown-content" sideOffset={8}>
+      {#if plans.length}
         {#each plans as plan (plan.id)}
           <DropdownMenu.Item class="dropdown-item" onclick={() => selectPlan(plan.id)}>
             <span>{plan.name}</span>
             <small>{plan.dayLabel}</small>
           </DropdownMenu.Item>
         {/each}
-      </DropdownMenu.Content>
-    </DropdownMenu.Portal>
-  {/if}
+        <div class="dropdown-separator"></div>
+      {/if}
+
+      <DropdownMenu.Item class="dropdown-item dropdown-action" onclick={openNewPlanDialog}>
+        <Plus size={16} />
+        <span>New plan</span>
+      </DropdownMenu.Item>
+    </DropdownMenu.Content>
+  </DropdownMenu.Portal>
 </DropdownMenu.Root>

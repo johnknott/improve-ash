@@ -9,6 +9,7 @@
   import SessionSlotLogDialog from '../features/logging/SessionSlotLogDialog.svelte'
   import JournalPage from '../features/journal/JournalPage.svelte'
   import PlaceholderPage from '../features/placeholders/PlaceholderPage.svelte'
+  import NewPlanDialog from '../features/plans/NewPlanDialog.svelte'
   import PlanPage from '../features/plan/PlanPage.svelte'
   import ResourceTypesPage from '../features/resourceTypes/ResourceTypesPage.svelte'
   import SessionsPage from '../features/sessions/SessionsPage.svelte'
@@ -47,7 +48,7 @@
   <Sidebar {data} {user} open={sidebarOpen} onNavigate={closeSidebar} />
 
   <main class="app-main">
-    <TopBar route={$activeRoute} {data} onMenu={() => (sidebarOpen = true)} />
+    <TopBar route={$activeRoute} onMenu={() => (sidebarOpen = true)} />
 
     {#if error}
       <section class="error-banner">
@@ -83,6 +84,7 @@
 <SessionSlotLogDialog {data} />
 <CheckInDialog {data} />
 <DoseDialog {data} />
+<NewPlanDialog />
 
 {#if $toastMessage}
   <div class="toast" role="status">{$toastMessage}</div>

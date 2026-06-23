@@ -15,9 +15,12 @@ defmodule ImproveWeb.Router do
     post "/auth/request-code", AuthController, :request_code
     post "/auth/verify-code", AuthController, :verify_code
     get "/auth/me", AuthController, :me
+    post "/auth/profile", AuthController, :complete_profile
     post "/auth/logout", AuthController, :logout
 
     get "/app/dashboard", AppController, :dashboard
+    post "/app/plans", AppController, :create_plan
+    post "/app/direct-goals", AppController, :create_direct_goal
     post "/app/demo-plans", AppController, :install_demo_plan
     post "/app/start-session", AppController, :start_session
     post "/app/log-session-slot", AppController, :log_session_slot

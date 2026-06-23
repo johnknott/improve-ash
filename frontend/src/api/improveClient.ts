@@ -1,6 +1,8 @@
 import type {
   DashboardData,
   CorrectDoseInput,
+  CreateDirectGoalInput,
+  CreatePlanInput,
   DemoPlanKind,
   DoseInput,
   LogEventInput,
@@ -71,10 +73,38 @@ export async function correctDose(input: CorrectDoseInput): Promise<DashboardDat
   })
 }
 
-export async function installDemoPlan(kind: DemoPlanKind): Promise<DashboardData> {
+export async function installDemoPlan(kind: DemoPlanKind, date = todayIso()): Promise<DashboardData> {
   return apiFetch<DashboardData>('/api/app/demo-plans', {
     method: 'POST',
-    body: JSON.stringify({ kind }),
+    body: JSON.stringify({ kind, date }),
+  })
+}
+
+export async function createPlan(input: CreatePlanInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/plans', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      intention: input.intention,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+      date: input.date,
+    }),
+  })
+}
+
+export async function createDirectGoal(input: CreateDirectGoalInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>('/api/app/direct-goals', {
+    method: 'POST',
+    body: JSON.stringify({
+      plan_id: input.planId,
+      name: input.name,
+      event_type_id: input.eventTypeId,
+      event_name: input.eventName,
+      quantity: input.quantity,
+      unit: input.unit,
+      date: input.date,
+    }),
   })
 }
 
@@ -103,6 +133,7 @@ export async function logSessionSlot(input: LogSessionSlotInput): Promise<Dashbo
       quantity: input.quantity,
       unit: input.unit,
       note: input.note,
+      date: input.date,
       payload: input.payload,
     }),
   })
@@ -115,6 +146,7 @@ export async function swapSessionSlot(input: SwapSessionSlotInput): Promise<Dash
       slot_result_id: input.slotResultId,
       actual_item_key: input.actualItemKey,
       note: input.note,
+      date: input.date,
     }),
   })
 }
@@ -133,6 +165,7 @@ function updateSessionStatus(path: string, input: SessionStatusInput): Promise<D
     body: JSON.stringify({
       session_occurrence_id: input.sessionOccurrenceId,
       note: input.note,
+      date: input.date,
     }),
   })
 }
@@ -147,6 +180,7 @@ function doseBody(input: DoseInput): Record<string, unknown> {
     note: input.note,
     site: input.site,
     route: input.route,
+    date: input.date,
   }
 }
 

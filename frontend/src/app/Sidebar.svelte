@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { ChevronUp, LogOut, Settings } from '@lucide/svelte'
+  import { DropdownMenu } from 'bits-ui'
   import type { CurrentUser } from '../features/auth/authClient'
   import type { DashboardData } from '../api/types'
   import { logoutCurrentUser } from '../features/auth/authStore'
@@ -42,14 +44,6 @@
 </script>
 
 <aside class:open class="sidebar">
-  <div class="brand">
-    <div class="brand-mark">I</div>
-    <div>
-      <strong>Improve</strong>
-      <span>Daily operating system</span>
-    </div>
-  </div>
-
   <PlanSwitcher plans={data?.plans ?? []} currentPlan={data?.currentPlan ?? null} />
 
   <nav class="nav-groups" aria-label="Primary">
@@ -82,18 +76,29 @@
   </nav>
 
   <div class="sidebar-footer">
-    <button type="button" class:active={$activeRoute === 'resource-types'} onclick={() => go('resource-types')}>
-      Settings
-    </button>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger class="user-chip">
+        <span>{user.fullName?.slice(0, 1) ?? user.email.slice(0, 1).toUpperCase()}</span>
+        <div>
+          <strong>{user.fullName ?? user.email}</strong>
+          <small>{user.email}</small>
+        </div>
+        <ChevronUp class="user-menu-icon" size={16} />
+      </DropdownMenu.Trigger>
 
-    <div class="user-chip">
-      <span>{user.fullName?.slice(0, 1) ?? user.email.slice(0, 1).toUpperCase()}</span>
-      <div>
-        <strong>{user.fullName ?? user.email}</strong>
-        <small>{user.email}</small>
-      </div>
-    </div>
-
-    <button type="button" class="logout-button" onclick={logoutCurrentUser}>Logout</button>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content class="dropdown-content user-menu-content" side="top" align="start" sideOffset={8}>
+          <DropdownMenu.Item class="dropdown-item dropdown-action" onclick={() => go('resource-types')}>
+            <Settings size={16} />
+            <span>Settings</span>
+          </DropdownMenu.Item>
+          <div class="dropdown-separator"></div>
+          <DropdownMenu.Item class="dropdown-item dropdown-danger" onclick={logoutCurrentUser}>
+            <LogOut size={16} />
+            <span>Logout</span>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   </div>
 </aside>

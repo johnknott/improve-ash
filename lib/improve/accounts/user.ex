@@ -58,6 +58,14 @@ defmodule Improve.Accounts.User do
       primary? true
       accept [:email, :full_name]
     end
+
+    update :complete_profile do
+      accept [:full_name]
+
+      validate present(:full_name) do
+        message "is required"
+      end
+    end
   end
 
   attributes do

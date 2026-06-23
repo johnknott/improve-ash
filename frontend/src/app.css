@@ -310,32 +310,34 @@ form > button,
 
 .plan-switcher {
   width: 100%;
-  position: relative;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.75rem;
-  border: 1px solid #d9dee8;
-  border-radius: 8px;
-  background: #f8fafc;
-  padding: 0.75rem;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0.25rem 0;
   text-align: left;
 }
 
-.plan-switcher strong,
-.plan-switcher span {
+.plan-switcher-copy,
+.plan-switcher-copy strong,
+.plan-switcher-copy span {
   display: block;
+  min-width: 0;
 }
 
-.plan-switcher span {
+.plan-switcher-copy {
+  flex: 1 1 auto;
+}
+
+.plan-switcher-copy span {
   margin-top: 0.1rem;
   color: #66748b;
   font-size: 0.82rem;
 }
 
-.plan-switcher-label {
+.plan-switcher-icon {
+  flex: 0 0 auto;
   color: #738098;
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
 }
 
 .dropdown-content {
@@ -349,6 +351,8 @@ form > button,
 }
 
 .dropdown-item {
+  display: grid;
+  gap: 0.15rem;
   width: 100%;
   border-radius: 6px;
   background: transparent;
@@ -359,6 +363,33 @@ form > button,
 .dropdown-item:hover,
 .dropdown-item[data-highlighted] {
   background: #eef5ff;
+}
+
+.dropdown-item small {
+  color: #66748b;
+  font-size: 0.78rem;
+}
+
+.dropdown-action {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #164ca6;
+  font-weight: 750;
+}
+
+.dropdown-danger {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #9b2117;
+  font-weight: 750;
+}
+
+.dropdown-separator {
+  height: 1px;
+  margin: 0.35rem;
+  background: #e5e9f1;
 }
 
 .nav-groups {
@@ -383,8 +414,7 @@ form > button,
   text-transform: uppercase;
 }
 
-.nav-group button,
-.sidebar-footer > button {
+.nav-group button {
   min-height: 2.25rem;
   border-radius: 6px;
   background: transparent;
@@ -394,9 +424,7 @@ form > button,
 }
 
 .nav-group button:hover,
-.sidebar-footer > button:hover,
-.nav-group button.active,
-.sidebar-footer > button.active {
+.nav-group button.active {
   background: #eef5ff;
   color: #164ca6;
 }
@@ -408,10 +436,13 @@ form > button,
 }
 
 .user-chip {
+  width: 100%;
   min-width: 0;
   gap: 0.6rem;
   border-top: 1px solid #e5e9f1;
-  padding-top: 0.8rem;
+  background: transparent;
+  padding: 0.8rem 0 0;
+  text-align: left;
 }
 
 .user-chip span {
@@ -427,6 +458,7 @@ form > button,
 }
 
 .user-chip div {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -437,13 +469,13 @@ form > button,
   white-space: nowrap;
 }
 
-.logout-button {
-  width: 100%;
-  min-height: 2.4rem;
-  border-radius: 6px;
-  background: #fff1f0;
-  color: #9b2117;
-  font-weight: 700;
+.user-menu-icon {
+  flex: 0 0 auto;
+  color: #738098;
+}
+
+.user-menu-content {
+  min-width: 15.5rem;
 }
 
 .app-main {
@@ -470,6 +502,35 @@ form > button,
   display: flex;
   flex: 0 0 auto;
   gap: 0.6rem;
+}
+
+.date-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  border: 1px solid #cfd7e4;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #5b6a83;
+  padding: 0 0.65rem;
+}
+
+.date-field input {
+  width: 8.6rem;
+  min-height: auto;
+  border: 0;
+  padding: 0;
+}
+
+.date-field input:focus {
+  outline: 0;
 }
 
 .primary-button,

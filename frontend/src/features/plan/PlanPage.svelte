@@ -1,13 +1,16 @@
 <script lang="ts">
+  import { PlusCircle } from '@lucide/svelte'
   import type { DashboardData } from '../../api/types'
   import Badge from '../../components/ui/Badge.svelte'
   import Card from '../../components/ui/Card.svelte'
   import EmptyState from '../../components/ui/EmptyState.svelte'
   import LoadingState from '../../components/ui/LoadingState.svelte'
   import DemoPlanSetup from '../setup/DemoPlanSetup.svelte'
+  import DirectGoalDialog from './DirectGoalDialog.svelte'
   import PlanItemRow from './PlanItemRow.svelte'
 
   let { data, loading }: { data: DashboardData | null; loading: boolean } = $props()
+  let goalDialogOpen = $state(false)
 </script>
 
 <section class="page-stack">
@@ -41,16 +44,32 @@
       <Card>
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Event model</p>
-            <h2>Event types</h2>
+            <p class="eyebrow">Goals</p>
+            <h2>Direct goals</h2>
           </div>
-          <span>{data.planDetail.eventTypes.length}</span>
+          <button class="secondary-button compact-button" type="button" onclick={() => (goalDialogOpen = true)}>
+            <PlusCircle size={16} />
+            <span>Add goal</span>
+          </button>
         </div>
-        <div class="chip-list">
-          {#each data.planDetail.eventTypes as eventType (eventType.id)}
-            <span class="model-chip">{eventType.name}</span>
-          {/each}
-        </div>
+        {#if data.planDetail.directGoals.length}
+          <div class="model-list">
+            {#each data.planDetail.directGoals as goal (goal.id)}
+              <div class="mini-row">
+                <div>
+                  <strong>{goal.name}</strong>
+                  <small>
+                    {goal.target.quantity}{goal.target.unit ? ` ${goal.target.unit}` : ''}
+                    {goal.eventTypeName ? ` · ${goal.eventTypeName}` : ''}
+                  </small>
+                </div>
+                <Badge tone="info">{goal.schedule?.kind ?? 'scheduled'}</Badge>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <EmptyState title="No goals yet" message="Add a daily goal to make work appear on Today." />
+        {/if}
       </Card>
     </div>
 
@@ -79,3 +98,5 @@
     </Card>
   {/if}
 </section>
+
+<DirectGoalDialog data={data ?? null} open={goalDialogOpen} onClose={() => (goalDialogOpen = false)} />

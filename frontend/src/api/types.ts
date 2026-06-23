@@ -218,11 +218,23 @@ export type Schedule = {
   endsOn: string | null
 }
 
+export type DirectGoal = {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  eventTypeId: string
+  eventTypeName: string | null
+  target: WorkTarget
+  schedule: Schedule | null
+}
+
 export type PlanDetail = {
   summary: Plan
   items: PlanItem[]
   itemTypes: ItemType[]
   eventTypes: EventType[]
+  directGoals: DirectGoal[]
   pools: Pool[]
   poolMemberships: PoolMembership[]
   sessionTemplates: SessionTemplate[]
@@ -252,6 +264,24 @@ export type LogEventInput = {
 
 export type DemoPlanKind = 'gym' | 'vial_inventory'
 
+export type CreatePlanInput = {
+  name: string
+  intention: string
+  startsOn: string
+  endsOn: string
+  date?: string | null
+}
+
+export type CreateDirectGoalInput = {
+  planId: string
+  name: string
+  eventTypeId?: string | null
+  eventName?: string | null
+  quantity: string
+  unit: string
+  date?: string | null
+}
+
 export type StartSessionInput = {
   planId: string
   sessionTemplateId: string
@@ -269,6 +299,7 @@ export type LogSessionSlotInput = {
   quantity?: string | null
   unit?: string | null
   note?: string | null
+  date?: string | null
   payload: Record<string, unknown>
 }
 
@@ -276,11 +307,13 @@ export type SwapSessionSlotInput = {
   slotResultId: string
   actualItemKey: string
   note?: string | null
+  date?: string | null
 }
 
 export type SessionStatusInput = {
   sessionOccurrenceId: string
   note?: string | null
+  date?: string | null
 }
 
 export type DoseInput = {
@@ -292,6 +325,7 @@ export type DoseInput = {
   note?: string | null
   site?: string | null
   route?: string | null
+  date?: string | null
 }
 
 export type CorrectDoseInput = DoseInput & {
