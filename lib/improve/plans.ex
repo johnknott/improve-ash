@@ -65,6 +65,12 @@ defmodule Improve.Plans do
       define :list_schedules, action: :read
     end
 
+    resource Improve.Plans.TimeOffWindow do
+      define :create_time_off_window, action: :create
+      define :get_time_off_window, action: :read, get_by: [:id]
+      define :list_time_off_windows, action: :read
+    end
+
     resource Improve.Plans.SessionTemplate do
       define :create_session_template, action: :create
       define :get_session_template, action: :read, get_by: [:id]
@@ -150,6 +156,7 @@ defmodule Improve.Plans do
          session_templates: plan.session_templates,
          session_slots: plan.session_slots,
          schedules: plan.schedules,
+         time_off_windows: plan.time_off_windows,
          tracks: plan.tracks,
          journal_events: plan.event_instances,
          session_occurrences: plan.session_occurrences,
@@ -198,6 +205,7 @@ defmodule Improve.Plans do
       :session_templates,
       :session_slots,
       :schedules,
+      :time_off_windows,
       :tracks,
       :session_occurrences,
       :slot_results,

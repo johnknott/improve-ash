@@ -10,17 +10,34 @@ defmodule Improve.Planning.ProjectedWork do
 
   - `:kind` is `:session` or `:track`.
   - `:status` is one of `:planned`, `:started`, `:partial`, `:completed`,
-    `:missed`, `:skipped`, or `:partially_completed`.
+    `:missed`, `:skipped`, `:partially_completed`, or `:on_hold`.
   - `:planned_for` is the date the work belongs to.
   - `:owner_type` and `:owner_id` identify the authored definition.
   - `:title` is display-ready enough for diagnostics, AI tools, and tests.
   - `:payload` contains kind-specific projected data.
   """
 
-  @statuses [:planned, :started, :partial, :completed, :missed, :skipped, :partially_completed]
+  @statuses [
+    :planned,
+    :started,
+    :partial,
+    :completed,
+    :missed,
+    :skipped,
+    :partially_completed,
+    :on_hold
+  ]
 
   def session(occurrence, opts \\ []) do
     status = status!(Keyword.get(opts, :status, :planned))
+
+    payload =
+      %{
+        session_occurrence: occurrence,
+        recommendations: occurrence.recommendations,
+        session_state: Map.get(occurrence, :session_state, %{})
+      }
+      |> maybe_put(:time_off_window, Keyword.get(opts, :time_off_window))
 
     %{
       kind: :session,
@@ -30,11 +47,7 @@ defmodule Improve.Planning.ProjectedWork do
       owner_type: :session_template,
       owner_id: occurrence.session_template_id,
       title: occurrence.session_template_name,
-      payload: %{
-        session_occurrence: occurrence,
-        recommendations: occurrence.recommendations,
-        session_state: Map.get(occurrence, :session_state, %{})
-      },
+      payload: payload,
       explanation:
         Keyword.get(
           opts,
@@ -48,6 +61,18 @@ defmodule Improve.Planning.ProjectedWork do
     planned_for = Keyword.fetch!(opts, :planned_for)
     status = status!(Keyword.get(opts, :status, :planned))
 
+    payload =
+      %{
+        track_id: track.id,
+        track_key: track.key,
+        event_type_id: track.event_type_id,
+        target: track.target,
+        completion_policy: track.completion_policy,
+        missed_policy: track.missed_policy,
+        completed_event_ids: Keyword.get(opts, :completed_event_ids, [])
+      }
+      |> maybe_put(:time_off_window, Keyword.get(opts, :time_off_window))
+
     %{
       kind: :track,
       status: status,
@@ -56,15 +81,7 @@ defmodule Improve.Planning.ProjectedWork do
       owner_type: :track,
       owner_id: track.id,
       title: track.name,
-      payload: %{
-        track_id: track.id,
-        track_key: track.key,
-        event_type_id: track.event_type_id,
-        target: track.target,
-        completion_policy: track.completion_policy,
-        missed_policy: track.missed_policy,
-        completed_event_ids: Keyword.get(opts, :completed_event_ids, [])
-      },
+      payload: payload,
       explanation:
         Keyword.get(
           opts,
@@ -79,4 +96,7 @@ defmodule Improve.Planning.ProjectedWork do
   defp status!(status) do
     raise ArgumentError, "Unsupported projected work status #{inspect(status)}."
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

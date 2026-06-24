@@ -887,7 +887,9 @@ defmodule Improve.App.UiApi do
           session_slots_by_id,
           items_by_id
         ),
-      canLog: work.kind == :track and work.status != :completed and not is_nil(event_type_id)
+      canLog:
+        work.kind == :track and work.status not in [:completed, :on_hold] and
+          not is_nil(event_type_id)
     }
   end
 

@@ -79,6 +79,10 @@ defmodule Improve.Stories do
     App.add_session!(plan, name, Keyword.put(opts, :actor, actor!(story)))
   end
 
+  def add_time_off!(%Story{} = story, plan, opts) do
+    App.add_time_off!(plan, Keyword.put(opts, :actor, actor!(story)))
+  end
+
   def every_day, do: App.every_day()
   def selected_weekdays(days), do: App.selected_weekdays(days)
   def every_n_days(days), do: App.every_n_days(days)

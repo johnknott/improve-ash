@@ -188,6 +188,21 @@ defmodule Improve.App.Authoring do
     session_template
   end
 
+  def add_time_off!(plan, opts) do
+    Plans.create_time_off_window!(
+      %{
+        plan_id: plan.id,
+        key: Keyword.fetch!(opts, :key),
+        kind: Keyword.get(opts, :kind, :other),
+        reason: Keyword.get(opts, :reason),
+        starts_on: Keyword.fetch!(opts, :from),
+        ends_on: Keyword.fetch!(opts, :to),
+        availability: Keyword.get(opts, :availability, :fully_off)
+      },
+      actor: actor!(opts)
+    )
+  end
+
   defp create_schedule!(plan, owner_type, owner, schedule, actor) do
     Plans.create_schedule!(
       %{

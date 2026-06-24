@@ -122,6 +122,51 @@ defmodule Improve.StoriesTest do
 
       assert Enum.any?(today.diagnostics, &(&1.code == :unsupported_track_target_type))
     end
+
+    test "express plan-scoped time off through story helpers" do
+      story =
+        Story.begin!("test_track_time_off", reset?: true)
+        |> Story.user!("Story Time Off", email: "story+test-track-time-off@example.test")
+
+      plan =
+        Story.create_plan!(story, "Run consistently",
+          intention: "Keep a steady running habit around holidays",
+          from: ~D[2026-06-22],
+          until: ~D[2026-07-23]
+        )
+
+      Story.add_track!(story, plan, "Long run",
+        key: "long_run",
+        schedule: Story.every_day(),
+        target: Story.fixed(20, "km"),
+        records: Story.amount("km")
+      )
+
+      time_off =
+        Story.add_time_off!(story, plan,
+          key: "summer_holiday",
+          kind: :holiday,
+          reason: "Summer holiday",
+          from: ~D[2026-06-28],
+          to: ~D[2026-07-05],
+          availability: :fully_off
+        )
+
+      today = Story.project_today!(story, plan, on: ~D[2026-06-28], as_of: ~D[2026-06-29])
+
+      assert [
+               %{
+                 kind: :track,
+                 status: :on_hold,
+                 title: "Long run",
+                 payload: %{
+                   time_off_window: %{id: time_off_id, key: "summer_holiday"}
+                 }
+               }
+             ] = today.projected_work
+
+      assert time_off_id == time_off.id
+    end
   end
 
   describe "session-from-pools story helpers" do

@@ -26,6 +26,7 @@ defmodule Improve.Planning.Projector do
       Enum.map(occurrences, fn occurrence ->
         ProjectedWork.session(occurrence,
           status: occurrence.projected_status,
+          time_off_window: occurrence.session_state.time_off_window,
           explanation: occurrence.projected_explanation
         )
       end) ++ track_work
@@ -68,6 +69,7 @@ defmodule Improve.Planning.Projector do
     date = Map.fetch!(input, :date)
     plan = Map.fetch!(input, :plan)
     schedules = schedules_for(input.schedules, :session_template, template.id)
+    time_off_window = fully_off_window(input, date)
 
     cond do
       not in_date_range?(date, plan.starts_on, plan.ends_on) ->
@@ -78,9 +80,14 @@ defmodule Improve.Planning.Projector do
 
       true ->
         case schedule_decisions(schedules, date, input) do
-          {:ok, true, diagnostics} -> {:ok, occurrence_projection(template, input), diagnostics}
-          {:ok, false, diagnostics} -> {:ok, nil, diagnostics}
-          {:error, diagnostic} -> {:error, diagnostic}
+          {:ok, true, diagnostics} ->
+            {:ok, occurrence_projection(template, input, time_off_window), diagnostics}
+
+          {:ok, false, diagnostics} ->
+            {:ok, nil, diagnostics}
+
+          {:error, diagnostic} ->
+            {:error, diagnostic}
         end
     end
   end
@@ -89,6 +96,7 @@ defmodule Improve.Planning.Projector do
     date = Map.fetch!(input, :date)
     plan = Map.fetch!(input, :plan)
     schedules = schedules_for(input.schedules, :track, track.id)
+    time_off_window = fully_off_window(input, date)
 
     cond do
       not in_date_range?(date, plan.starts_on, plan.ends_on) ->
@@ -102,7 +110,7 @@ defmodule Improve.Planning.Projector do
 
         case schedule_decisions(schedules, date, input) do
           {:ok, true, diagnostics} ->
-            {:ok, track_work(track, input), target_diagnostics ++ diagnostics}
+            {:ok, track_work(track, input, time_off_window), target_diagnostics ++ diagnostics}
 
           {:ok, false, diagnostics} ->
             {:ok, nil, target_diagnostics ++ diagnostics}
@@ -113,7 +121,7 @@ defmodule Improve.Planning.Projector do
     end
   end
 
-  defp occurrence_projection(template, input) do
+  defp occurrence_projection(template, input, time_off_window) do
     slots =
       input.session_slots
       |> Enum.filter(&(&1.session_template_id == template.id))
@@ -139,7 +147,7 @@ defmodule Improve.Planning.Projector do
         }
       end)
 
-    {status, session_state} = session_status(template, input, recommendations)
+    {status, session_state} = session_status(template, input, recommendations, time_off_window)
 
     %{
       plan_id: input.plan.id,
@@ -153,7 +161,7 @@ defmodule Improve.Planning.Projector do
     }
   end
 
-  defp session_status(template, input, recommendations) do
+  defp session_status(template, input, recommendations, time_off_window) do
     occurrence = matching_session_occurrence(template, input)
     slot_results = slot_results_for(occurrence, input)
     total = length(slot_results)
@@ -180,6 +188,13 @@ defmodule Improve.Planning.Projector do
           :planned
       end
 
+    status =
+      if status == :planned and time_off_window do
+        :on_hold
+      else
+        status
+      end
+
     {status,
      %{
        session_occurrence_id: occurrence && occurrence.id,
@@ -188,7 +203,8 @@ defmodule Improve.Planning.Projector do
        slot_results_logged: logged,
        slot_results_remaining: max(total - logged, 0),
        progress_label: progress_label(logged, total),
-       recommended_slot_results: recommended_slot_results(recommendations)
+       recommended_slot_results: recommended_slot_results(recommendations),
+       time_off_window: time_off_payload(time_off_window)
      }}
   end
 
@@ -249,17 +265,27 @@ defmodule Improve.Planning.Projector do
     "Projected #{template.name} as missed from its session occurrence."
   end
 
-  defp track_work(track, input) do
+  defp session_explanation(template, :on_hold, %{time_off_window: time_off_window}) do
+    "Projected #{template.name} as on hold because #{time_off_window.key} is fully off."
+  end
+
+  defp track_work(track, input, time_off_window) do
     completed_events = completed_track_events(track, input)
 
     status =
-      track_status(input.date, Map.get(input, :as_of_date, input.date), completed_events)
+      track_status(
+        input.date,
+        Map.get(input, :as_of_date, input.date),
+        completed_events,
+        time_off_window
+      )
 
     ProjectedWork.track(track,
       planned_for: input.date,
       status: status,
       completed_event_ids: Enum.map(completed_events, & &1.id),
-      explanation: track_explanation(track, status, completed_events)
+      time_off_window: time_off_payload(time_off_window),
+      explanation: track_explanation(track, status, completed_events, time_off_window)
     )
   end
 
@@ -272,26 +298,35 @@ defmodule Improve.Planning.Projector do
     end)
   end
 
-  defp track_status(_date, _as_of_date, [_event | _events]), do: :completed
+  defp track_status(_date, _as_of_date, [_event | _events], _time_off_window), do: :completed
 
-  defp track_status(date, as_of_date, []) do
-    if Date.compare(date, as_of_date) == :lt do
-      :missed
-    else
-      :planned
+  defp track_status(date, as_of_date, [], time_off_window) do
+    cond do
+      time_off_window ->
+        :on_hold
+
+      Date.compare(date, as_of_date) == :lt ->
+        :missed
+
+      true ->
+        :planned
     end
   end
 
-  defp track_explanation(track, :completed, events) do
+  defp track_explanation(track, :completed, events, _time_off_window) do
     "Projected #{track.name} as completed from #{length(events)} linked journal event(s)."
   end
 
-  defp track_explanation(track, :missed, _events) do
+  defp track_explanation(track, :missed, _events, _time_off_window) do
     "Projected #{track.name} as missed because the date has passed without a linked journal event."
   end
 
-  defp track_explanation(track, :planned, _events) do
+  defp track_explanation(track, :planned, _events, _time_off_window) do
     "Projected #{track.name} from its track schedule."
+  end
+
+  defp track_explanation(track, :on_hold, _events, time_off_window) do
+    "Projected #{track.name} as on hold because #{time_off_key(time_off_window)} is fully off."
   end
 
   defp schedule_decisions(schedules, date, input) do
@@ -322,6 +357,7 @@ defmodule Improve.Planning.Projector do
       session_slots: length(Map.get(input, :session_slots, [])),
       tracks: length(Map.get(input, :tracks, [])),
       schedules: length(schedules),
+      time_off_windows: length(Map.get(input, :time_off_windows, [])),
       session_template_schedules: count_schedules(schedules, :session_template),
       track_schedules: count_schedules(schedules, :track),
       journal_events: length(Map.get(input, :journal_events, [])),
@@ -341,6 +377,38 @@ defmodule Improve.Planning.Projector do
 
   defp in_date_range?(date, starts_on, ends_on) do
     Date.compare(date, starts_on) != :lt and Date.compare(date, ends_on) != :gt
+  end
+
+  defp fully_off_window(input, date) do
+    input
+    |> Map.get(:time_off_windows, [])
+    |> Enum.filter(&(time_off_value(&1, :availability) in [:fully_off, "fully_off"]))
+    |> Enum.filter(
+      &in_date_range?(date, time_off_value(&1, :starts_on), time_off_value(&1, :ends_on))
+    )
+    |> Enum.sort_by(&{time_off_value(&1, :starts_on), time_off_key(&1)})
+    |> List.first()
+  end
+
+  defp time_off_payload(nil), do: nil
+
+  defp time_off_payload(window) do
+    %{
+      id: time_off_value(window, :id),
+      key: time_off_value(window, :key),
+      kind: time_off_value(window, :kind),
+      reason: time_off_value(window, :reason),
+      starts_on: time_off_value(window, :starts_on),
+      ends_on: time_off_value(window, :ends_on),
+      availability: time_off_value(window, :availability)
+    }
+  end
+
+  defp time_off_key(nil), do: "time off"
+  defp time_off_key(window), do: time_off_value(window, :key) || "time off"
+
+  defp time_off_value(window, key) do
+    Map.get(window, key) || Map.get(window, to_string(key))
   end
 
   defp explanations([]), do: ["No projected work is scheduled for this date."]

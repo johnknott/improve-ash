@@ -302,6 +302,119 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
+    test "projects a scheduled track as on hold during fully off time off" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-track-time-off@example.com",
+          full_name: "Project Track Time Off"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      track = track!(user, plan, event_type)
+      schedule!(user, plan, track)
+
+      time_off =
+        Plans.create_time_off_window!(
+          %{
+            plan_id: plan.id,
+            key: "summer_holiday",
+            kind: :holiday,
+            reason: "Summer holiday",
+            starts_on: ~D[2026-06-22],
+            ends_on: ~D[2026-06-28],
+            availability: :fully_off
+          },
+          actor: user
+        )
+
+      assert {:ok, projection} =
+               Plans.project_today(plan,
+                 actor: user,
+                 date: ~D[2026-06-22],
+                 as_of_date: ~D[2026-06-23]
+               )
+
+      assert projection.input_summary.time_off_windows == 1
+
+      assert [
+               %{
+                 kind: :track,
+                 status: :on_hold,
+                 title: "Read 20 pages",
+                 payload: %{
+                   completed_event_ids: [],
+                   time_off_window: %{
+                     id: time_off_id,
+                     key: "summer_holiday",
+                     kind: :holiday,
+                     reason: "Summer holiday",
+                     starts_on: ~D[2026-06-22],
+                     ends_on: ~D[2026-06-28],
+                     availability: :fully_off
+                   }
+                 },
+                 explanation: explanation
+               }
+             ] = projection.projected_work
+
+      assert time_off_id == time_off.id
+      assert explanation =~ "on hold"
+      assert explanation =~ "summer_holiday"
+      assert {:ok, []} = Journal.read_journal(plan, actor: user)
+    end
+
+    test "completed track history still wins during time off" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-track-time-off-completed@example.com",
+          full_name: "Project Track Time Off Completed"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      track = track!(user, plan, event_type)
+      schedule!(user, plan, track)
+
+      Plans.create_time_off_window!(
+        %{
+          plan_id: plan.id,
+          key: "summer_holiday",
+          kind: :holiday,
+          starts_on: ~D[2026-06-22],
+          ends_on: ~D[2026-06-28],
+          availability: :fully_off
+        },
+        actor: user
+      )
+
+      log =
+        Journal.log_generic_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            track_id: track.id,
+            effective_at: ~U[2026-06-22 20:00:00Z],
+            recorded_at: ~U[2026-06-22 20:01:00Z],
+            summary: "Read 25 pages",
+            quantity: 25,
+            unit: "pages"
+          },
+          actor: user
+        )
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [
+               %{
+                 status: :completed,
+                 payload: %{completed_event_ids: [completed_event_id]}
+               }
+             ] = projection.projected_work
+
+      assert completed_event_id == log.event.id
+    end
+
     test "counts completed history when placing times-per-week track quota" do
       user =
         Accounts.create_user!(%{
@@ -662,7 +775,8 @@ defmodule Improve.Planning.ProjectTodayTest do
       slot_results: [],
       items: [],
       pool_memberships: [],
-      environments: []
+      environments: [],
+      time_off_windows: Keyword.get(opts, :time_off_windows, [])
     }
   end
 end

@@ -110,6 +110,7 @@ defmodule Improve.Plans.Plan do
     has_many :environments, Improve.Plans.Environment
     has_many :event_types, Improve.Plans.EventType
     has_many :schedules, Improve.Plans.Schedule
+    has_many :time_off_windows, Improve.Plans.TimeOffWindow
     has_many :session_templates, Improve.Plans.SessionTemplate
     has_many :session_slots, Improve.Plans.SessionSlot
     has_many :tracks, Improve.Plans.Track

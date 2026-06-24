@@ -26,6 +26,7 @@ defmodule Improve.App do
   defdelegate add_pool!(plan, name, opts), to: Authoring
   defdelegate add_track!(plan, name, opts), to: Authoring
   defdelegate add_session!(plan, name, opts), to: Authoring
+  defdelegate add_time_off!(plan, opts), to: Authoring
 
   defdelegate every_day(), to: Schedule
   defdelegate selected_weekdays(days), to: Schedule

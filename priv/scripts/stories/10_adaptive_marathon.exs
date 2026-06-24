@@ -176,6 +176,27 @@ Story.show_item_state!(story, plan, "race_shoes")
 
 Story.show_review!(story, plan, on: ~D[2026-07-06])
 
+# -----------------------------------------------------------------------------
+# Layer 1 — Planned time off (runs today)
+#
+# Holidays are plan-scoped windows, not journal events. During a fully-off
+# window, projection keeps the scheduled work visible as on hold rather than
+# marking it missed.
+# -----------------------------------------------------------------------------
+
+App.add_time_off!(plan,
+  actor: actor,
+  key: "summer_holiday",
+  kind: :holiday,
+  reason: "Summer holiday",
+  from: ~D[2026-08-10],
+  to: ~D[2026-08-23],
+  availability: :fully_off
+)
+
+mid_holiday = App.project_today!(plan, actor: actor, date: ~D[2026-08-16])
+Story.show_projection!(story, mid_holiday)
+
 # =============================================================================
 # Everything below is INTENDED product flow. It does not execute today.
 # It specifies what the customization and adaptation layers must produce.
@@ -283,25 +304,11 @@ Story.show_review!(story, plan, on: ~D[2026-07-06])
 #                 extend_plan 1-2 weeks      (committed, approval: true)
 
 # --- 3d. Holiday (a 2-week time-off window) ----------------------------------
-# A holiday is declared ahead as a plan-scoped time-off window (see "Planned:
-# Time-Off Windows" in notes/improve-model-and-extension-points.md), not a
-# journal event. The UI blocks the dates on the calendar; projection occludes
-# them; adaptation reasons about the gap.
-#
-#   App.add_time_off!(plan,
-#     key: "summer_holiday",
-#     kind: :holiday,
-#     from: ~D[2026-08-10], to: ~D[2026-08-23],
-#     availability: :fully_off,
-#     actor: actor
-#   )
-#
-# During the window, projection suppresses scheduled work. It is shown as on
-# hold, NOT missed - time off is not guilt, and nothing piles up:
-#
-#   mid_holiday = App.project_today!(plan, actor: actor, date: ~D[2026-08-16])
-#   Story.show_projection!(story, mid_holiday)
-#   # => Long run: on hold (summer_holiday)
+# A holiday is already declared above as a real plan-scoped time-off window
+# (see "Planned: Time-Off Windows" in notes/improve-model-and-extension-points.md).
+# The UI will eventually block the dates on the calendar; projection already
+# keeps scheduled work on hold instead of missed; adaptation still needs to
+# reason about the gap.
 #
 # The first day back, adaptation proposes a reduced re-entry run (derived) and
 # a plan edit to absorb the two-week gap (committed):
