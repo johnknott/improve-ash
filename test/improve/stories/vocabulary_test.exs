@@ -15,7 +15,8 @@ defmodule Improve.Stories.VocabularyTest do
     "06_stateful_item_effects.exs",
     "07_offline_and_correction.exs",
     "08_review_and_adjustment.exs",
-    "09_full_life_plan.exs"
+    "09_full_life_plan.exs",
+    "10_adaptive_marathon.exs"
   ]
 
   @removed_terms [
