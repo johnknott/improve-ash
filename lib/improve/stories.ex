@@ -91,6 +91,8 @@ defmodule Improve.Stories do
   def custom(description), do: App.custom(description)
   def choose(count, opts), do: App.choose(count, opts)
   def subtract_quantity(opts), do: App.subtract_quantity(opts)
+  def add_quantity(opts), do: App.add_quantity(opts)
+  def set_quantity(opts), do: App.set_quantity(opts)
   def fixed(quantity, unit), do: App.fixed(quantity, unit)
   def fixed(quantity, unit, opts), do: App.fixed(quantity, unit, opts)
   def metric(name), do: App.metric(name)
@@ -120,6 +122,10 @@ defmodule Improve.Stories do
 
   def log_slot!(%Story{} = story, started_session, opts) do
     App.log_session_slot!(started_session, Keyword.put(opts, :actor, actor!(story)))
+  end
+
+  def skip_slot!(%Story{} = story, started_session, opts) do
+    App.skip_session_slot!(started_session, Keyword.put(opts, :actor, actor!(story)))
   end
 
   def log_track!(%Story{} = story, projection, opts) do
@@ -194,19 +200,48 @@ defmodule Improve.Stories do
     Print.section("Offline Results")
 
     Print.rows(result.results, fn result ->
-      details =
-        [
-          result.client_operation_id,
-          result.conflict_category,
-          result.event_instance_id
-        ]
-        |> Enum.reject(&is_nil/1)
-        |> Enum.join(" ")
+      operation = result.client_operation_id || "offline entry"
 
-      "#{result.status}: #{details}"
+      case result.status do
+        :accepted -> "accepted: #{operation}"
+        :duplicate -> "duplicate: #{operation} matched an already accepted event"
+        :needs_resolution -> "needs review: #{operation} #{result.conflict_category}"
+        status -> "#{status}: #{operation}"
+      end
     end)
 
     result
+  end
+
+  def show_correction_result!(%Story{} = _story, correction) do
+    Print.section("Correction")
+
+    Print.key_values([
+      {"Original event", correction.corrected_event.status},
+      {"Replacement event", correction.replacement.event.summary},
+      {"Voided effects", length(correction.voided_effects)},
+      {"Active replacement effects", length(correction.replacement.item_effects)}
+    ])
+
+    correction
+  end
+
+  def show_review!(%Story{} = story, plan, opts) do
+    review = App.review!(plan, actor: actor!(story), on: Keyword.fetch!(opts, :on))
+
+    Print.section("Review")
+
+    Print.rows(review.observations, fn observation ->
+      "#{observation.topic}: #{observation.text}"
+    end)
+
+    Print.section("Suggested Changes")
+
+    Print.rows(review.suggested_changes, fn change ->
+      "#{change.change}: #{change.text} #{change.reason}"
+    end)
+
+    review
   end
 
   def show_item_state!(%Story{} = story, plan, item_key) do

@@ -141,7 +141,8 @@ defmodule Improve.Planning.Projector do
               items: input.items,
               pool_memberships: input.pool_memberships,
               environment: environment,
-              recent_item_ids: Map.get(input, :recent_item_ids, [])
+              recent_item_ids: Map.get(input, :recent_item_ids, []),
+              journal_events: Map.get(input, :journal_events, [])
             })
         }
       end)
@@ -216,7 +217,7 @@ defmodule Improve.Planning.Projector do
   end
 
   defp slot_logged?(slot_result) do
-    not is_nil(slot_result.event_instance_id) or slot_result.status == :completed
+    not is_nil(slot_result.event_instance_id) or slot_result.status in [:completed, :skipped]
   end
 
   defp progress_label(_logged, 0), do: nil

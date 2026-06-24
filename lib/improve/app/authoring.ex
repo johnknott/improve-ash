@@ -45,7 +45,7 @@ defmodule Improve.App.Authoring do
         key: Keyword.get(opts, :key, Value.key_from(name)),
         name: name,
         description: Keyword.get(opts, :description),
-        facts_schema: Value.stringify_keys(Keyword.get(opts, :facts_schema, %{})),
+        facts_schema: facts_schema(opts),
         display_hints: Value.stringify_keys(Keyword.get(opts, :display_hints, %{}))
       },
       actor: actor!(opts)
@@ -62,8 +62,8 @@ defmodule Improve.App.Authoring do
         item_type_id: item_type.id,
         key: Keyword.get(opts, :key, Value.key_from(name)),
         name: name,
-        stateful: Keyword.get(opts, :stateful, false),
-        facts: Value.stringify_keys(Keyword.get(opts, :facts, %{}))
+        stateful: Keyword.get(opts, :stateful, has_starting_facts?(opts)),
+        facts: item_facts(opts)
       },
       actor: actor
     )
@@ -258,6 +258,45 @@ defmodule Improve.App.Authoring do
     |> Value.maybe_put("default_event", Map.get(defaults, "event"))
     |> Value.maybe_put("default_payload", Map.get(defaults, "payload"))
     |> Value.maybe_put("default_role", Map.get(defaults, "role"))
+  end
+
+  defp facts_schema(opts) do
+    explicit_schema = Keyword.get(opts, :facts_schema, %{})
+    friendly_facts = Keyword.get(opts, :facts, [])
+
+    explicit_schema
+    |> Value.stringify_keys()
+    |> Map.merge(friendly_facts_schema(friendly_facts))
+  end
+
+  defp friendly_facts_schema([]), do: %{}
+  defp friendly_facts_schema(nil), do: %{}
+
+  defp friendly_facts_schema(facts) when is_list(facts) do
+    %{"optional" => Enum.map(facts, &to_string/1)}
+  end
+
+  defp friendly_facts_schema(facts) when is_map(facts) do
+    facts
+    |> Value.stringify_keys()
+    |> Map.update("optional", [], &List.wrap/1)
+  end
+
+  defp item_facts(opts) do
+    opts
+    |> Keyword.get(:facts, %{})
+    |> Value.stringify_keys()
+    |> Value.maybe_put("starting_quantity", Keyword.get(opts, :starting_quantity))
+    |> Value.maybe_put("unit", Keyword.get(opts, :unit))
+    |> Value.maybe_put(
+      "low_quantity_threshold",
+      Keyword.get(opts, :low_quantity_threshold, Keyword.get(opts, :low_at))
+    )
+  end
+
+  defp has_starting_facts?(opts) do
+    Keyword.has_key?(opts, :starting_quantity) or Keyword.has_key?(opts, :unit) or
+      Keyword.has_key?(opts, :low_quantity_threshold) or Keyword.has_key?(opts, :low_at)
   end
 
   defp item_link_roles([]), do: %{}

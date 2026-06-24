@@ -78,7 +78,7 @@ defmodule Improve.StoriesTest do
                  status: "completed",
                  track: %{completed_event_ids: [^event_id]}
                }
-             ] = ai_context.projected_work
+             ] = ai_context.work
 
       reset_story =
         Story.begin!("test_track_reading", reset?: true)
@@ -124,48 +124,59 @@ defmodule Improve.StoriesTest do
     end
   end
 
-  describe "gym session story helpers" do
-    test "express a projected gym session with a completed slot and a swap" do
+  describe "session-from-pools story helpers" do
+    test "express a projected generic session with a completed slot and a swap" do
       story =
-        Story.begin!("test_gym_session_basic", reset?: true)
-        |> Story.user!("Story Gym", email: "story+test-gym-session-basic@example.test")
+        Story.begin!("test_session_from_pools", reset?: true)
+        |> Story.user!("Story Session", email: "story+test-session-from-pools@example.test")
 
       plan =
-        Story.create_plan!(story, "Gym starter plan",
-          intention: "Build a consistent upper body routine",
+        Story.create_plan!(story, "Practice starter plan",
+          intention: "Build a consistent focused practice habit",
           from: ~D[2026-06-22],
           until: ~D[2026-07-23]
         )
 
-      Story.add_event_type!(story, plan, "Exercise performed",
-        key: "exercise_performed",
-        required_links: ["exercise"],
-        payload: %{required: ["sets", "reps", "load", "load_unit"]}
+      Story.add_event_type!(story, plan, "Practice logged",
+        key: "practice_logged",
+        required_links: ["item"],
+        payload: %{required: ["rounds", "duration_minutes", "effort"]}
       )
 
-      Story.add_item_type!(story, plan, "Exercise", key: "exercise")
-      Story.add_item!(story, plan, "Chest Press", key: "chest_press", type: "exercise")
-      Story.add_item!(story, plan, "Shoulder Press", key: "shoulder_press", type: "exercise")
-      Story.add_item!(story, plan, "Lat Pulldown", key: "lat_pulldown", type: "exercise")
-      Story.add_item!(story, plan, "Seated Row", key: "seated_row", type: "exercise")
-      Story.add_item!(story, plan, "Cable Fly", key: "cable_fly", type: "exercise")
+      Story.add_item_type!(story, plan, "Practice item", key: "practice_item")
+      Story.add_item!(story, plan, "Piano scales", key: "piano_scales", type: "practice_item")
+      Story.add_item!(story, plan, "Sight reading", key: "sight_reading", type: "practice_item")
+      Story.add_item!(story, plan, "Ear training", key: "ear_training", type: "practice_item")
+      Story.add_item!(story, plan, "Rhythm drills", key: "rhythm_drills", type: "practice_item")
+      Story.add_item!(story, plan, "Improvisation", key: "improvisation", type: "practice_item")
 
-      Story.add_pool!(story, plan, "Push exercises",
-        key: "push",
-        items: ["chest_press", "shoulder_press"]
+      Story.add_pool!(story, plan, "Technique choices",
+        key: "technique",
+        items: ["piano_scales", "sight_reading"]
       )
 
-      Story.add_pool!(story, plan, "Pull exercises",
-        key: "pull",
-        items: ["lat_pulldown", "seated_row"]
+      Story.add_pool!(story, plan, "Listening choices",
+        key: "listening",
+        items: ["ear_training", "rhythm_drills"]
       )
 
-      Story.add_session!(story, plan, "Upper body gym visit",
-        key: "upper_body",
+      suggestion =
+        Story.adaptive(fields: [:rounds, :duration_minutes], effort: :effort, review: :weekly)
+
+      Story.add_session!(story, plan, "Focused practice",
+        key: "focused_practice",
         schedule: Story.every_week(times: 2, on: [:monday, :thursday]),
         slots: [
-          Story.choose(2, from: "push"),
-          Story.choose(2, from: "pull")
+          Story.choose(2,
+            from: "technique",
+            suggest: suggestion,
+            start_with: %{rounds: 2, duration_minutes: 10, effort: "easy"}
+          ),
+          Story.choose(2,
+            from: "listening",
+            suggest: suggestion,
+            start_with: %{rounds: 2, duration_minutes: 8, effort: "easy"}
+          )
         ]
       )
 
@@ -174,47 +185,75 @@ defmodule Improve.StoriesTest do
       assert [
                %{
                  kind: :session,
-                 title: "Upper body gym visit",
+                 title: "Focused practice",
                  payload: %{session_occurrence: projected_session}
                }
              ] = today.projected_work
 
       assert [
-               %{slot_key: "push", recommended_items: push_items},
-               %{slot_key: "pull", recommended_items: pull_items}
+               %{slot_key: "technique", recommended_items: technique_items},
+               %{slot_key: "listening", recommended_items: listening_items}
              ] = projected_session.recommendations
 
-      assert Enum.map(push_items, & &1.item_key) == ["chest_press", "shoulder_press"]
-      assert Enum.map(pull_items, & &1.item_key) == ["lat_pulldown", "seated_row"]
+      assert Enum.map(technique_items, & &1.item_key) == ["piano_scales", "sight_reading"]
+      assert Enum.map(listening_items, & &1.item_key) == ["ear_training", "rhythm_drills"]
+      assert Enum.all?(technique_items ++ listening_items, &(&1.source == "cold_start"))
 
-      session = Story.start_session!(story, today, "upper_body")
+      session = Story.start_session!(story, today, "focused_practice")
       assert %{session_occurrence: occurrence, slot_results: slot_results} = session
       assert occurrence.status == :started
       assert length(slot_results) == 4
 
       first_log =
         Story.log_slot!(story, session,
-          slot: "push",
-          item: "chest_press",
-          event: "exercise_performed",
-          payload: %{sets: 3, reps: 10, load: 45, load_unit: "kg"},
-          note: "Felt solid"
+          slot: "technique",
+          item: "piano_scales",
+          event: "practice_logged",
+          payload: %{rounds: 2, duration_minutes: 12, effort: "steady"},
+          note: "Felt focused"
         )
 
       swap_log =
         Story.log_slot!(story, session,
-          slot: "push",
-          recommended: "shoulder_press",
-          actual: "cable_fly",
-          event: "exercise_performed",
-          payload: %{sets: 3, reps: 12, load: 20, load_unit: "kg"},
-          note: "Station was busy"
+          slot: "technique",
+          recommended: "sight_reading",
+          actual: "improvisation",
+          event: "practice_logged",
+          payload: %{rounds: 3, duration_minutes: 10, effort: "playful"},
+          note: "Swapped to keep momentum"
         )
 
-      assert first_log.event.summary == "Chest Press performed"
+      assert first_log.event.summary == "Piano scales performed"
       assert first_log.slot_result.status == :completed
-      assert swap_log.event.summary == "Cable Fly performed instead of Shoulder Press"
+
+      assert first_log.slot_result.actual_payload == %{
+               "duration_minutes" => 12,
+               "effort" => "steady",
+               "rounds" => 2
+             }
+
+      assert first_log.slot_result.notes == "Felt focused"
+      assert swap_log.event.summary == "Improvisation performed instead of Sight reading"
       assert swap_log.slot_result.status == :swapped
+      assert swap_log.slot_result.recommended_item_id != swap_log.slot_result.actual_item_id
+
+      assert swap_log.slot_result.actual_payload == %{
+               "duration_minutes" => 10,
+               "effort" => "playful",
+               "rounds" => 3
+             }
+
+      skip_result =
+        Story.skip_slot!(story, session,
+          slot: "listening",
+          recommended: "ear_training",
+          payload: %{reason: "out_of_time"},
+          note: "Ran out of time"
+        )
+
+      assert skip_result.status == :skipped
+      assert skip_result.actual_payload == %{"reason" => "out_of_time"}
+      assert skip_result.notes == "Ran out of time"
 
       slot_statuses =
         Sessions.list_slot_results!(
@@ -226,7 +265,8 @@ defmodule Improve.StoriesTest do
 
       assert slot_statuses.completed == 1
       assert slot_statuses.swapped == 1
-      assert slot_statuses.planned == 2
+      assert slot_statuses.skipped == 1
+      assert slot_statuses.planned == 1
 
       journal_by_summary =
         plan
@@ -234,8 +274,8 @@ defmodule Improve.StoriesTest do
         |> Map.new(&{&1.summary, &1})
 
       assert %{
-               "Chest Press performed" => first_event,
-               "Cable Fly performed instead of Shoulder Press" => swap_event
+               "Piano scales performed" => first_event,
+               "Improvisation performed instead of Sight reading" => swap_event
              } = journal_by_summary
 
       assert first_event.session_occurrence_id == occurrence.id
@@ -252,42 +292,46 @@ defmodule Improve.StoriesTest do
                %{
                  kind: "session",
                  status: "partial",
-                 session_occurrence: %{session_template_name: "Upper body gym visit"},
-                 session_state: %{progress_label: "2 of 4 logged"}
+                 session: %{name: "Focused practice"},
+                 session_state: %{progress_label: "3 of 4 logged"}
                }
-             ] = ai_context.projected_work
+             ] = ai_context.work
     end
   end
 
-  describe "vial inventory story helpers" do
-    test "log a linked inventory event and derive item state from generated effects" do
+  describe "stateful item story helpers" do
+    test "log a linked use event and derive item state from generated effects" do
       story =
-        Story.begin!("test_vial_inventory_basic", reset?: true)
-        |> Story.user!("Story Vial", email: "story+test-vial-inventory-basic@example.test")
+        Story.begin!("test_stateful_item_effects", reset?: true)
+        |> Story.user!("Story Stateful", email: "story+test-stateful-item-effects@example.test")
 
       plan =
-        Story.create_plan!(story, "Vial inventory plan",
-          intention: "Track vial quantity and dose history",
+        Story.create_plan!(story, "Supply state plan",
+          intention: "Track starting facts, item effects, and derived state",
           from: ~D[2026-06-22],
           until: ~D[2026-09-14]
         )
 
-      Story.add_item_type!(story, plan, "Peptide vial", key: "peptide_vial")
-
-      Story.add_item!(story, plan, "Retatrutide vial 1",
-        key: "reta_vial_1",
-        type: "peptide_vial",
-        stateful: true,
-        facts: %{starting_quantity: 5000, unit: "mcg", low_quantity_threshold: 500}
+      Story.add_item_type!(story, plan, "Supply container",
+        key: "supply_container",
+        facts: [:starting_quantity, :unit, :low_quantity_threshold]
       )
 
-      Story.add_event_type!(story, plan, "Dose taken",
-        key: "dose_taken",
-        required_links: ["source_vial"],
+      Story.add_item!(story, plan, "Workshop bin",
+        key: "workshop_bin",
+        type: "supply_container",
+        starting_quantity: 20,
+        unit: "uses",
+        low_at: 5
+      )
+
+      Story.add_event_type!(story, plan, "Use recorded",
+        key: "use_recorded",
+        required_links: ["container"],
         payload: %{required: ["amount", "unit"]},
         effects: [
           Story.subtract_quantity(
-            from: "source_vial",
+            item: "container",
             quantity: "payload.amount",
             unit: "payload.unit"
           )
@@ -296,53 +340,56 @@ defmodule Improve.StoriesTest do
 
       before_state =
         capture_return(fn ->
-          Story.show_item_state!(story, plan, "reta_vial_1")
+          Story.show_item_state!(story, plan, "workshop_bin")
         end)
 
-      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(5000))
-      assert before_state.calculated_state.unit == "mcg"
+      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(20))
+      assert before_state.calculated_state.unit == "uses"
       assert before_state.active_effects == []
 
       log =
         Story.log_event!(story, plan,
-          event: "dose_taken",
+          event: "use_recorded",
           on: ~D[2026-06-22],
-          summary: "Dose taken from Retatrutide vial 1",
-          links: %{source_vial: "reta_vial_1"},
-          payload: %{amount: 250, unit: "mcg", site: "abdomen", note: "Morning dose"}
+          summary: "Use recorded from Workshop bin",
+          links: %{container: "workshop_bin"},
+          payload: %{amount: 17, unit: "uses", note: "Large project day"}
         )
 
-      assert log.event.summary == "Dose taken from Retatrutide vial 1"
-      assert log.event.quantity == Decimal.new(250)
-      assert log.event.unit == "mcg"
+      assert log.event.summary == "Use recorded from Workshop bin"
+      assert log.event.quantity == Decimal.new(17)
+      assert log.event.unit == "uses"
 
-      assert [%{role: "source_vial"} = link] = log.event_item_links
+      assert [%{role: "container"} = link] = log.event_item_links
       assert [effect] = log.item_effects
       assert effect.item_id == link.item_id
       assert effect.effect_type == :subtract_quantity
-      assert effect.quantity == Decimal.new(250)
-      assert effect.unit == "mcg"
+      assert effect.quantity == Decimal.new(17)
+      assert effect.unit == "uses"
 
       after_state =
         capture_return(fn ->
-          Story.show_item_state!(story, plan, "reta_vial_1")
+          Story.show_item_state!(story, plan, "workshop_bin")
         end)
 
-      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(4750))
-      assert after_state.calculated_state.unit == "mcg"
+      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(3))
+      assert after_state.calculated_state.unit == "uses"
       assert Enum.map(after_state.active_effects, & &1.id) == [effect.id]
-      assert after_state.warnings == []
+      assert [%{code: :low_quantity, message: message}] = after_state.warnings
+      assert message == "Item quantity is below the configured low quantity threshold."
 
       assert [%{id: event_id}] = Journal.read_journal!(plan, actor: story.user)
       assert event_id == log.event.id
 
       ai_state =
         capture_return(fn ->
-          Story.show_ai_item_state!(story, plan, "reta_vial_1")
+          Story.show_ai_item_state!(story, plan, "workshop_bin")
         end)
 
-      assert ai_state.calculated_state.current_quantity == "4750"
-      assert [%{effect_type: :subtract_quantity, quantity: "250"}] = ai_state.active_effects
+      assert ai_state.calculated_state.current_quantity == "3"
+
+      assert [%{effect_type: :subtract_quantity, quantity: "17"}] =
+               ai_state.active_item_effects
     end
   end
 
@@ -352,37 +399,43 @@ defmodule Improve.StoriesTest do
         Story.begin!("test_correct_logged_event", reset?: true)
         |> Story.user!("Story Correct", email: "story+test-correct-logged-event@example.test")
 
-      plan = vial_inventory_plan!(story, "Correction inventory plan")
+      plan = stateful_container_plan!(story, "Correction history plan")
 
       original =
         Story.log_event!(story, plan,
-          event: "dose_taken",
+          event: "use_recorded",
           on: ~D[2026-06-22],
-          summary: "Dose taken from Retatrutide vial 1",
-          links: %{source_vial: "reta_vial_1"},
-          payload: %{amount: 250, unit: "mcg", site: "abdomen"}
+          summary: "Use recorded from Workshop bin",
+          links: %{container: "workshop_bin"},
+          payload: %{amount: 17, unit: "uses"}
         )
 
       before_state =
         capture_return(fn ->
-          Story.show_item_state!(story, plan, "reta_vial_1")
+          Story.show_item_state!(story, plan, "workshop_bin")
         end)
 
-      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(4750))
+      assert Decimal.equal?(before_state.calculated_state.current_quantity, Decimal.new(3))
 
       correction =
         Story.correct_event!(story, original,
           corrected_at: ~U[2026-06-22 21:00:00Z],
           reason: "Amount was entered incorrectly",
           replacement: [
-            event: "dose_taken",
+            event: "use_recorded",
             effective_at: ~U[2026-06-22 20:00:00Z],
-            summary: "Corrected dose from Retatrutide vial 1",
-            links: %{source_vial: "reta_vial_1"},
-            payload: %{amount: 200, unit: "mcg", site: "abdomen"}
+            summary: "Corrected use from Workshop bin",
+            links: %{container: "workshop_bin"},
+            payload: %{amount: 12, unit: "uses"}
           ]
         )
 
+      shown_correction =
+        capture_return(fn ->
+          Story.show_correction_result!(story, correction)
+        end)
+
+      assert shown_correction.replacement.event.summary == "Corrected use from Workshop bin"
       assert correction.corrected_event.status == :corrected
       assert [voided_effect] = correction.voided_effects
       assert voided_effect.status == :voided
@@ -392,10 +445,10 @@ defmodule Improve.StoriesTest do
 
       after_state =
         capture_return(fn ->
-          Story.show_item_state!(story, plan, "reta_vial_1")
+          Story.show_item_state!(story, plan, "workshop_bin")
         end)
 
-      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(4800))
+      assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(8))
       assert Enum.map(after_state.active_effects, & &1.id) == [replacement_effect.id]
 
       assert %{corrected: 1, active: 1} =
@@ -406,11 +459,13 @@ defmodule Improve.StoriesTest do
 
       ai_state =
         capture_return(fn ->
-          Story.show_ai_item_state!(story, plan, "reta_vial_1")
+          Story.show_ai_item_state!(story, plan, "workshop_bin")
         end)
 
-      assert ai_state.calculated_state.current_quantity == "4800"
-      assert [%{effect_type: :subtract_quantity, quantity: "200"}] = ai_state.active_effects
+      assert ai_state.calculated_state.current_quantity == "8"
+
+      assert [%{effect_type: :subtract_quantity, quantity: "12"}] =
+               ai_state.active_item_effects
     end
   end
 
@@ -420,9 +475,9 @@ defmodule Improve.StoriesTest do
         Story.begin!("test_offline_duplicate_and_stale", reset?: true)
         |> Story.user!("Story Offline", email: "story+test-offline@example.test")
 
-      plan = hybrid_today_plan!(story, "Offline resilience plan")
+      plan = offline_resilience_plan!(story, "Offline resilience plan")
       today = Story.project_today!(story, plan, on: ~D[2026-06-22])
-      session = Story.start_session!(story, today, "upper_body")
+      session = Story.start_session!(story, today, "focused_practice")
 
       reading =
         Story.offline_event(story, plan,
@@ -438,20 +493,20 @@ defmodule Improve.StoriesTest do
 
       logged_slot =
         Story.log_slot!(story, session,
-          slot: "push",
-          item: "chest_press",
-          event: "exercise_performed",
-          payload: %{sets: 3, reps: 10}
+          slot: "technique",
+          item: "piano_scales",
+          event: "practice_logged",
+          payload: %{rounds: 2, duration_minutes: 12}
         )
         |> Map.fetch!(:slot_result)
 
       stale_slot =
         Story.offline_event(story, plan,
-          event: "exercise_performed",
+          event: "practice_logged",
           on: ~D[2026-06-22],
-          summary: "Offline chest press retry",
-          links: %{exercise: "chest_press"},
-          payload: %{sets: 3, reps: 10},
+          summary: "Offline practice retry",
+          links: %{item: "piano_scales"},
+          payload: %{rounds: 2, duration_minutes: 12},
           session_occurrence_id: session.session_occurrence.id,
           slot_result_id: logged_slot.id,
           operation: "offline-slot-001",
@@ -467,6 +522,7 @@ defmodule Improve.StoriesTest do
       [accepted, duplicate, stale] = result.results
       assert duplicate.event_instance_id == accepted.event_instance_id
       assert stale.conflict_category == :stale_session_state
+      assert capture_return(fn -> Story.show_offline_results!(story, result) end) == result
 
       events = Journal.read_journal!(plan, actor: story.user)
       assert length(events) == 2
@@ -525,12 +581,43 @@ defmodule Improve.StoriesTest do
       assert [
                %{kind: "session", status: "partial"},
                %{kind: "track", status: "completed"}
-             ] = ai_context.projected_work
+             ] = ai_context.work
 
       assert ai_context.input_summary.journal_events == 2
       assert ai_context.input_summary.session_occurrences == 1
       assert ai_context.headline =~ "1 track(s) and 1 session(s)"
       assert Enum.map(ai_context.sections, & &1.kind) == [:sessions, :recovery]
+    end
+  end
+
+  describe "review story helpers" do
+    test "shows deterministic observations and suggested changes" do
+      story =
+        Story.begin!("test_review_and_adjustment", reset?: true)
+        |> Story.user!("Story Review", email: "story+test-review-and-adjustment@example.test")
+
+      plan = hybrid_today_plan!(story, "Review helper plan")
+      before = Story.project_today!(story, plan, on: ~D[2026-06-22])
+
+      Story.log_track!(story, before,
+        track: "daily_reading",
+        payload: %{pages: 25, note: "Read before breakfast"}
+      )
+
+      review =
+        capture_return(fn ->
+          Story.show_review!(story, plan, on: ~D[2026-06-23])
+        end)
+
+      assert Enum.any?(review.observations, &(&1.topic == :plan_shape))
+      assert Enum.any?(review.observations, &(&1.topic == :history))
+
+      assert Enum.any?(
+               review.suggested_changes,
+               &(&1.change == :tune_recommendations_from_history)
+             )
+
+      assert "Review is deterministic and read-only." in review.reasons
     end
   end
 
@@ -629,7 +716,7 @@ defmodule Improve.StoriesTest do
           Story.show_ai_today_context!(story, plan, on: ~D[2026-06-23])
         end)
 
-      assert [%{kind: "session", title: "Upper body gym visit"} | _] = ai_tuesday.projected_work
+      assert [%{kind: "session", title: "Upper body gym visit"} | _] = ai_tuesday.work
       assert ai_tuesday.input_summary.journal_events == 1
       assert ai_tuesday.headline =~ "track(s)"
       assert Enum.any?(ai_tuesday.sections, &(&1.kind == :sessions))
@@ -653,33 +740,93 @@ defmodule Improve.StoriesTest do
     Process.get(ref)
   end
 
-  defp vial_inventory_plan!(story, name) do
+  defp stateful_container_plan!(story, name) do
     plan =
       Story.create_plan!(story, name,
-        intention: "Track vial quantity and dose history",
+        intention: "Correct stateful item history",
         from: ~D[2026-06-22],
         until: ~D[2026-09-14]
       )
 
-    Story.add_item_type!(story, plan, "Peptide vial", key: "peptide_vial")
-
-    Story.add_item!(story, plan, "Retatrutide vial 1",
-      key: "reta_vial_1",
-      type: "peptide_vial",
-      stateful: true,
-      facts: %{starting_quantity: 5000, unit: "mcg"}
+    Story.add_item_type!(story, plan, "Supply container",
+      key: "supply_container",
+      facts: [:starting_quantity, :unit]
     )
 
-    Story.add_event_type!(story, plan, "Dose taken",
-      key: "dose_taken",
-      required_links: ["source_vial"],
+    Story.add_item!(story, plan, "Workshop bin",
+      key: "workshop_bin",
+      type: "supply_container",
+      starting_quantity: 20,
+      unit: "uses"
+    )
+
+    Story.add_event_type!(story, plan, "Use recorded",
+      key: "use_recorded",
+      required_links: ["container"],
       payload: %{required: ["amount", "unit"]},
       effects: [
         Story.subtract_quantity(
-          from: "source_vial",
+          item: "container",
           quantity: "payload.amount",
           unit: "payload.unit"
         )
+      ]
+    )
+
+    plan
+  end
+
+  defp offline_resilience_plan!(story, name) do
+    plan =
+      Story.create_plan!(story, name,
+        intention: "Accept offline logs safely without duplicating or overwriting stale work",
+        from: ~D[2026-06-22],
+        until: ~D[2026-07-23]
+      )
+
+    Story.add_event_type!(story, plan, "Pages read",
+      key: "pages_read",
+      payload: %{required: ["pages"]}
+    )
+
+    Story.add_track!(story, plan, "Read 20 pages",
+      key: "daily_reading",
+      event: "pages_read",
+      schedule: Story.every_day(),
+      target: %{
+        quantity: 20,
+        unit: "pages",
+        quantity_path: "payload.pages",
+        summary_template: "Read %{quantity} %{unit}"
+      }
+    )
+
+    Story.add_event_type!(story, plan, "Practice logged",
+      key: "practice_logged",
+      required_links: ["item"],
+      payload: %{required: ["rounds", "duration_minutes"]}
+    )
+
+    Story.add_item_type!(story, plan, "Practice item", key: "practice_item")
+    Story.add_item!(story, plan, "Piano scales", key: "piano_scales", type: "practice_item")
+    Story.add_item!(story, plan, "Ear training", key: "ear_training", type: "practice_item")
+
+    Story.add_pool!(story, plan, "Technique choices",
+      key: "technique",
+      items: ["piano_scales"]
+    )
+
+    Story.add_pool!(story, plan, "Listening choices",
+      key: "listening",
+      items: ["ear_training"]
+    )
+
+    Story.add_session!(story, plan, "Focused practice",
+      key: "focused_practice",
+      schedule: Story.every_week(times: 1, on: [:monday]),
+      slots: [
+        Story.choose(1, from: "technique"),
+        Story.choose(1, from: "listening")
       ]
     )
 

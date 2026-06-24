@@ -44,6 +44,10 @@ run = "mix compile --warnings-as-errors"
 description = "Run ExUnit tests"
 run = "mise run db:up && mix test"
 
+[tasks."stories:run"]
+description = "Run executable backend product stories against the test database"
+run = "mise run db:up && for story in priv/scripts/stories/*.exs; do MIX_ENV=test mix run \"$story\"; done"
+
 [tasks."db:create"]
 description = "Start Postgres and create the local database"
 run = "mise run db:up && mix ecto.create"
@@ -87,3 +91,7 @@ run = "npm --prefix frontend run check"
 [tasks.verify]
 description = "Run local verification"
 run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check && mise run frontend:check && mise run frontend:build"
+
+[tasks."verify:backend"]
+description = "Run backend-only story/model verification"
+run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check && mise run stories:run"

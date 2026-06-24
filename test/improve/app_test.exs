@@ -53,6 +53,32 @@ defmodule Improve.AppTest do
              }
     end
 
+    test "builds adaptive session slot suggestion rules" do
+      assert App.choose(1,
+               from: "practice_items",
+               suggest:
+                 App.adaptive(
+                   fields: [:rounds, :duration_minutes],
+                   effort: :effort,
+                   review: :weekly
+                 ),
+               start_with: %{rounds: 2, duration_minutes: 10, effort: "easy"}
+             ) == %{
+               count: 1,
+               from: "practice_items",
+               optional: false,
+               rules: %{
+                 suggestion_target: %{
+                   type: :adaptive,
+                   fields: [:rounds, :duration_minutes],
+                   effort: :effort,
+                   review: :weekly
+                 },
+                 cold_start_payload: %{rounds: 2, duration_minutes: 10, effort: "easy"}
+               }
+             }
+    end
+
     test "returns an honest projection diagnostic for recognized targets not supported yet" do
       user = user!("app-target-diagnostic@example.com")
 
@@ -294,6 +320,165 @@ defmodule Improve.AppTest do
       state = App.get_item_state!(plan, "retatrutide", actor: user)
       assert Decimal.equal?(state.calculated_state.current_quantity, Decimal.new(18))
     end
+
+    test "defines a generic stateful item and derives quantity from active effects" do
+      user = user!("app-generic-stateful-item@example.com")
+
+      plan =
+        App.create_plan!("Supplies",
+          actor: user,
+          intention: "Track a reusable supply container",
+          from: ~D[2026-06-22],
+          until: ~D[2026-07-23]
+        )
+
+      item_type =
+        App.add_item_type!(plan, "Supply container",
+          actor: user,
+          key: "supply_container",
+          facts: [:starting_quantity, :unit, :low_quantity_threshold]
+        )
+
+      container =
+        App.add_item!(plan, "Workshop bin",
+          actor: user,
+          key: "workshop_bin",
+          type: "supply_container",
+          starting_quantity: 20,
+          unit: "uses",
+          low_at: 5
+        )
+
+      App.add_event_type!(plan, "Use recorded",
+        actor: user,
+        key: "use_recorded",
+        required_links: ["container"],
+        payload: %{required: ["amount", "unit"]},
+        effects: [
+          App.subtract_quantity(
+            item: "container",
+            quantity: "payload.amount",
+            unit: "payload.unit"
+          )
+        ]
+      )
+
+      App.add_event_type!(plan, "Refill recorded",
+        actor: user,
+        key: "refill_recorded",
+        required_links: ["container"],
+        payload: %{required: ["amount", "unit"]},
+        effects: [
+          App.add_quantity(item: "container", quantity: "payload.amount", unit: "payload.unit")
+        ]
+      )
+
+      App.add_event_type!(plan, "Count recorded",
+        actor: user,
+        key: "count_recorded",
+        required_links: ["container"],
+        payload: %{required: ["amount", "unit"]},
+        effects: [
+          App.set_quantity(item: "container", quantity: "payload.amount", unit: "payload.unit")
+        ]
+      )
+
+      App.log_event!(plan,
+        actor: user,
+        event: "use_recorded",
+        on: ~D[2026-06-22],
+        links: %{container: "workshop_bin"},
+        payload: %{amount: 7, unit: "uses"}
+      )
+
+      App.log_event!(plan,
+        actor: user,
+        event: "refill_recorded",
+        on: ~D[2026-06-23],
+        links: %{container: "workshop_bin"},
+        payload: %{amount: 4, unit: "uses"}
+      )
+
+      App.log_event!(plan,
+        actor: user,
+        event: "count_recorded",
+        on: ~D[2026-06-24],
+        links: %{container: "workshop_bin"},
+        payload: %{amount: 11, unit: "uses"}
+      )
+
+      assert item_type.facts_schema == %{
+               "optional" => ["starting_quantity", "unit", "low_quantity_threshold"]
+             }
+
+      assert container.stateful == true
+      assert container.facts["starting_quantity"] == 20
+      assert container.facts["unit"] == "uses"
+      assert container.facts["low_quantity_threshold"] == 5
+
+      state = App.get_item_state!(plan, "workshop_bin", actor: user)
+      assert Decimal.equal?(state.calculated_state.current_quantity, Decimal.new(11))
+      assert state.calculated_state.unit == "uses"
+
+      assert Enum.map(state.active_effects, & &1.effect_type) == [
+               :subtract_quantity,
+               :add_quantity,
+               :set_quantity
+             ]
+    end
+
+    test "builds offline events from stable app-facing references" do
+      user = user!("app-offline-stable-refs@example.com")
+
+      plan =
+        App.create_plan!("Offline references",
+          actor: user,
+          intention: "Build offline commands from app-facing keys",
+          from: ~D[2026-06-22],
+          until: ~D[2026-07-23]
+        )
+
+      App.add_event_type!(plan, "Pages read",
+        actor: user,
+        key: "pages_read",
+        required_links: ["book"],
+        payload: %{required: ["pages"]}
+      )
+
+      App.add_item_type!(plan, "Book", actor: user, key: "book")
+      book = App.add_item!(plan, "Novel", actor: user, key: "novel", type: "book")
+
+      track =
+        App.add_track!(plan, "Read 20 pages",
+          actor: user,
+          key: "daily_reading",
+          event: "pages_read",
+          schedule: App.every_day(),
+          target: App.fixed(20, "pages", quantity_path: "payload.pages")
+        )
+
+      offline =
+        App.offline_event(plan,
+          actor: user,
+          event: "pages_read",
+          track: "daily_reading",
+          on: ~D[2026-06-22],
+          summary: "Read 20 pages offline",
+          links: %{book: "novel"},
+          payload: %{pages: 20},
+          operation: "offline-reading-001",
+          client_event_id: "offline-reading-001-event",
+          idempotency_key: "offline-reading-001-key"
+        )
+
+      assert offline.event_type_id
+      assert offline.track_id == track.id
+      assert [%{role: "book", item_id: item_id}] = offline.item_links
+      assert item_id == book.id
+      assert offline.idempotency.client_operation_id == "offline-reading-001"
+      assert offline.idempotency.client_event_id == "offline-reading-001-event"
+      assert offline.idempotency.idempotency_key == "offline-reading-001-key"
+    end
   end
 
   describe "product-facing session logging" do
@@ -356,8 +541,8 @@ defmodule Improve.AppTest do
         )
 
       assert log.event.event_type_id == event_type.id
-      assert log.event.quantity == Decimal.new(2)
-      assert log.event.unit == "sets"
+      assert is_nil(log.event.quantity)
+      assert is_nil(log.event.unit)
 
       assert log.event.payload == %{
                "sets" => 2,
@@ -378,6 +563,64 @@ defmodule Improve.AppTest do
                  payload: %{session_state: %{progress_label: "1 of 1 logged"}}
                }
              ] = completed_projection.projected_work
+    end
+  end
+
+  describe "product-facing plan review" do
+    test "reviews history deterministically without writing product data" do
+      user = user!("app-review@example.com")
+      other_user = user!("app-review-other@example.com")
+
+      plan =
+        App.create_plan!("Review reading",
+          actor: user,
+          intention: "Read consistently and review progress",
+          from: ~D[2026-06-22],
+          until: ~D[2026-07-23]
+        )
+
+      App.add_track!(plan, "Read 20 pages",
+        actor: user,
+        key: "daily_reading",
+        schedule: App.every_day(),
+        target: App.fixed(20, "pages"),
+        records: App.number("pages")
+      )
+
+      before_review = Journal.read_journal!(plan, actor: user)
+
+      empty_review = App.review!(plan, actor: user, on: ~D[2026-06-22])
+
+      assert Enum.any?(
+               empty_review.suggested_changes,
+               &(&1.change == :keep_collecting_history)
+             )
+
+      projection = App.project_today!(plan, actor: user, date: ~D[2026-06-22])
+
+      App.log_track!(projection,
+        actor: user,
+        track: "daily_reading",
+        payload: %{amount: 25}
+      )
+
+      review = App.review!(plan, actor: user, on: ~D[2026-06-23])
+
+      assert Enum.any?(
+               review.observations,
+               &(&1.topic == :history and &1.data.active_events == 1)
+             )
+
+      assert Enum.any?(
+               review.suggested_changes,
+               &(&1.change == :tune_recommendations_from_history)
+             )
+
+      assert length(Journal.read_journal!(plan, actor: user)) == length(before_review) + 1
+
+      assert_raise Ash.Error.Invalid, fn ->
+        App.review!(plan, actor: other_user, on: ~D[2026-06-23])
+      end
     end
   end
 

@@ -64,8 +64,8 @@ defmodule Improve.App.Logging do
           recorded_at: Keyword.get(opts, :recorded_at, effective_at),
           summary:
             Keyword.get(opts, :summary, session_slot_summary(actual_item, recommended_item)),
-          quantity: Keyword.get(opts, :quantity, Value.value(payload, "sets")),
-          unit: Keyword.get(opts, :unit, "sets"),
+          quantity: Keyword.get(opts, :quantity, generic_quantity(payload)),
+          unit: Keyword.get(opts, :unit, Value.value(payload, "unit")),
           payload: payload,
           note: Keyword.get(opts, :note, Value.value(payload, "note"))
         },
@@ -73,6 +73,24 @@ defmodule Improve.App.Logging do
       )
 
     Map.put(result, :event_item_links, [result.event_item_link])
+  end
+
+  def skip_session_slot!(started_session, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    occurrence = Map.fetch!(started_session, :session_occurrence)
+    plan_id = occurrence.plan_id
+    slot = Lookup.session_slot!(occurrence, Keyword.fetch!(opts, :slot), actor)
+    recommended_item = maybe_item(plan_id, Keyword.get(opts, :recommended), actor)
+    slot_result = skippable_slot_result!(started_session, slot, recommended_item, actor)
+
+    Sessions.skip_slot_result!(
+      slot_result,
+      %{
+        actual_payload: Value.stringify_keys(Keyword.get(opts, :payload, %{})),
+        notes: Keyword.get(opts, :note, Keyword.get(opts, :notes))
+      },
+      actor: actor
+    )
   end
 
   def log_event!(plan, opts) do
@@ -210,6 +228,21 @@ defmodule Improve.App.Logging do
     end
   end
 
+  defp skippable_slot_result!(started_session, slot, recommended_item, actor) do
+    occurrence = Map.fetch!(started_session, :session_occurrence)
+
+    actor
+    |> Lookup.slot_results(occurrence.id)
+    |> Enum.filter(&(&1.session_slot_id == slot.id))
+    |> Enum.filter(&is_nil(&1.event_instance_id))
+    |> prefer_recommended(recommended_item)
+    |> List.first()
+    |> case do
+      nil -> raise ArgumentError, "No open slot result exists for slot #{inspect(slot.key)}."
+      slot_result -> slot_result
+    end
+  end
+
   defp event_key!(slot, opts) do
     Keyword.get(opts, :event) || Value.value(slot.rules, "default_event") ||
       raise ArgumentError, "A session slot log needs an event key or slot default_event rule."
@@ -237,6 +270,10 @@ defmodule Improve.App.Logging do
       _other -> %{}
     end
     |> Map.merge(Value.stringify_keys(Keyword.get(opts, :payload, %{})))
+  end
+
+  defp generic_quantity(payload) do
+    Value.value(payload, "amount") || Value.value(payload, "quantity")
   end
 
   defp session_slot_summary(actual_item, nil), do: "#{actual_item.name} performed"

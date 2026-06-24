@@ -90,9 +90,8 @@ defmodule Improve.Ai.ReadTool do
     %{
       plan_id: projection.plan_id,
       date: Date.to_iso8601(projection.date),
-      projected_session_occurrences:
-        Enum.map(projection.projected_session_occurrences, &projected_occurrence_json/1),
-      projected_work: Enum.map(projection.projected_work, &projected_work_json/1),
+      sessions: Enum.map(projection.projected_session_occurrences, &projected_occurrence_json/1),
+      work: Enum.map(projection.projected_work, &projected_work_json/1),
       input_summary: projection.input_summary,
       diagnostics: projection.diagnostics,
       explanations: projection.explanations
@@ -104,11 +103,9 @@ defmodule Improve.Ai.ReadTool do
       kind: "session",
       status: Atom.to_string(work.status),
       planned_for: Date.to_iso8601(work.planned_for),
-      owner_type: "session_template",
-      owner_id: work.owner_id,
       title: work.title,
       explanation: work.explanation,
-      session_occurrence: projected_occurrence_json(occurrence),
+      session: projected_occurrence_json(occurrence),
       session_state: Map.get(work.payload, :session_state, %{})
     }
   end
@@ -118,14 +115,11 @@ defmodule Improve.Ai.ReadTool do
       kind: "track",
       status: Atom.to_string(work.status),
       planned_for: Date.to_iso8601(work.planned_for),
-      owner_type: "track",
-      owner_id: work.owner_id,
       title: work.title,
       explanation: work.explanation,
       track: %{
-        track_id: payload.track_id,
-        track_key: payload.track_key,
-        event_type_id: payload.event_type_id,
+        id: payload.track_id,
+        key: payload.track_key,
         target: payload.target,
         completion_policy: payload.completion_policy,
         missed_policy: payload.missed_policy,
@@ -137,8 +131,8 @@ defmodule Improve.Ai.ReadTool do
   defp projected_occurrence_json(occurrence) do
     %{
       plan_id: occurrence.plan_id,
-      session_template_id: occurrence.session_template_id,
-      session_template_name: occurrence.session_template_name,
+      template_id: occurrence.session_template_id,
+      name: occurrence.session_template_name,
       planned_for: Date.to_iso8601(occurrence.planned_for),
       recommendations: Enum.map(occurrence.recommendations, &recommendation_json/1),
       session_state: Map.get(occurrence, :session_state, %{})
@@ -160,21 +154,25 @@ defmodule Improve.Ai.ReadTool do
       item_id: item.item_id,
       item_key: item.item_key,
       item_name: item.item_name,
-      reason: Map.get(item, :reason)
+      suggested_payload: Map.get(item, :suggested_payload, %{}),
+      reason: Map.get(item, :reason),
+      source: Map.get(item, :source),
+      previous_event_ids: Map.get(item, :previous_event_ids, []),
+      previous_events: Map.get(item, :previous_events, [])
     }
   end
 
   defp event_json(event) do
     %{
       id: event.id,
-      event_type_id: event.event_type_id,
+      event_type: %{id: event.event_type_id},
       summary: event.summary,
       status: event.status,
       quantity: decimal_string(event.quantity),
       unit: event.unit,
       effective_at: DateTime.to_iso8601(event.effective_at),
       recorded_at: DateTime.to_iso8601(event.recorded_at),
-      replaces_event_instance_id: event.replaces_event_instance_id
+      replaces_event_id: event.replaces_event_instance_id
     }
   end
 
@@ -183,7 +181,7 @@ defmodule Improve.Ai.ReadTool do
       item_id: state.item_id,
       starting_facts: stringify_values(state.starting_facts),
       calculated_state: stringify_values(state.calculated_state),
-      active_effects: Enum.map(state.active_effects, &effect_json/1),
+      active_item_effects: Enum.map(state.active_effects, &effect_json/1),
       warnings: state.warnings
     }
   end
@@ -191,7 +189,7 @@ defmodule Improve.Ai.ReadTool do
   defp effect_json(effect) do
     %{
       id: effect.id,
-      event_instance_id: effect.event_instance_id,
+      event_id: effect.event_instance_id,
       effect_type: effect.effect_type,
       quantity: decimal_string(effect.quantity),
       unit: effect.unit,

@@ -75,6 +75,7 @@ defmodule Improve.Plans do
       define :create_session_slot, action: :create
       define :get_session_slot, action: :read, get_by: [:id]
       define :list_session_slots, action: :read
+      define :update_session_slot, action: :update
     end
 
     resource Improve.Plans.Track do
@@ -198,12 +199,12 @@ defmodule Improve.Plans do
       :session_slots,
       :schedules,
       :tracks,
-      :event_instances,
       :session_occurrences,
       :slot_results,
       :items,
       :pool_memberships,
-      :environments
+      :environments,
+      event_instances: [:event_item_links]
     ]
   end
 end

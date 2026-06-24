@@ -22,6 +22,8 @@ defmodule Improve.Sessions.SlotResult do
         :session_slot_id,
         :recommended_item_id,
         :actual_item_id,
+        :suggested_payload,
+        :actual_payload,
         :status,
         :event_instance_id,
         :notes
@@ -39,7 +41,7 @@ defmodule Improve.Sessions.SlotResult do
 
     update :complete do
       require_atomic? false
-      accept [:actual_item_id, :event_instance_id, :notes]
+      accept [:actual_item_id, :actual_payload, :event_instance_id, :notes]
 
       validate data_one_of(:status, [:planned, :swapped]) do
         message "can only be completed from planned or swapped"
@@ -59,7 +61,7 @@ defmodule Improve.Sessions.SlotResult do
 
     update :swap do
       require_atomic? false
-      accept [:actual_item_id, :event_instance_id, :notes]
+      accept [:actual_item_id, :actual_payload, :event_instance_id, :notes]
 
       validate data_one_of(:status, [:planned, :swapped]) do
         message "can only be swapped from planned or swapped"
@@ -75,6 +77,17 @@ defmodule Improve.Sessions.SlotResult do
                   actual_item_id: Improve.Plans.Item,
                   event_instance_id: Improve.Journal.EventInstance
                 ]}
+    end
+
+    update :skip do
+      require_atomic? false
+      accept [:actual_payload, :notes]
+
+      validate data_one_of(:status, [:planned, :swapped]) do
+        message "can only be skipped from planned or swapped"
+      end
+
+      change set_attribute(:status, :skipped)
     end
   end
 
@@ -100,6 +113,18 @@ defmodule Improve.Sessions.SlotResult do
 
     attribute :notes, :string do
       public? true
+    end
+
+    attribute :suggested_payload, :map do
+      allow_nil? false
+      public? true
+      default %{}
+    end
+
+    attribute :actual_payload, :map do
+      allow_nil? false
+      public? true
+      default %{}
     end
 
     create_timestamp :inserted_at, public?: true

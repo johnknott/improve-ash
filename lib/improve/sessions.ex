@@ -30,6 +30,7 @@ defmodule Improve.Sessions do
       define :list_slot_results, action: :read
       define :complete_slot_result, action: :complete
       define :swap_slot_result, action: :swap
+      define :skip_slot_result, action: :skip
     end
   end
 
@@ -90,6 +91,7 @@ defmodule Improve.Sessions do
         session_slot_id: recommendation.session_slot_id,
         recommended_item_id: recommended_item.item_id,
         actual_item_id: actual_item_id,
+        suggested_payload: Map.get(recommended_item, :suggested_payload, %{}),
         status: slot_status(recommended_item.item_id, actual_item_id)
       }
     end)
@@ -116,7 +118,12 @@ defmodule Improve.Sessions do
                 %{
                   "item_id" => item.item_id,
                   "item_key" => item.item_key,
-                  "item_name" => item.item_name
+                  "item_name" => item.item_name,
+                  "suggested_payload" => Map.get(item, :suggested_payload, %{}),
+                  "reason" => Map.get(item, :reason),
+                  "source" => Map.get(item, :source),
+                  "previous_event_ids" => Map.get(item, :previous_event_ids, []),
+                  "previous_events" => Map.get(item, :previous_events, [])
                 }
               end)
           }

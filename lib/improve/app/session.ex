@@ -10,9 +10,19 @@ defmodule Improve.App.Session do
       key: Keyword.get(opts, :key),
       name: Keyword.get(opts, :name),
       optional: Keyword.get(opts, :optional, false),
-      rules: Keyword.get(opts, :rules, %{})
+      rules: rules(opts)
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
   end
+
+  defp rules(opts) do
+    opts
+    |> Keyword.get(:rules, %{})
+    |> maybe_put(:suggestion_target, Keyword.get(opts, :suggest))
+    |> maybe_put(:cold_start_payload, Keyword.get(opts, :start_with))
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

@@ -31,15 +31,15 @@ defmodule Improve.App.AiContext do
   end
 
   defp shape_today_context(context) do
-    projected_work = get(context, :projected_work, [])
-    sessions = Enum.filter(projected_work, &(get(&1, :kind) == "session"))
-    tracks = Enum.filter(projected_work, &(get(&1, :kind) == "track"))
-    completed = Enum.filter(projected_work, &(get(&1, :status) == "completed"))
+    work = get(context, :work, [])
+    sessions = Enum.filter(work, &(get(&1, :kind) == "session"))
+    tracks = Enum.filter(work, &(get(&1, :kind) == "track"))
+    completed = Enum.filter(work, &(get(&1, :status) == "completed"))
 
     still_to_do =
-      Enum.filter(projected_work, &(get(&1, :status) in ["planned", "started", "partial"]))
+      Enum.filter(work, &(get(&1, :status) in ["planned", "started", "partial"]))
 
-    missed_or_skipped = Enum.filter(projected_work, &(get(&1, :status) in ["missed", "skipped"]))
+    missed_or_skipped = Enum.filter(work, &(get(&1, :status) in ["missed", "skipped"]))
 
     context
     |> Map.put(:headline, headline(sessions, tracks, completed, still_to_do))

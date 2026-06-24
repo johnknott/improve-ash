@@ -14,11 +14,23 @@ defmodule Improve.Sessions.StartProjectedSessionTest do
           full_name: "Start Gym Session"
         })
 
-      %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+      %{plan: plan, session_slots: session_slots} =
+        GymPlan.install!(user, starts_on: ~D[2026-06-22])
 
       items =
         Plans.list_items!(actor: user, query: [filter: [plan_id: plan.id]])
         |> Map.new(&{&1.key, &1})
+
+      session_slots
+      |> Enum.find(&(&1.key == "cardio"))
+      |> Plans.update_session_slot!(
+        %{
+          rules: %{
+            "default_payload" => %{"duration_minutes" => 15, "intensity" => "easy"}
+          }
+        },
+        actor: user
+      )
 
       projection =
         Plans.project_today!(
@@ -35,6 +47,14 @@ defmodule Improve.Sessions.StartProjectedSessionTest do
 
       assert [%{item_name: "Rower", item_id: rower_id}] = cardio_recommendation.recommended_items
 
+      assert [%{suggested_payload: %{"duration_minutes" => 15, "intensity" => "easy"}}] =
+               cardio_recommendation.recommended_items
+
+      assert [%{reason: reason, source: "manual_rule"}] =
+               cardio_recommendation.recommended_items
+
+      assert reason == "Suggested from manual rules for Cardio."
+
       result =
         Sessions.start_projected_session!(
           projected_occurrence,
@@ -50,6 +70,20 @@ defmodule Improve.Sessions.StartProjectedSessionTest do
       assert result.session_occurrence.recommendation_snapshot["session_template_name"] ==
                "Upper-biased gym visit"
 
+      [cardio_snapshot] =
+        Enum.filter(
+          result.session_occurrence.recommendation_snapshot["recommendations"],
+          &(&1["slot_key"] == "cardio")
+        )
+
+      assert [
+               %{
+                 "suggested_payload" => %{"duration_minutes" => 15, "intensity" => "easy"},
+                 "source" => "manual_rule",
+                 "previous_event_ids" => []
+               }
+             ] = cardio_snapshot["recommended_items"]
+
       assert {:ok, [persisted_occurrence]} = Sessions.list_session_occurrences(actor: user)
       assert persisted_occurrence.id == result.session_occurrence.id
 
@@ -64,6 +98,13 @@ defmodule Improve.Sessions.StartProjectedSessionTest do
 
       assert swapped_cardio.session_occurrence_id == persisted_occurrence.id
       assert swapped_cardio.status == :swapped
+
+      assert swapped_cardio.suggested_payload == %{
+               "duration_minutes" => 15,
+               "intensity" => "easy"
+             }
+
+      assert swapped_cardio.actual_payload == %{}
     end
   end
 end

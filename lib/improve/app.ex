@@ -12,6 +12,7 @@ defmodule Improve.App do
   alias Improve.App.Authoring
   alias Improve.App.Effects
   alias Improve.App.Logging
+  alias Improve.App.Review
   alias Improve.App.Schedule
   alias Improve.App.Session
   alias Improve.App.State
@@ -38,6 +39,8 @@ defmodule Improve.App do
   defdelegate custom(description), to: Schedule
   defdelegate choose(count, opts), to: Session
   defdelegate subtract_quantity(opts), to: Effects
+  defdelegate add_quantity(opts), to: Effects
+  defdelegate set_quantity(opts), to: Effects
   defdelegate fixed(quantity, unit), to: Target
   defdelegate fixed(quantity, unit, opts), to: Target
   defdelegate metric(name), to: Target
@@ -57,6 +60,7 @@ defmodule Improve.App do
 
   defdelegate start_session!(projection, session_key, opts), to: Logging
   defdelegate log_session_slot!(started_session, opts), to: Logging
+  defdelegate skip_session_slot!(started_session, opts), to: Logging
   defdelegate log_event!(plan, opts), to: Logging
   defdelegate log_track!(projection, opts), to: Logging
   defdelegate correct_event!(original_log_or_event, opts), to: Logging
@@ -66,6 +70,8 @@ defmodule Improve.App do
   def offline_event(plan, opts), do: build_offline_event(plan, opts)
 
   defdelegate get_item_state!(plan, item_key, opts), to: State
+
+  defdelegate review!(plan, opts), to: Review
 
   defdelegate get_ai_plan_summary!(plan, opts), to: AiContext
   defdelegate get_ai_today_context!(plan, opts), to: AiContext

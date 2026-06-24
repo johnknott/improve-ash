@@ -35,27 +35,27 @@ priv/scripts/stories/
 Run a story with:
 
 ```sh
-mix run priv/scripts/stories/01_direct_goal_reading.exs
+mix run priv/scripts/stories/01_track_reading.exs
+```
+
+Run the full backend story suite with:
+
+```sh
+mise run stories:run
 ```
 
 Current scripts:
 
 ```text
-priv/scripts/stories/01_direct_goal_reading.exs
-priv/scripts/stories/02_start_and_log_gym_session.exs
-priv/scripts/stories/03_log_dose_and_check_vial_state.exs
-priv/scripts/stories/04_correct_logged_event.exs
-priv/scripts/stories/05_submit_offline_duplicate_and_stale.exs
-priv/scripts/stories/06_hybrid_today.exs
-priv/scripts/stories/07_translate_old_plan_rough.exs
-```
-
-Possible future scripts:
-
-```text
-priv/scripts/stories/08_project_today.exs
-priv/scripts/stories/09_log_direct_goal.exs
-priv/scripts/stories/10_ai_today_context.exs
+priv/scripts/stories/01_track_reading.exs
+priv/scripts/stories/02_track_target_types.exs
+priv/scripts/stories/03_schedule_shapes.exs
+priv/scripts/stories/04_session_from_pools.exs
+priv/scripts/stories/05_adaptive_item_work.exs
+priv/scripts/stories/06_stateful_item_effects.exs
+priv/scripts/stories/07_offline_and_correction.exs
+priv/scripts/stories/08_review_and_adjustment.exs
+priv/scripts/stories/09_full_life_plan.exs
 ```
 
 Story runs quiet SQL/debug logs by default so the product output stays readable.
@@ -64,9 +64,9 @@ Use `--debug` when the database chatter is useful.
 Supported modes:
 
 ```sh
-mix run priv/scripts/stories/02_start_and_log_gym_session.exs --keep
-mix run priv/scripts/stories/02_start_and_log_gym_session.exs --debug
-mix run priv/scripts/stories/02_start_and_log_gym_session.exs --rollback
+mix run priv/scripts/stories/04_session_from_pools.exs --keep
+mix run priv/scripts/stories/04_session_from_pools.exs --debug
+mix run priv/scripts/stories/04_session_from_pools.exs --rollback
 ```
 
 `--rollback` is still a placeholder. It currently announces that it is not
@@ -86,7 +86,7 @@ The helper layer may:
 - Create or find a demo user.
 - Reset one story by stable story key.
 - Create plans, item types, items, pools, environments, event types, sessions,
-  schedules, and direct goals.
+  schedules, and tracks.
 - Find records by friendly keys.
 - Project today.
 - Start sessions.
@@ -124,16 +124,17 @@ with actor/story context, but should not be the only pleasant way to call them.
 Current product-facing operations in `Improve.App` include:
 
 - create a plan
-- add event types, item types, items, pools, direct goals, and sessions
+- add event types, item types, items, pools, tracks, and sessions
 - project today
 - start a session
 - log an event
-- log a direct goal
+- log a track
 - log a session slot
 - correct a mistake
 - read item state
 - submit offline events
 - fetch AI context
+- review a plan
 - construct schedule, session-slot, and effect-rule helpers
 
 In the long run, `Improve.Stories` should mostly wrap that app-facing API,
@@ -220,7 +221,7 @@ App.add_event_type!(plan, "Pages read",
   }
 )
 
-App.add_direct_goal!(plan, "Read 20 pages",
+App.add_track!(plan, "Read 20 pages",
   actor: actor,
   key: "daily_reading",
   event: "pages_read",
@@ -235,9 +236,9 @@ App.add_direct_goal!(plan, "Read 20 pages",
 
 today = App.project_today!(plan, actor: actor, date: ~D[2026-06-23])
 
-App.log_direct_goal!(today,
+App.log_track!(today,
   actor: actor,
-  goal: "daily_reading",
+  track: "daily_reading",
   payload: %{pages: 25, note: "Read before bed"}
 )
 
@@ -282,7 +283,7 @@ Keep data for inspection
 Start with a small set of scripts that pressure the core model:
 
 - Create a simple reading plan.
-- Add and log a direct goal.
+- Add and log a track.
 - Create and start a session.
 - Log a session slot.
 - Log a swap.
@@ -297,13 +298,14 @@ Use product language in the scripts:
 
 ```elixir
 create_plan!
-add_exercise!
+add_item_type!
+add_item!
 add_pool!
 add_session!
 project_today!
 start_session!
 log_slot!
-log_direct_goal!
+log_track!
 log_event!
 correct_event!
 show_item_state!

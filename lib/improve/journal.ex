@@ -669,14 +669,21 @@ defmodule Improve.Journal do
     actor = Keyword.fetch!(opts, :actor)
 
     with {:ok, item} <- Plans.get_item(id(item), actor: actor),
-         {:ok, item} <- Ash.load(item, :item_effects, actor: actor) do
+         {:ok, item} <- Ash.load(item, [item_effects: [:event_instance]], actor: actor) do
       {:ok,
        Improve.Planning.ItemState.calculate(
          item,
-         item.item_effects,
+         sort_item_effects(item.item_effects),
          Keyword.take(opts, [:future_quantity_required])
        )}
     end
+  end
+
+  defp sort_item_effects(effects) do
+    Enum.sort_by(effects, fn effect ->
+      event = effect.event_instance
+      {event.effective_at, event.recorded_at, effect.inserted_at, effect.id}
+    end)
   end
 
   def get_item_state!(item, opts) do
@@ -917,14 +924,14 @@ defmodule Improve.Journal do
   defp update_linked_slot_result(command, event, actor) do
     slot_result = Sessions.get_slot_result!(command.slot_result_id, actor: actor)
     [%{item_id: item_id} | _] = command.item_links
-    update_slot_result!(slot_result, item_id, event, actor)
+    update_slot_result!(slot_result, item_id, command, event, actor)
   end
 
-  defp update_slot_result!(slot_result, %{id: item_id}, event, actor) do
-    update_slot_result!(slot_result, item_id, event, actor)
+  defp update_slot_result!(slot_result, %{id: item_id}, command, event, actor) do
+    update_slot_result!(slot_result, item_id, command, event, actor)
   end
 
-  defp update_slot_result!(slot_result, item_id, event, actor) do
+  defp update_slot_result!(slot_result, item_id, command, event, actor) do
     function =
       if slot_result.recommended_item_id == item_id do
         :complete_slot_result!
@@ -939,7 +946,9 @@ defmodule Improve.Journal do
       slot_result,
       %{
         actual_item_id: item_id,
-        event_instance_id: event.id
+        actual_payload: command.payload,
+        event_instance_id: event.id,
+        notes: command.note
       }
     )
   end

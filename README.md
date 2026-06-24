@@ -143,6 +143,23 @@ AshAi.Tools.execute(
 
 ## Verification
 
+For backend-only story/model work, run:
+
+```sh
+mise run verify:backend
+```
+
+That runs:
+
+- `mix format`
+- `mix compile --warnings-as-errors`
+- `mix test`
+- `mix ash_typescript.codegen --check`
+- `pnpm exec tsc --noEmit -p tsconfig.json`
+- every executable story under `priv/scripts/stories/*.exs` with `MIX_ENV=test`
+
+Full handoff verification still includes frontend checks and build:
+
 Before handing off changes, run:
 
 ```sh

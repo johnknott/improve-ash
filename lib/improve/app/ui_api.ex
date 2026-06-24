@@ -703,6 +703,7 @@ defmodule Improve.App.UiApi do
          slot_result,
          %{
            actual_item_id: item.id,
+           actual_payload: Map.get(params, "payload", %{}),
            notes: blank_to_nil(Map.get(params, "note"))
          },
          actor: actor
@@ -911,7 +912,11 @@ defmodule Improve.App.UiApi do
             id: item.item_id,
             key: item.item_key,
             name: item.item_name,
-            reason: Map.get(item, :reason)
+            reason: Map.get(item, :reason),
+            source: Map.get(item, :source),
+            suggestedPayload: Map.get(item, :suggested_payload, %{}),
+            previousEventIds: Map.get(item, :previous_event_ids, []),
+            previousEvents: Map.get(item, :previous_events, [])
           }
         end),
       state: Map.get(occurrence, :session_state, %{}),
@@ -949,6 +954,8 @@ defmodule Improve.App.UiApi do
       actualItemId: slot_result.actual_item_id,
       actualItemKey: actual_item && actual_item.key,
       actualItemName: actual_item && actual_item.name,
+      suggestedPayload: slot_result.suggested_payload,
+      actualPayload: slot_result.actual_payload,
       eventInstanceId: slot_result.event_instance_id,
       notes: slot_result.notes
     }

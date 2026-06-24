@@ -61,21 +61,21 @@ defmodule Improve.Ai.ReadToolTest do
 
       assert projection["plan_id"] == gym_plan.id
       assert projection["date"] == "2026-06-22"
+      refute Map.has_key?(projection, "projected_work")
+      refute Map.has_key?(projection, "projected_session_occurrences")
 
-      assert [%{"session_template_name" => "Upper-biased gym visit"}] =
-               projection["projected_session_occurrences"]
+      assert [%{"name" => "Upper-biased gym visit"}] = projection["sessions"]
 
       assert [
                %{
                  "kind" => "session",
                  "status" => "planned",
-                 "owner_type" => "session_template",
                  "title" => "Upper-biased gym visit",
-                 "session_occurrence" => %{
-                   "session_template_name" => "Upper-biased gym visit"
+                 "session" => %{
+                   "name" => "Upper-biased gym visit"
                  }
                }
-             ] = projection["projected_work"]
+             ] = projection["work"]
 
       assert projection["input_summary"]["session_templates"] == 1
       assert projection["input_summary"]["tracks"] == 0
@@ -92,9 +92,10 @@ defmodule Improve.Ai.ReadToolTest do
 
       assert state["item_id"] == vial_items["retatrutide_vial_1"].id
       assert state["calculated_state"]["current_quantity"] == "4750"
+      refute Map.has_key?(state, "active_effects")
 
       assert [%{"effect_type" => "subtract_quantity", "quantity" => "250"}] =
-               state["active_effects"]
+               state["active_item_effects"]
 
       journal =
         execute_tool!(tools["get_recent_journal_events"], user, %{
@@ -156,11 +157,11 @@ defmodule Improve.Ai.ReadToolTest do
                  "status" => "completed",
                  "title" => "Read 20 pages",
                  "track" => %{
-                   "track_id" => track_id,
+                   "id" => track_id,
                    "completed_event_ids" => [completed_event_id]
                  }
                }
-             ] = projection["projected_work"]
+             ] = projection["work"]
 
       assert track_id == track.id
       assert completed_event_id == log.event.id
