@@ -78,7 +78,7 @@ defmodule Improve.Ai.ReadToolTest do
              ] = projection["projected_work"]
 
       assert projection["input_summary"]["session_templates"] == 1
-      assert projection["input_summary"]["direct_goals"] == 0
+      assert projection["input_summary"]["tracks"] == 0
 
       summary = execute_tool!(tools["get_plan_summary"], user, %{"plan_id" => gym_plan.id})
 
@@ -120,19 +120,19 @@ defmodule Improve.Ai.ReadToolTest do
       assert error_text =~ "could not be found"
     end
 
-    test "projects direct goal work through AshAI execution" do
-      user = user!("ai-direct-goal@example.com")
+    test "projects track work through AshAI execution" do
+      user = user!("ai-track@example.com")
       plan = reading_plan!(user)
       event_type = reading_event_type!(user, plan)
-      direct_goal = reading_direct_goal!(user, plan, event_type)
-      reading_schedule!(user, plan, direct_goal)
+      track = reading_track!(user, plan, event_type)
+      reading_schedule!(user, plan, track)
 
       log =
         Journal.log_generic_event!(
           %{
             plan_id: plan.id,
             event_type_id: event_type.id,
-            direct_goal_id: direct_goal.id,
+            track_id: track.id,
             effective_at: ~U[2026-06-22 20:00:00Z],
             recorded_at: ~U[2026-06-22 20:01:00Z],
             summary: "Read 25 pages",
@@ -152,22 +152,22 @@ defmodule Improve.Ai.ReadToolTest do
 
       assert [
                %{
-                 "kind" => "direct_goal",
+                 "kind" => "track",
                  "status" => "completed",
                  "title" => "Read 20 pages",
-                 "direct_goal" => %{
-                   "direct_goal_id" => direct_goal_id,
+                 "track" => %{
+                   "track_id" => track_id,
                    "completed_event_ids" => [completed_event_id]
                  }
                }
              ] = projection["projected_work"]
 
-      assert direct_goal_id == direct_goal.id
+      assert track_id == track.id
       assert completed_event_id == log.event.id
 
       summary = execute_tool!(tools["get_plan_summary"], user, %{"plan_id" => plan.id})
 
-      assert summary["direct_goals"] == 1
+      assert summary["tracks"] == 1
     end
   end
 
@@ -215,8 +215,8 @@ defmodule Improve.Ai.ReadToolTest do
     )
   end
 
-  defp reading_direct_goal!(user, plan, event_type) do
-    Plans.create_direct_goal!(
+  defp reading_track!(user, plan, event_type) do
+    Plans.create_track!(
       %{
         plan_id: plan.id,
         event_type_id: event_type.id,
@@ -230,12 +230,12 @@ defmodule Improve.Ai.ReadToolTest do
     )
   end
 
-  defp reading_schedule!(user, plan, direct_goal) do
+  defp reading_schedule!(user, plan, track) do
     Plans.create_schedule!(
       %{
         plan_id: plan.id,
-        owner_type: :direct_goal,
-        owner_id: direct_goal.id,
+        owner_type: :track,
+        owner_id: track.id,
         kind: :every_day,
         starts_on: ~D[2026-06-22]
       },

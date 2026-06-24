@@ -3,9 +3,9 @@ defmodule Improve.Planning.Diagnostics do
   Plain-English diagnostics for authored plan content.
   """
 
-  @known_schedule_kinds ~w(every_day selected_weekdays times_per_week every_n_days after_completion custom)
+  @known_schedule_kinds ~w(every_day selected_weekdays times_per_week every_n_days every_n_weeks monthly after_completion custom)
   @supported_schedule_kinds ~w(every_day selected_weekdays times_per_week)
-  @keyed_collections ~w(item_types items pools environments event_types session_templates direct_goals schedules sample_events)
+  @keyed_collections ~w(item_types items pools environments event_types session_templates tracks schedules sample_events)
   @quantity_effect_types ~w(add_quantity subtract_quantity set_quantity correction)
 
   alias Improve.Planning.PlanDraft
@@ -18,7 +18,7 @@ defmodule Improve.Planning.Diagnostics do
       missing_pool_diagnostics(draft) ++
       missing_item_type_diagnostics(draft) ++
       duplicate_event_role_diagnostics(draft) ++
-      direct_goal_target_diagnostics(draft) ++
+      track_target_diagnostics(draft) ++
       effect_rule_diagnostics(draft) ++
       schedule_diagnostics(draft) ++
       event_sample_diagnostics(draft)
@@ -256,7 +256,7 @@ defmodule Improve.Planning.Diagnostics do
       environments: key_set(list(draft, "environments")),
       event_types: key_set(list(draft, "event_types")),
       session_templates: key_set(list(draft, "session_templates")),
-      direct_goals: key_set(list(draft, "direct_goals"))
+      tracks: key_set(list(draft, "tracks"))
     }
 
     []
@@ -264,7 +264,7 @@ defmodule Improve.Planning.Diagnostics do
     |> missing_refs(list(draft, "pools"), :missing_item, "item_keys", refs.items)
     |> missing_refs(list(draft, "environments"), :missing_item, "available_item_keys", refs.items)
     |> missing_refs(
-      list(draft, "direct_goals"),
+      list(draft, "tracks"),
       :missing_event_type,
       "event_type_key",
       refs.event_types
@@ -336,11 +336,11 @@ defmodule Improve.Planning.Diagnostics do
             )
           ]
 
-        owner_type == "direct_goal" and not MapSet.member?(refs.direct_goals, owner_key) ->
+        owner_type == "track" and not MapSet.member?(refs.tracks, owner_key) ->
           [
             diagnostic(
               :missing_schedule_owner,
-              "This schedule points at a direct goal that does not exist.",
+              "This schedule points at a track that does not exist.",
               %{
                 schedule_key: value(schedule, "key"),
                 owner_type: owner_type,
@@ -351,7 +351,7 @@ defmodule Improve.Planning.Diagnostics do
             )
           ]
 
-        owner_type not in ["session_template", "direct_goal"] ->
+        owner_type not in ["session_template", "track"] ->
           [
             diagnostic(
               :unsupported_schedule_owner_type,
@@ -374,7 +374,7 @@ defmodule Improve.Planning.Diagnostics do
     |> list("sample_events", fallback: "events")
     |> Enum.flat_map(fn event ->
       event_type_key = value(event, "event_type_key")
-      direct_goal_key = value(event, "direct_goal_key")
+      track_key = value(event, "track_key")
 
       missing_event_type =
         if present?(event_type_key) and not MapSet.member?(refs.event_types, event_type_key) do
@@ -391,22 +391,22 @@ defmodule Improve.Planning.Diagnostics do
           []
         end
 
-      missing_direct_goal =
-        if present?(direct_goal_key) and not MapSet.member?(refs.direct_goals, direct_goal_key) do
+      missing_track =
+        if present?(track_key) and not MapSet.member?(refs.tracks, track_key) do
           [
             diagnostic(
-              :missing_direct_goal,
-              "This sample event points at a direct goal that does not exist.",
-              %{event_key: event_ref(event), direct_goal_key: direct_goal_key},
-              path: event_path(event) ++ ["direct_goal_key"],
-              ref: direct_goal_key
+              :missing_track,
+              "This sample event points at a track that does not exist.",
+              %{event_key: event_ref(event), track_key: track_key},
+              path: event_path(event) ++ ["track_key"],
+              ref: track_key
             )
           ]
         else
           []
         end
 
-      missing_event_type ++ missing_direct_goal
+      missing_event_type ++ missing_track
     end)
     |> Kernel.++(diagnostics)
   end
@@ -434,9 +434,9 @@ defmodule Improve.Planning.Diagnostics do
   defp missing_ref_diagnostic(:missing_event_type, record, field, ref) do
     diagnostic(
       :missing_event_type,
-      "This direct goal points at an event type that does not exist.",
-      %{direct_goal_key: value(record, "key"), field: field, ref: ref},
-      path: ["direct_goals", value(record, "key"), field],
+      "This track points at an event type that does not exist.",
+      %{track_key: value(record, "key"), field: field, ref: ref},
+      path: ["tracks", value(record, "key"), field],
       ref: ref
     )
   end
@@ -470,11 +470,11 @@ defmodule Improve.Planning.Diagnostics do
     end)
   end
 
-  defp direct_goal_target_diagnostics(draft) do
+  defp track_target_diagnostics(draft) do
     draft
-    |> list("direct_goals")
-    |> Enum.flat_map(fn goal ->
-      target = value(goal, "target") || %{}
+    |> list("tracks")
+    |> Enum.flat_map(fn track ->
+      target = value(track, "target") || %{}
       quantity = value(target, "quantity")
       unit = value(target, "unit")
 
@@ -482,22 +482,22 @@ defmodule Improve.Planning.Diagnostics do
         present?(quantity) and blank?(unit) ->
           [
             diagnostic(
-              :direct_goal_target_unit_missing,
-              "This direct goal target has a quantity but no unit.",
-              %{direct_goal_key: value(goal, "key"), quantity: quantity},
-              path: ["direct_goals", value(goal, "key"), "target", "unit"],
-              ref: value(goal, "key")
+              :track_target_unit_missing,
+              "This track target has a quantity but no unit.",
+              %{track_key: value(track, "key"), quantity: quantity},
+              path: ["tracks", value(track, "key"), "target", "unit"],
+              ref: value(track, "key")
             )
           ]
 
         present?(unit) and blank?(quantity) ->
           [
             diagnostic(
-              :direct_goal_target_quantity_missing,
-              "This direct goal target has a unit but no quantity.",
-              %{direct_goal_key: value(goal, "key"), unit: unit},
-              path: ["direct_goals", value(goal, "key"), "target", "quantity"],
-              ref: value(goal, "key")
+              :track_target_quantity_missing,
+              "This track target has a unit but no quantity.",
+              %{track_key: value(track, "key"), unit: unit},
+              path: ["tracks", value(track, "key"), "target", "quantity"],
+              ref: value(track, "key")
             )
           ]
 

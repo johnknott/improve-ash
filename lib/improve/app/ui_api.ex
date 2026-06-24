@@ -102,10 +102,10 @@ defmodule Improve.App.UiApi do
     end
   end
 
-  def create_direct_goal(actor, params) do
+  def create_track(actor, params) do
     with {:ok, plan} <- get_owned_plan(params, actor),
-         {:ok, attrs} <- create_direct_goal_attrs(params),
-         {:ok, _direct_goal} <- persist_direct_goal(plan, attrs, actor),
+         {:ok, attrs} <- create_track_attrs(params),
+         {:ok, _track} <- persist_track(plan, attrs, actor),
          {:ok, plans} <- Plans.list_plans(actor: actor),
          {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
       {:ok, payload}
@@ -194,8 +194,8 @@ defmodule Improve.App.UiApi do
            Plans.list_item_types(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, event_types} <-
            Plans.list_event_types(actor: actor, query: [filter: [plan_id: plan.id]]),
-         {:ok, direct_goals} <-
-           Plans.list_direct_goals(actor: actor, query: [filter: [plan_id: plan.id]]),
+         {:ok, tracks} <-
+           Plans.list_tracks(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, pools} <- Plans.list_pools(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, pool_memberships} <-
            Plans.list_pool_memberships(actor: actor, query: [filter: [plan_id: plan.id]]),
@@ -263,8 +263,7 @@ defmodule Improve.App.UiApi do
            items: Enum.map(items, &item_json(&1, item_types_by_id, actor)),
            itemTypes: Enum.map(item_types, &item_type_json(&1, items)),
            eventTypes: Enum.map(event_types, &event_type_json/1),
-           directGoals:
-             Enum.map(direct_goals, &direct_goal_json(&1, event_types_by_id, schedules)),
+           tracks: Enum.map(tracks, &track_json(&1, event_types_by_id, schedules)),
            pools: Enum.map(pools, &pool_json/1),
            poolMemberships: Enum.map(pool_memberships, &pool_membership_json/1),
            sessionTemplates: Enum.map(session_templates, &session_template_json/1),
@@ -354,7 +353,7 @@ defmodule Improve.App.UiApi do
       {:error, [Exception.message(error)]}
   end
 
-  defp create_direct_goal_attrs(params) do
+  defp create_track_attrs(params) do
     quantity = blank_to_nil(Map.get(params, "quantity"))
     unit = blank_to_nil(Map.get(params, "unit"))
     target_mode = blank_to_nil(Map.get(params, "target_mode")) || "fixed"
@@ -390,7 +389,7 @@ defmodule Improve.App.UiApi do
     end
   end
 
-  defp persist_direct_goal(plan, attrs, actor) do
+  defp persist_track(plan, attrs, actor) do
     event_type =
       case attrs.event_type_id do
         nil ->
@@ -404,17 +403,17 @@ defmodule Improve.App.UiApi do
           Plans.get_event_type!(event_type_id, actor: actor)
       end
 
-    direct_goal =
-      App.add_direct_goal!(plan, attrs.name,
+    track =
+      App.add_track!(plan, attrs.name,
         actor: actor,
         key: key_from(attrs.name),
         description: attrs.description,
         event: event_type.key,
         schedule: App.every_day(),
-        target: direct_goal_target(attrs, event_type)
+        target: track_target(attrs, event_type)
       )
 
-    {:ok, direct_goal}
+    {:ok, track}
   rescue
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
@@ -423,7 +422,7 @@ defmodule Improve.App.UiApi do
       {:error, [Exception.message(error)]}
   end
 
-  defp direct_goal_target(%{target_mode: "metric"} = attrs, event_type) do
+  defp track_target(%{target_mode: "metric"} = attrs, event_type) do
     %{
       mode: "metric",
       metric_name: attrs.metric_name,
@@ -433,7 +432,7 @@ defmodule Improve.App.UiApi do
     }
   end
 
-  defp direct_goal_target(attrs, event_type) do
+  defp track_target(attrs, event_type) do
     %{
       mode: "fixed",
       quantity: attrs.quantity,
@@ -878,8 +877,8 @@ defmodule Improve.App.UiApi do
       target: target_json(target),
       eventTypeId: event_type_id,
       eventTypeName: event_type && event_type.name,
-      directGoalId: Map.get(payload, :direct_goal_id),
-      directGoalKey: Map.get(payload, :direct_goal_key),
+      trackId: Map.get(payload, :track_id),
+      trackKey: Map.get(payload, :track_key),
       session:
         session_work_json(
           work,
@@ -887,8 +886,7 @@ defmodule Improve.App.UiApi do
           session_slots_by_id,
           items_by_id
         ),
-      canLog:
-        work.kind == :direct_goal and work.status != :completed and not is_nil(event_type_id)
+      canLog: work.kind == :track and work.status != :completed and not is_nil(event_type_id)
     }
   end
 
@@ -1047,20 +1045,20 @@ defmodule Improve.App.UiApi do
     }
   end
 
-  defp direct_goal_json(direct_goal, event_types_by_id, schedules) do
-    event_type = Map.get(event_types_by_id, direct_goal.event_type_id)
+  defp track_json(track, event_types_by_id, schedules) do
+    event_type = Map.get(event_types_by_id, track.event_type_id)
 
     schedule =
-      Enum.find(schedules, &(&1.owner_type == :direct_goal and &1.owner_id == direct_goal.id))
+      Enum.find(schedules, &(&1.owner_type == :track and &1.owner_id == track.id))
 
     %{
-      id: direct_goal.id,
-      key: direct_goal.key,
-      name: direct_goal.name,
-      description: direct_goal.description,
-      eventTypeId: direct_goal.event_type_id,
+      id: track.id,
+      key: track.key,
+      name: track.name,
+      description: track.description,
+      eventTypeId: track.event_type_id,
       eventTypeName: event_type && event_type.name,
-      target: target_json(direct_goal.target),
+      target: target_json(track.target),
       schedule: schedule && schedule_json(schedule)
     }
   end
@@ -1154,7 +1152,7 @@ defmodule Improve.App.UiApi do
       recordedAt: DateTime.to_iso8601(event.recorded_at),
       sessionOccurrenceId: event.session_occurrence_id,
       slotResultId: event.slot_result_id,
-      directGoalId: event.direct_goal_id,
+      trackId: event.track_id,
       slot:
         if(slot_result,
           do: %{
@@ -1222,7 +1220,7 @@ defmodule Improve.App.UiApi do
     attrs = %{
       plan_id: Map.get(params, "plan_id"),
       event_type_id: Map.get(params, "event_type_id"),
-      direct_goal_id: blank_to_nil(Map.get(params, "direct_goal_id")),
+      track_id: blank_to_nil(Map.get(params, "track_id")),
       effective_at: parse_datetime(Map.get(params, "effective_at")) || now,
       recorded_at: now,
       summary: blank_to_nil(Map.get(params, "summary")) || "Logged event",

@@ -196,13 +196,13 @@ defmodule Improve.Planning.DiagnosticsTest do
             ]
           }
         ],
-        direct_goals: [
+        tracks: [
           %{key: "sets", name: "Sets"}
         ],
         schedules: [
           %{
             key: "daily_sets",
-            owner_type: "direct_goal",
+            owner_type: "track",
             owner_key: "sets",
             kind: "every_day"
           }
@@ -223,7 +223,7 @@ defmodule Improve.Planning.DiagnosticsTest do
       assert ["item_types", "exercise", "name"] in required_paths
       assert ["items", "chest_press", "item_type_key"] in required_paths
       assert ["event_types", "0", "key"] in required_paths
-      assert ["direct_goals", "sets", "event_type_key"] in required_paths
+      assert ["tracks", "sets", "event_type_key"] in required_paths
       assert ["schedules", "daily_sets", "starts_on"] in required_paths
       assert ["sample_events", "set_1", "effective_at"] in required_paths
       assert ["session_templates", "upper", "slots", "press", "pool_key"] in required_paths
@@ -256,7 +256,7 @@ defmodule Improve.Planning.DiagnosticsTest do
         session_templates: [
           %{key: "reading_session", environment_key: "missing_environment"}
         ],
-        direct_goals: [
+        tracks: [
           %{
             key: "read_twenty",
             event_type_key: "missing_event_type",
@@ -266,13 +266,13 @@ defmodule Improve.Planning.DiagnosticsTest do
         schedules: [
           %{
             key: "bad_owner",
-            owner_type: "direct_goal",
+            owner_type: "track",
             owner_key: "missing_goal",
             kind: "every_day"
           },
           %{
             key: "bad_weekdays",
-            owner_type: "direct_goal",
+            owner_type: "track",
             owner_key: "read_twenty",
             kind: "times_per_week",
             rules: %{"allowed_weekdays" => "monday"}
@@ -282,7 +282,7 @@ defmodule Improve.Planning.DiagnosticsTest do
           %{
             key: "sample",
             event_type_key: "missing_event_type",
-            direct_goal_key: "missing_goal"
+            track_key: "missing_goal"
           }
         ]
       }
@@ -294,10 +294,10 @@ defmodule Improve.Planning.DiagnosticsTest do
       assert diagnostic(diagnostics, :missing_environment).ref == "missing_environment"
       assert diagnostic(diagnostics, :missing_event_type).ref == "missing_event_type"
       assert diagnostic(diagnostics, :missing_schedule_owner).ref == "missing_goal"
-      assert diagnostic(diagnostics, :missing_direct_goal).ref == "missing_goal"
+      assert diagnostic(diagnostics, :missing_track).ref == "missing_goal"
       assert diagnostic(diagnostics, :duplicate_item_link_role).ref == "book"
       assert diagnostic(diagnostics, :effect_rule_unknown_role).ref == "missing_role"
-      assert diagnostic(diagnostics, :direct_goal_target_unit_missing).ref == "read_twenty"
+      assert diagnostic(diagnostics, :track_target_unit_missing).ref == "read_twenty"
       assert diagnostic(diagnostics, :unsupported_schedule_rule_shape).ref == "bad_weekdays"
     end
   end

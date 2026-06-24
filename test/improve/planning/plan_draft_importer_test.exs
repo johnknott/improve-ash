@@ -46,8 +46,8 @@ defmodule Improve.Planning.PlanDraftImporterTest do
                Plans.list_plans(actor: source_user, query: [filter: [id: result.plan.id]])
     end
 
-    test "imports direct goals and their schedules from stable keys" do
-      user = user!("import-direct-goal@example.com")
+    test "imports tracks and their schedules from stable keys" do
+      user = user!("import-track@example.com")
 
       draft = %{
         key: "reading",
@@ -58,7 +58,7 @@ defmodule Improve.Planning.PlanDraftImporterTest do
         event_types: [
           %{key: "read_pages", name: "Read Pages"}
         ],
-        direct_goals: [
+        tracks: [
           %{
             key: "read_twenty_pages",
             name: "Read 20 pages",
@@ -71,7 +71,7 @@ defmodule Improve.Planning.PlanDraftImporterTest do
         schedules: [
           %{
             key: "read_daily",
-            owner_type: "direct_goal",
+            owner_type: "track",
             owner_key: "read_twenty_pages",
             kind: "every_day",
             starts_on: "2026-06-22"
@@ -81,15 +81,15 @@ defmodule Improve.Planning.PlanDraftImporterTest do
 
       assert {:ok, result} = Plans.import_plan_draft(draft, actor: user)
 
-      assert Map.has_key?(result.direct_goals, "read_twenty_pages")
+      assert Map.has_key?(result.tracks, "read_twenty_pages")
       assert [schedule] = result.schedules
-      assert schedule.owner_type == :direct_goal
-      assert schedule.owner_id == result.direct_goals["read_twenty_pages"].id
+      assert schedule.owner_type == :track
+      assert schedule.owner_id == result.tracks["read_twenty_pages"].id
 
       assert {:ok, projection} =
                Plans.project_today(result.plan, actor: user, date: ~D[2026-06-22])
 
-      assert [%{kind: :direct_goal, status: :planned}] = projection.projected_work
+      assert [%{kind: :track, status: :planned}] = projection.projected_work
       assert {:ok, []} = Journal.read_journal(result.plan, actor: user)
     end
 

@@ -135,7 +135,7 @@ App.add_event_type!(plan, "Dose taken",
 
 # Body metrics
 
-App.add_direct_goal!(plan, "Weigh myself",
+App.add_track!(plan, "Weigh myself",
   actor: actor,
   key: "weigh_myself",
   event: "metric_logged",
@@ -147,7 +147,7 @@ App.add_direct_goal!(plan, "Weigh myself",
   }
 )
 
-App.add_direct_goal!(plan, "Measure waist",
+App.add_track!(plan, "Measure waist",
   actor: actor,
   key: "measure_waist",
   event: "metric_logged",
@@ -161,7 +161,7 @@ App.add_direct_goal!(plan, "Measure waist",
 
 # Daily movement and cardio
 
-App.add_direct_goal!(plan, "Steps",
+App.add_track!(plan, "Steps",
   actor: actor,
   key: "steps",
   event: "quantity_logged",
@@ -181,7 +181,7 @@ App.add_item!(plan, "Cycling", actor: actor, key: "cycling", type: "cardio_activ
 App.add_item!(plan, "Rowing", actor: actor, key: "rowing", type: "cardio_activity")
 App.add_item!(plan, "Elliptical", actor: actor, key: "elliptical", type: "cardio_activity")
 
-App.add_direct_goal!(plan, "Cycling",
+App.add_track!(plan, "Cycling",
   actor: actor,
   key: "cycling",
   event: "cardio_performed",
@@ -200,13 +200,13 @@ App.add_direct_goal!(plan, "Cycling",
 
 App.add_item_type!(plan, "Exercise", actor: actor, key: "exercise")
 
-App.add_exercise!(plan, "Chest Press", actor: actor, key: "chest_press")
-App.add_exercise!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown")
-App.add_exercise!(plan, "Shoulder Press", actor: actor, key: "shoulder_press")
+App.add_item!(plan, "Chest Press", actor: actor, key: "chest_press", type: "exercise")
+App.add_item!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown", type: "exercise")
+App.add_item!(plan, "Shoulder Press", actor: actor, key: "shoulder_press", type: "exercise")
 
-App.add_exercise!(plan, "Leg Press", actor: actor, key: "leg_press")
-App.add_exercise!(plan, "Leg Curl", actor: actor, key: "leg_curl")
-App.add_exercise!(plan, "Leg Extension", actor: actor, key: "leg_extension")
+App.add_item!(plan, "Leg Press", actor: actor, key: "leg_press", type: "exercise")
+App.add_item!(plan, "Leg Curl", actor: actor, key: "leg_curl", type: "exercise")
+App.add_item!(plan, "Leg Extension", actor: actor, key: "leg_extension", type: "exercise")
 
 App.add_pool!(plan, "Upper cardio warm-up",
   actor: actor,
@@ -281,7 +281,7 @@ App.add_session!(plan, "Lower body gym visit",
 
 # Daily foundations
 
-App.add_direct_goal!(plan, "Daily habits",
+App.add_track!(plan, "Daily habits",
   actor: actor,
   key: "daily_habits",
   event: "checklist_completed",
@@ -300,7 +300,7 @@ App.add_direct_goal!(plan, "Daily habits",
   }
 )
 
-App.add_direct_goal!(plan, "Drink water",
+App.add_track!(plan, "Drink water",
   actor: actor,
   key: "drink_water",
   event: "quantity_logged",
@@ -315,7 +315,7 @@ App.add_direct_goal!(plan, "Drink water",
 
 # Health
 
-App.add_direct_goal!(plan, "Retatrutide",
+App.add_track!(plan, "Retatrutide",
   actor: actor,
   key: "retatrutide_dose",
   event: "dose_taken",
@@ -331,7 +331,7 @@ App.add_direct_goal!(plan, "Retatrutide",
 
 # Home
 
-App.add_direct_goal!(plan, "Put bins out",
+App.add_track!(plan, "Put bins out",
   actor: actor,
   key: "put_bins_out",
   event: "checklist_completed",
@@ -344,7 +344,7 @@ App.add_direct_goal!(plan, "Put bins out",
 
 # Recovery and mind
 
-App.add_direct_goal!(plan, "Reading",
+App.add_track!(plan, "Reading",
   actor: actor,
   key: "reading",
   event: "quantity_logged",
@@ -357,7 +357,7 @@ App.add_direct_goal!(plan, "Reading",
   }
 )
 
-App.add_direct_goal!(plan, "Watch a film or TV series",
+App.add_track!(plan, "Watch a film or TV series",
   actor: actor,
   key: "watch_film_or_tv",
   event: "quantity_logged",
@@ -370,7 +370,7 @@ App.add_direct_goal!(plan, "Watch a film or TV series",
   }
 )
 
-App.add_direct_goal!(plan, "Listen to music or audiobook",
+App.add_track!(plan, "Listen to music or audiobook",
   actor: actor,
   key: "listen_music_or_audiobook",
   event: "quantity_logged",
@@ -394,7 +394,7 @@ Story.show_projection!(story, monday)
 App.log_event!(plan,
   actor: actor,
   event: "dose_taken",
-  goal: "retatrutide_dose",
+  track: "retatrutide_dose",
   on: ~D[2026-06-22],
   summary: "Took 2 mg Retatrutide",
   links: %{source_vial: "retatrutide"},

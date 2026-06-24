@@ -67,16 +67,12 @@ defmodule Improve.Stories do
     App.add_item!(plan, name, Keyword.put(opts, :actor, actor!(story)))
   end
 
-  def add_exercise!(%Story{} = story, plan, name, opts) do
-    App.add_exercise!(plan, name, Keyword.put(opts, :actor, actor!(story)))
-  end
-
   def add_pool!(%Story{} = story, plan, name, opts) do
     App.add_pool!(plan, name, Keyword.put(opts, :actor, actor!(story)))
   end
 
-  def add_direct_goal!(%Story{} = story, plan, name, opts) do
-    App.add_direct_goal!(plan, name, Keyword.put(opts, :actor, actor!(story)))
+  def add_track!(%Story{} = story, plan, name, opts) do
+    App.add_track!(plan, name, Keyword.put(opts, :actor, actor!(story)))
   end
 
   def add_session!(%Story{} = story, plan, name, opts) do
@@ -84,9 +80,31 @@ defmodule Improve.Stories do
   end
 
   def every_day, do: App.every_day()
+  def selected_weekdays(days), do: App.selected_weekdays(days)
+  def every_n_days(days), do: App.every_n_days(days)
+  def times_per_week(times), do: App.times_per_week(times)
+  def times_per_week(times, opts), do: App.times_per_week(times, opts)
   def every_week(opts), do: App.every_week(opts)
+  def every_n_weeks(weeks, opts), do: App.every_n_weeks(weeks, opts)
+  def monthly(opts), do: App.monthly(opts)
+  def after_completion(opts), do: App.after_completion(opts)
+  def custom(description), do: App.custom(description)
   def choose(count, opts), do: App.choose(count, opts)
   def subtract_quantity(opts), do: App.subtract_quantity(opts)
+  def fixed(quantity, unit), do: App.fixed(quantity, unit)
+  def fixed(quantity, unit, opts), do: App.fixed(quantity, unit, opts)
+  def metric(name), do: App.metric(name)
+  def metric(name, opts), do: App.metric(name, opts)
+  def checklist(items), do: App.checklist(items)
+  def period_total(quantity, unit, opts), do: App.period_total(quantity, unit, opts)
+  def progression(opts), do: App.progression(opts)
+  def progression(from, to, opts), do: App.progression(from, to, opts)
+  def adaptive(opts), do: App.adaptive(opts)
+  def number(unit), do: App.number(unit)
+  def number(unit, opts), do: App.number(unit, opts)
+  def amount(unit), do: App.amount(unit)
+  def amount(unit, opts), do: App.amount(unit, opts)
+  def fields(fields), do: App.fields(fields)
 
   def project_today!(%Story{} = story, plan, opts) do
     projection_opts =
@@ -104,8 +122,8 @@ defmodule Improve.Stories do
     App.log_session_slot!(started_session, Keyword.put(opts, :actor, actor!(story)))
   end
 
-  def log_direct_goal!(%Story{} = story, projection, opts) do
-    App.log_direct_goal!(projection, Keyword.put(opts, :actor, actor!(story)))
+  def log_track!(%Story{} = story, projection, opts) do
+    App.log_track!(projection, Keyword.put(opts, :actor, actor!(story)))
   end
 
   def log_event!(%Story{} = story, plan, opts) do
@@ -133,7 +151,7 @@ defmodule Improve.Stories do
       {"Plan", plan.name},
       {"Items", summary.items},
       {"Event types", summary.event_types},
-      {"Direct goals", summary.direct_goals},
+      {"Tracks", summary.tracks},
       {"Session templates", summary.session_templates},
       {"Schedules", summary.schedules}
     ])
@@ -332,7 +350,7 @@ defmodule Improve.Stories do
         delete_story_rows("pool_memberships", plan_ids)
         delete_story_rows("session_slots", plan_ids)
         delete_story_rows("session_templates", plan_ids)
-        delete_story_rows("direct_goals", plan_ids)
+        delete_story_rows("tracks", plan_ids)
         delete_story_rows("environments", plan_ids)
         delete_story_rows("pools", plan_ids)
         delete_story_rows("items", plan_ids)

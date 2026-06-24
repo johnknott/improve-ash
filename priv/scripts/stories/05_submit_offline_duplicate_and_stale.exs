@@ -21,7 +21,7 @@ App.add_event_type!(plan, "Pages read",
   payload: %{required: ["pages"]}
 )
 
-App.add_direct_goal!(plan, "Read 20 pages",
+App.add_track!(plan, "Read 20 pages",
   actor: actor,
   key: "daily_reading",
   event: "pages_read",
@@ -41,8 +41,9 @@ App.add_event_type!(plan, "Exercise performed",
   payload: %{required: ["sets", "reps"]}
 )
 
-App.add_exercise!(plan, "Chest Press", actor: actor, key: "chest_press")
-App.add_exercise!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown")
+App.add_item_type!(plan, "Exercise", actor: actor, key: "exercise")
+App.add_item!(plan, "Chest Press", actor: actor, key: "chest_press", type: "exercise")
+App.add_item!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown", type: "exercise")
 
 App.add_pool!(plan, "Push exercises", actor: actor, key: "push", items: ["chest_press"])
 App.add_pool!(plan, "Pull exercises", actor: actor, key: "pull", items: ["lat_pulldown"])
@@ -64,7 +65,7 @@ reading =
   App.offline_event(plan,
     actor: actor,
     event: "pages_read",
-    goal: "daily_reading",
+    track: "daily_reading",
     on: ~D[2026-06-22],
     summary: "Read 20 pages offline",
     payload: %{pages: 20, note: "Queued while offline"},

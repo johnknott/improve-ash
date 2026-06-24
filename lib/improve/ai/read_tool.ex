@@ -113,18 +113,18 @@ defmodule Improve.Ai.ReadTool do
     }
   end
 
-  defp projected_work_json(%{kind: :direct_goal, payload: payload} = work) do
+  defp projected_work_json(%{kind: :track, payload: payload} = work) do
     %{
-      kind: "direct_goal",
+      kind: "track",
       status: Atom.to_string(work.status),
       planned_for: Date.to_iso8601(work.planned_for),
-      owner_type: "direct_goal",
+      owner_type: "track",
       owner_id: work.owner_id,
       title: work.title,
       explanation: work.explanation,
-      direct_goal: %{
-        direct_goal_id: payload.direct_goal_id,
-        direct_goal_key: payload.direct_goal_key,
+      track: %{
+        track_id: payload.track_id,
+        track_key: payload.track_key,
         event_type_id: payload.event_type_id,
         target: payload.target,
         completion_policy: payload.completion_policy,

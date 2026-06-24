@@ -69,8 +69,8 @@ defmodule Improve.Planning.PlanDraftImporter do
       event_types = create_event_types!(draft, plan, actor)
       session_templates = create_session_templates!(draft, plan, environments, actor)
       create_session_slots!(draft, plan, session_templates, pools, actor)
-      direct_goals = create_direct_goals!(draft, plan, event_types, actor)
-      schedules = create_schedules!(draft, plan, session_templates, direct_goals, actor)
+      tracks = create_tracks!(draft, plan, event_types, actor)
+      schedules = create_schedules!(draft, plan, session_templates, tracks, actor)
 
       result = %{
         plan: plan,
@@ -80,7 +80,7 @@ defmodule Improve.Planning.PlanDraftImporter do
         environments: environments,
         event_types: event_types,
         session_templates: session_templates,
-        direct_goals: direct_goals,
+        tracks: tracks,
         schedules: schedules
       }
 
@@ -268,29 +268,29 @@ defmodule Improve.Planning.PlanDraftImporter do
     end)
   end
 
-  defp create_direct_goals!(draft, plan, event_types, actor) do
+  defp create_tracks!(draft, plan, event_types, actor) do
     draft
-    |> list(:direct_goals)
-    |> Enum.map(fn goal ->
+    |> list(:tracks)
+    |> Enum.map(fn track ->
       create!(
-        :create_direct_goal!,
+        :create_track!,
         actor,
         %{
           plan_id: plan.id,
-          key: value(goal, :key),
-          name: value(goal, :name),
-          description: value(goal, :description),
-          event_type_id: Map.fetch!(event_types, value(goal, :event_type_key)).id,
-          target: value(goal, :target) || %{},
-          completion_policy: value(goal, :completion_policy) || %{},
-          missed_policy: value(goal, :missed_policy) || %{}
+          key: value(track, :key),
+          name: value(track, :name),
+          description: value(track, :description),
+          event_type_id: Map.fetch!(event_types, value(track, :event_type_key)).id,
+          target: value(track, :target) || %{},
+          completion_policy: value(track, :completion_policy) || %{},
+          missed_policy: value(track, :missed_policy) || %{}
         }
       )
     end)
     |> by_key()
   end
 
-  defp create_schedules!(draft, plan, session_templates, direct_goals, actor) do
+  defp create_schedules!(draft, plan, session_templates, tracks, actor) do
     draft
     |> list(:schedules)
     |> Enum.map(fn schedule ->
@@ -300,7 +300,7 @@ defmodule Improve.Planning.PlanDraftImporter do
         %{
           plan_id: plan.id,
           owner_type: owner_type(value(schedule, :owner_type)),
-          owner_id: owner_id(schedule, session_templates, direct_goals),
+          owner_id: owner_id(schedule, session_templates, tracks),
           kind: schedule_kind(value(schedule, :kind)),
           rules: value(schedule, :rules) || %{},
           starts_on: date!(value(schedule, :starts_on)),
@@ -349,10 +349,10 @@ defmodule Improve.Planning.PlanDraftImporter do
       ]
   end
 
-  defp owner_id(schedule, session_templates, direct_goals) do
+  defp owner_id(schedule, session_templates, tracks) do
     case owner_type(value(schedule, :owner_type)) do
       :session_template -> Map.fetch!(session_templates, value(schedule, :owner_key)).id
-      :direct_goal -> Map.fetch!(direct_goals, value(schedule, :owner_key)).id
+      :track -> Map.fetch!(tracks, value(schedule, :owner_key)).id
     end
   end
 
@@ -382,8 +382,8 @@ defmodule Improve.Planning.PlanDraftImporter do
 
   defp owner_type(:session_template), do: :session_template
   defp owner_type("session_template"), do: :session_template
-  defp owner_type(:direct_goal), do: :direct_goal
-  defp owner_type("direct_goal"), do: :direct_goal
+  defp owner_type(:track), do: :track
+  defp owner_type("track"), do: :track
   defp owner_type(_owner_type), do: nil
 
   defp schedule_kind(kind) when is_atom(kind), do: kind

@@ -8,11 +8,11 @@ defmodule Improve.StoriesTest do
   alias Improve.Sessions
   alias Improve.Stories, as: Story
 
-  describe "direct goal story helpers" do
-    test "express a reading goal product story through the headless domains" do
+  describe "track story helpers" do
+    test "express a reading track product story through the headless domains" do
       story =
-        Story.begin!("test_direct_goal_reading", reset?: true)
-        |> Story.user!("Story Reader", email: "story+test-direct-goal-reading@example.test")
+        Story.begin!("test_track_reading", reset?: true)
+        |> Story.user!("Story Reader", email: "story+test-track-reading@example.test")
 
       plan =
         Story.create_plan!(story, "Read more consistently",
@@ -21,21 +21,11 @@ defmodule Improve.StoriesTest do
           until: ~D[2026-07-23]
         )
 
-      Story.add_event_type!(story, plan, "Pages read",
-        key: "pages_read",
-        payload: %{required: ["pages"]}
-      )
-
-      Story.add_direct_goal!(story, plan, "Read 20 pages",
+      Story.add_track!(story, plan, "Read 20 pages",
         key: "daily_reading",
-        event: "pages_read",
         schedule: Story.every_day(),
-        target: %{
-          quantity: 20,
-          unit: "pages",
-          quantity_path: "payload.pages",
-          summary_template: "Read %{quantity} %{unit}"
-        }
+        target: Story.fixed(20, "pages"),
+        records: Story.number("pages")
       )
 
       summary =
@@ -43,35 +33,39 @@ defmodule Improve.StoriesTest do
           Story.show_plan_summary!(story, plan)
         end)
 
-      assert summary.direct_goals == 1
+      assert summary.tracks == 1
       assert summary.event_types == 1
 
       today = Story.project_today!(story, plan, on: ~D[2026-06-23])
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :planned,
                  title: "Read 20 pages"
                }
              ] = today.projected_work
 
       log =
-        Story.log_direct_goal!(story, today,
-          goal: "daily_reading",
-          payload: %{pages: 25, note: "Read before bed"}
+        Story.log_track!(story, today,
+          track: "daily_reading",
+          payload: %{amount: 25, note: "Read before bed"}
         )
 
-      assert log.event.summary == "Read 25 pages"
+      assert log.event.summary == "25 pages for Read 20 pages"
       assert log.event.quantity == Decimal.new(25)
       assert log.event.unit == "pages"
       assert log.event.note == "Read before bed"
 
-      assert [%{id: event_id, direct_goal_id: direct_goal_id}] =
+      event_type = Plans.get_event_type!(log.event.event_type_id, actor: story.user)
+      assert event_type.key == "daily_reading_logged"
+      assert event_type.payload_schema["required"] == ["amount"]
+
+      assert [%{id: event_id, track_id: track_id}] =
                Journal.read_journal!(plan, actor: story.user)
 
       assert event_id == log.event.id
-      assert direct_goal_id == log.event.direct_goal_id
+      assert track_id == log.event.track_id
 
       ai_context =
         capture_return(fn ->
@@ -80,17 +74,53 @@ defmodule Improve.StoriesTest do
 
       assert [
                %{
-                 kind: "direct_goal",
+                 kind: "track",
                  status: "completed",
-                 direct_goal: %{completed_event_ids: [^event_id]}
+                 track: %{completed_event_ids: [^event_id]}
                }
              ] = ai_context.projected_work
 
       reset_story =
-        Story.begin!("test_direct_goal_reading", reset?: true)
-        |> Story.user!("Story Reader", email: "story+test-direct-goal-reading@example.test")
+        Story.begin!("test_track_reading", reset?: true)
+        |> Story.user!("Story Reader", email: "story+test-track-reading@example.test")
 
       assert Plans.list_plans!(actor: reset_story.user) == []
+    end
+
+    test "express target constructors through story helpers" do
+      story =
+        Story.begin!("test_track_target_types", reset?: true)
+        |> Story.user!("Story Targets", email: "story+test-track-target-types@example.test")
+
+      plan =
+        Story.create_plan!(story, "Try track targets",
+          intention: "See target vocabulary",
+          from: ~D[2026-06-23],
+          until: ~D[2026-07-23]
+        )
+
+      Story.add_track!(story, plan, "Reading",
+        key: "reading",
+        schedule: Story.every_day(),
+        target: Story.fixed(20, "pages"),
+        records: Story.number("pages")
+      )
+
+      Story.add_track!(story, plan, "Bodyweight",
+        key: "bodyweight",
+        schedule: Story.every_day(),
+        target: Story.metric("Bodyweight", unit: "kg"),
+        records: Story.amount("kg")
+      )
+
+      today = Story.project_today!(story, plan, on: ~D[2026-06-23])
+
+      assert today.projected_work |> Enum.map(& &1.title) |> Enum.sort() == [
+               "Bodyweight",
+               "Reading"
+             ]
+
+      assert Enum.any?(today.diagnostics, &(&1.code == :unsupported_track_target_type))
     end
   end
 
@@ -113,11 +143,12 @@ defmodule Improve.StoriesTest do
         payload: %{required: ["sets", "reps", "load", "load_unit"]}
       )
 
-      Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
-      Story.add_exercise!(story, plan, "Shoulder Press", key: "shoulder_press")
-      Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
-      Story.add_exercise!(story, plan, "Seated Row", key: "seated_row")
-      Story.add_exercise!(story, plan, "Cable Fly", key: "cable_fly")
+      Story.add_item_type!(story, plan, "Exercise", key: "exercise")
+      Story.add_item!(story, plan, "Chest Press", key: "chest_press", type: "exercise")
+      Story.add_item!(story, plan, "Shoulder Press", key: "shoulder_press", type: "exercise")
+      Story.add_item!(story, plan, "Lat Pulldown", key: "lat_pulldown", type: "exercise")
+      Story.add_item!(story, plan, "Seated Row", key: "seated_row", type: "exercise")
+      Story.add_item!(story, plan, "Cable Fly", key: "cable_fly", type: "exercise")
 
       Story.add_pool!(story, plan, "Push exercises",
         key: "push",
@@ -396,7 +427,7 @@ defmodule Improve.StoriesTest do
       reading =
         Story.offline_event(story, plan,
           event: "pages_read",
-          goal: "daily_reading",
+          track: "daily_reading",
           on: ~D[2026-06-22],
           summary: "Read 20 pages offline",
           payload: %{pages: 20, note: "Queued while offline"},
@@ -444,7 +475,7 @@ defmodule Improve.StoriesTest do
   end
 
   describe "hybrid today story helpers" do
-    test "projects direct goals and sessions together before and after logging" do
+    test "projects tracks and sessions together before and after logging" do
       story =
         Story.begin!("test_hybrid_today", reset?: true)
         |> Story.user!("Story Hybrid", email: "story+test-hybrid@example.test")
@@ -452,12 +483,12 @@ defmodule Improve.StoriesTest do
       plan = hybrid_today_plan!(story, "Hybrid today plan")
 
       before = Story.project_today!(story, plan, on: ~D[2026-06-22])
-      assert Enum.map(before.projected_work, & &1.kind) == [:session, :direct_goal]
+      assert Enum.map(before.projected_work, & &1.kind) == [:session, :track]
       assert Enum.map(before.projected_work, & &1.status) == [:planned, :planned]
 
       reading =
-        Story.log_direct_goal!(story, before,
-          goal: "daily_reading",
+        Story.log_track!(story, before,
+          track: "daily_reading",
           payload: %{pages: 25, note: "Read before breakfast"}
         )
 
@@ -475,7 +506,7 @@ defmodule Improve.StoriesTest do
 
       assert [
                %{kind: :session, status: :partial},
-               %{kind: :direct_goal, status: :completed}
+               %{kind: :track, status: :completed}
              ] = after_projection.projected_work
 
       event_ids =
@@ -493,12 +524,12 @@ defmodule Improve.StoriesTest do
 
       assert [
                %{kind: "session", status: "partial"},
-               %{kind: "direct_goal", status: "completed"}
+               %{kind: "track", status: "completed"}
              ] = ai_context.projected_work
 
       assert ai_context.input_summary.journal_events == 2
       assert ai_context.input_summary.session_occurrences == 1
-      assert ai_context.headline =~ "1 direct goal(s) and 1 session(s)"
+      assert ai_context.headline =~ "1 track(s) and 1 session(s)"
       assert Enum.map(ai_context.sections, & &1.kind) == [:sessions, :recovery]
     end
   end
@@ -518,7 +549,7 @@ defmodule Improve.StoriesTest do
 
       assert summary.items == 10
       assert summary.event_types == 6
-      assert summary.direct_goals == 11
+      assert summary.tracks == 11
       assert summary.session_templates == 2
       assert summary.schedules == 13
 
@@ -532,22 +563,22 @@ defmodule Improve.StoriesTest do
 
       monday = Story.project_today!(story, plan, on: ~D[2026-06-22])
       assert projected_titles(monday, :session) == []
-      assert "Retatrutide" in projected_titles(monday, :direct_goal)
-      assert "Daily habits" in projected_titles(monday, :direct_goal)
-      assert "Reading" in projected_titles(monday, :direct_goal)
-      assert "Steps" in projected_titles(monday, :direct_goal)
+      assert "Retatrutide" in projected_titles(monday, :track)
+      assert "Daily habits" in projected_titles(monday, :track)
+      assert "Reading" in projected_titles(monday, :track)
+      assert "Steps" in projected_titles(monday, :track)
 
       dose =
         Story.log_event!(story, plan,
           event: "dose_taken",
-          goal: "retatrutide_dose",
+          track: "retatrutide_dose",
           on: ~D[2026-06-22],
           summary: "Took 2 mg Retatrutide",
           links: %{source_vial: "retatrutide"},
           payload: %{amount: 2, unit: "mg", site: "abdomen"}
         )
 
-      assert dose.event.direct_goal_id
+      assert dose.event.track_id
       assert dose.event.quantity == Decimal.new(2)
       assert dose.event.unit == "mg"
       assert [%{role: "source_vial"}] = dose.event_item_links
@@ -564,20 +595,20 @@ defmodule Improve.StoriesTest do
 
       assert Decimal.equal?(after_state.calculated_state.current_quantity, Decimal.new(18))
 
-      assert [%{id: event_id, direct_goal_id: direct_goal_id}] =
+      assert [%{id: event_id, track_id: track_id}] =
                Journal.read_journal!(plan, actor: story.user)
 
       assert event_id == dose.event.id
-      assert direct_goal_id == dose.event.direct_goal_id
+      assert track_id == dose.event.track_id
 
       monday_after = Story.project_today!(story, plan, on: ~D[2026-06-22])
       assert work_status(monday_after, "Retatrutide") == :completed
 
       tuesday = Story.project_today!(story, plan, on: ~D[2026-06-23])
       assert projected_titles(tuesday, :session) == ["Upper body gym visit"]
-      assert "Cycling" in projected_titles(tuesday, :direct_goal)
-      assert "Measure waist" in projected_titles(tuesday, :direct_goal)
-      assert "Listen to music or audiobook" in projected_titles(tuesday, :direct_goal)
+      assert "Cycling" in projected_titles(tuesday, :track)
+      assert "Measure waist" in projected_titles(tuesday, :track)
+      assert "Listen to music or audiobook" in projected_titles(tuesday, :track)
 
       assert [
                %{
@@ -600,15 +631,15 @@ defmodule Improve.StoriesTest do
 
       assert [%{kind: "session", title: "Upper body gym visit"} | _] = ai_tuesday.projected_work
       assert ai_tuesday.input_summary.journal_events == 1
-      assert ai_tuesday.headline =~ "direct goal(s)"
+      assert ai_tuesday.headline =~ "track(s)"
       assert Enum.any?(ai_tuesday.sections, &(&1.kind == :sessions))
       assert Enum.any?(ai_tuesday.sections, &(&1.kind == :recovery))
 
       saturday = Story.project_today!(story, plan, on: ~D[2026-06-27])
       assert projected_titles(saturday, :session) == ["Lower body gym visit"]
-      assert "Cycling" in projected_titles(saturday, :direct_goal)
-      assert "Listen to music or audiobook" in projected_titles(saturday, :direct_goal)
-      refute "Measure waist" in projected_titles(saturday, :direct_goal)
+      assert "Cycling" in projected_titles(saturday, :track)
+      assert "Listen to music or audiobook" in projected_titles(saturday, :track)
+      refute "Measure waist" in projected_titles(saturday, :track)
     end
   end
 
@@ -658,7 +689,7 @@ defmodule Improve.StoriesTest do
   defp hybrid_today_plan!(story, name) do
     plan =
       Story.create_plan!(story, name,
-        intention: "See daily goals and gym sessions together",
+        intention: "See daily tracks and gym sessions together",
         from: ~D[2026-06-22],
         until: ~D[2026-07-23]
       )
@@ -668,7 +699,7 @@ defmodule Improve.StoriesTest do
       payload: %{required: ["pages"]}
     )
 
-    Story.add_direct_goal!(story, plan, "Read 20 pages",
+    Story.add_track!(story, plan, "Read 20 pages",
       key: "daily_reading",
       event: "pages_read",
       schedule: Story.every_day(),
@@ -686,8 +717,9 @@ defmodule Improve.StoriesTest do
       payload: %{required: ["sets", "reps"]}
     )
 
-    Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
-    Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
+    Story.add_item_type!(story, plan, "Exercise", key: "exercise")
+    Story.add_item!(story, plan, "Chest Press", key: "chest_press", type: "exercise")
+    Story.add_item!(story, plan, "Lat Pulldown", key: "lat_pulldown", type: "exercise")
 
     Story.add_pool!(story, plan, "Push exercises", key: "push", items: ["chest_press"])
     Story.add_pool!(story, plan, "Pull exercises", key: "pull", items: ["lat_pulldown"])
@@ -714,7 +746,7 @@ defmodule Improve.StoriesTest do
 
     add_translated_event_types!(story, plan)
     add_translated_inventory!(story, plan)
-    add_translated_direct_goals!(story, plan)
+    add_translated_tracks!(story, plan)
     add_translated_session_items!(story, plan)
     add_translated_sessions!(story, plan)
 
@@ -782,22 +814,22 @@ defmodule Improve.StoriesTest do
     )
   end
 
-  defp add_translated_direct_goals!(story, plan) do
-    Story.add_direct_goal!(story, plan, "Weigh myself",
+  defp add_translated_tracks!(story, plan) do
+    Story.add_track!(story, plan, "Weigh myself",
       key: "weigh_myself",
       event: "metric_logged",
       schedule: Story.every_day(),
       target: %{unit: "kg", quantity_path: "payload.value"}
     )
 
-    Story.add_direct_goal!(story, plan, "Measure waist",
+    Story.add_track!(story, plan, "Measure waist",
       key: "measure_waist",
       event: "metric_logged",
       schedule: Story.every_week(times: 1, on: [:tuesday]),
       target: %{unit: "cm", quantity_path: "payload.value"}
     )
 
-    Story.add_direct_goal!(story, plan, "Steps",
+    Story.add_track!(story, plan, "Steps",
       key: "steps",
       event: "quantity_logged",
       schedule: Story.every_day(),
@@ -809,7 +841,7 @@ defmodule Improve.StoriesTest do
       }
     )
 
-    Story.add_direct_goal!(story, plan, "Cycling",
+    Story.add_track!(story, plan, "Cycling",
       key: "cycling",
       event: "cardio_performed",
       schedule: Story.every_week(times: 3, on: [:tuesday, :thursday, :saturday]),
@@ -822,7 +854,7 @@ defmodule Improve.StoriesTest do
       }
     )
 
-    Story.add_direct_goal!(story, plan, "Daily habits",
+    Story.add_track!(story, plan, "Daily habits",
       key: "daily_habits",
       event: "checklist_completed",
       schedule: Story.every_day(),
@@ -839,14 +871,14 @@ defmodule Improve.StoriesTest do
       }
     )
 
-    Story.add_direct_goal!(story, plan, "Drink water",
+    Story.add_track!(story, plan, "Drink water",
       key: "drink_water",
       event: "quantity_logged",
       schedule: Story.every_day(),
       target: %{quantity: 3, unit: "litres", quantity_path: "payload.amount"}
     )
 
-    Story.add_direct_goal!(story, plan, "Retatrutide",
+    Story.add_track!(story, plan, "Retatrutide",
       key: "retatrutide_dose",
       event: "dose_taken",
       schedule: Story.every_week(times: 1, on: [:monday]),
@@ -858,28 +890,28 @@ defmodule Improve.StoriesTest do
       }
     )
 
-    Story.add_direct_goal!(story, plan, "Put bins out",
+    Story.add_track!(story, plan, "Put bins out",
       key: "put_bins_out",
       event: "checklist_completed",
       schedule: Story.every_week(times: 1, on: [:wednesday]),
       target: %{checklist_items: [%{key: "put_bins_out", label: "Put bins out"}]}
     )
 
-    Story.add_direct_goal!(story, plan, "Reading",
+    Story.add_track!(story, plan, "Reading",
       key: "reading",
       event: "quantity_logged",
       schedule: Story.every_day(),
       target: %{quantity: 15, unit: "pages", quantity_path: "payload.amount"}
     )
 
-    Story.add_direct_goal!(story, plan, "Watch a film or TV series",
+    Story.add_track!(story, plan, "Watch a film or TV series",
       key: "watch_film_or_tv",
       event: "quantity_logged",
       schedule: Story.every_week(times: 3, on: [:wednesday, :friday, :sunday]),
       target: %{quantity: 90, unit: "min", quantity_path: "payload.amount"}
     )
 
-    Story.add_direct_goal!(story, plan, "Listen to music or audiobook",
+    Story.add_track!(story, plan, "Listen to music or audiobook",
       key: "listen_music_or_audiobook",
       event: "quantity_logged",
       schedule: Story.every_week(times: 3, on: [:tuesday, :thursday, :saturday]),
@@ -894,12 +926,12 @@ defmodule Improve.StoriesTest do
     Story.add_item!(story, plan, "Elliptical", key: "elliptical", type: "cardio_activity")
 
     Story.add_item_type!(story, plan, "Exercise", key: "exercise")
-    Story.add_exercise!(story, plan, "Chest Press", key: "chest_press")
-    Story.add_exercise!(story, plan, "Lat Pulldown", key: "lat_pulldown")
-    Story.add_exercise!(story, plan, "Shoulder Press", key: "shoulder_press")
-    Story.add_exercise!(story, plan, "Leg Press", key: "leg_press")
-    Story.add_exercise!(story, plan, "Leg Curl", key: "leg_curl")
-    Story.add_exercise!(story, plan, "Leg Extension", key: "leg_extension")
+    Story.add_item!(story, plan, "Chest Press", key: "chest_press", type: "exercise")
+    Story.add_item!(story, plan, "Lat Pulldown", key: "lat_pulldown", type: "exercise")
+    Story.add_item!(story, plan, "Shoulder Press", key: "shoulder_press", type: "exercise")
+    Story.add_item!(story, plan, "Leg Press", key: "leg_press", type: "exercise")
+    Story.add_item!(story, plan, "Leg Curl", key: "leg_curl", type: "exercise")
+    Story.add_item!(story, plan, "Leg Extension", key: "leg_extension", type: "exercise")
 
     Story.add_pool!(story, plan, "Upper cardio warm-up",
       key: "upper_cardio",

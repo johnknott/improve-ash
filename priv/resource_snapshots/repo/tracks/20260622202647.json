@@ -127,7 +127,7 @@
           "global": null,
           "strategy": null
         },
-        "name": "direct_goals_plan_id_fkey",
+        "name": "tracks_plan_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
@@ -158,7 +158,7 @@
           "global": null,
           "strategy": null
         },
-        "name": "direct_goals_event_type_id_fkey",
+        "name": "tracks_event_type_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
@@ -182,7 +182,7 @@
     {
       "all_tenants?": false,
       "base_filter": null,
-      "index_name": "direct_goals_unique_key_per_plan_index",
+      "index_name": "tracks_unique_key_per_plan_index",
       "keys": [
         {
           "type": "atom",
@@ -205,5 +205,5 @@
   },
   "repo": "Elixir.Improve.Repo",
   "schema": null,
-  "table": "direct_goals"
+  "table": "tracks"
 }

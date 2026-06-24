@@ -1,8 +1,9 @@
 # Offline Journal Ingress
 
 This note describes the minimal offline logging shape for the headless product
-kernel. It is guided by `notes/full-rewrite-spec.md`, especially "Offline Event
-Logging", and by the `EventInstance` model in `notes/spike-spec.md`.
+kernel. It was historically guided by `notes/archive/full-rewrite-spec.md`,
+especially "Offline Event Logging", and by the `EventInstance` model in
+`notes/spike-spec.md`.
 
 The goal is resilient event capture, not full local-first sync. A client should
 be able to record journal events while disconnected, submit them later, retry

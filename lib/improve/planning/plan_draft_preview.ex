@@ -42,7 +42,7 @@ defmodule Improve.Planning.PlanDraftPreview do
       event_types: length(list(draft, :event_types)),
       session_templates: length(list(draft, :session_templates)),
       session_slots: session_slot_count(draft),
-      direct_goals: length(list(draft, :direct_goals)),
+      tracks: length(list(draft, :tracks)),
       schedules: length(list(draft, :schedules)),
       sample_events: length(list(draft, :sample_events))
     }
@@ -65,15 +65,15 @@ defmodule Improve.Planning.PlanDraftPreview do
               )
           }
         end),
-      goals:
+      tracks:
         draft
-        |> list(:direct_goals)
-        |> Enum.map(fn goal ->
+        |> list(:tracks)
+        |> Enum.map(fn track ->
           %{
-            key: value(goal, :key),
-            name: value(goal, :name),
-            event_type_key: value(goal, :event_type_key),
-            target: value(goal, :target) || %{}
+            key: value(track, :key),
+            name: value(track, :name),
+            event_type_key: value(track, :event_type_key),
+            target: value(track, :target) || %{}
           }
         end),
       items:

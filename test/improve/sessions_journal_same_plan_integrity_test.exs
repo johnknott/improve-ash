@@ -121,7 +121,7 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
   end
 
   describe "same-plan integrity for journal writes" do
-    test "events cannot mix event types, planned work, direct goals, or replacements across plans" do
+    test "events cannot mix event types, planned work, tracks, or replacements across plans" do
       user = user!("same-plan-runtime-event@example.com")
       a = fixture!(user, "a")
       b = fixture!(user, "b")
@@ -129,7 +129,7 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
       slot_result_a = slot_result!(user, a)
       occurrence_b = occurrence!(user, b)
       slot_result_b = slot_result!(user, b)
-      direct_goal_b = direct_goal!(user, b)
+      track_b = track!(user, b)
       event_b = event!(user, b)
 
       assert_same_plan_error(fn ->
@@ -152,7 +152,7 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
 
       assert_same_plan_error(fn ->
         Journal.log_event(
-          event_attrs(a.plan, a.event_type, direct_goal_id: direct_goal_b.id),
+          event_attrs(a.plan, a.event_type, track_id: track_b.id),
           actor: user
         )
       end)
@@ -338,13 +338,13 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
     }
   end
 
-  defp direct_goal!(user, fixture) do
-    Plans.create_direct_goal!(
+  defp track!(user, fixture) do
+    Plans.create_track!(
       %{
         plan_id: fixture.plan.id,
         event_type_id: fixture.event_type.id,
-        key: "goal",
-        name: "Goal"
+        key: "track",
+        name: "Track"
       },
       actor: user
     )

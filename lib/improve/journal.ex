@@ -479,7 +479,7 @@ defmodule Improve.Journal do
         validate_plan_record(:slot_result, command.slot_result_id, command.plan_id, actor)
       end,
       fn ->
-        validate_plan_record(:direct_goal, command.direct_goal_id, command.plan_id, actor)
+        validate_plan_record(:track, command.track_id, command.plan_id, actor)
       end,
       fn -> validate_item_links(command.item_links, command.plan_id, actor) end,
       fn -> validate_slot_freshness(command, actor) end,
@@ -530,7 +530,7 @@ defmodule Improve.Journal do
     do: Sessions.get_session_occurrence(id, actor: actor)
 
   defp fetch_plan_record(:slot_result, id, actor), do: Sessions.get_slot_result(id, actor: actor)
-  defp fetch_plan_record(:direct_goal, id, actor), do: Plans.get_direct_goal(id, actor: actor)
+  defp fetch_plan_record(:track, id, actor), do: Plans.get_track(id, actor: actor)
   defp fetch_plan_record(:item, id, actor), do: Plans.get_item(id, actor: actor)
 
   defp validate_record_plan(:item, %{archived_at: archived_at}, _plan_id)
@@ -615,7 +615,7 @@ defmodule Improve.Journal do
   defp record_label(:event_type), do: "Event type"
   defp record_label(:session_occurrence), do: "Session occurrence"
   defp record_label(:slot_result), do: "Slot result"
-  defp record_label(:direct_goal), do: "Direct goal"
+  defp record_label(:track), do: "Track"
   defp record_label(:item), do: "Item"
 
   defp transact(fun) when is_function(fun, 0) do

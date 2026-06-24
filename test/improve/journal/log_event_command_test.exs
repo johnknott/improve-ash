@@ -13,7 +13,7 @@ defmodule Improve.Journal.LogEventCommandTest do
                  event_type_id: "event-type-1",
                  session_occurrence_id: "occurrence-1",
                  slot_result_id: "slot-1",
-                 direct_goal_id: "goal-1",
+                 track_id: "track-1",
                  replaces_event_instance_id: "event-1",
                  replaces_item_effect_id: "effect-1",
                  effective_at: ~U[2026-06-22 12:00:00Z],
@@ -40,7 +40,7 @@ defmodule Improve.Journal.LogEventCommandTest do
       assert command.event_type_id == "event-type-1"
       assert command.session_occurrence_id == "occurrence-1"
       assert command.slot_result_id == "slot-1"
-      assert command.direct_goal_id == "goal-1"
+      assert command.track_id == "track-1"
       assert command.replaces_event_instance_id == "event-1"
       assert command.replaces_item_effect_id == "effect-1"
       assert command.origin == :offline_sync

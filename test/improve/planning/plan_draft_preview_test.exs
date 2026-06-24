@@ -32,7 +32,7 @@ defmodule Improve.Planning.PlanDraftPreviewTest do
                event_types: 2,
                session_templates: 1,
                session_slots: 3,
-               direct_goals: 0,
+               tracks: 0,
                schedules: 1,
                sample_events: 0
              }
@@ -65,7 +65,7 @@ defmodule Improve.Planning.PlanDraftPreviewTest do
         starts_on: "2026-06-22",
         ends_on: "2026-07-20",
         items: [%{key: "orphan", name: "Orphan", item_type_key: "missing_type"}],
-        direct_goals: [
+        tracks: [
           %{
             key: "read",
             name: "Read",
@@ -79,12 +79,12 @@ defmodule Improve.Planning.PlanDraftPreviewTest do
 
       refute preview.valid?
       assert preview.counts.items == 1
-      assert preview.counts.direct_goals == 1
+      assert preview.counts.tracks == 1
       assert Enum.any?(preview.diagnostics, &(&1.code == :missing_item_type))
       assert Enum.any?(preview.diagnostics, &(&1.code == :missing_event_type))
-      assert Enum.any?(preview.diagnostics, &(&1.code == :direct_goal_target_unit_missing))
+      assert Enum.any?(preview.diagnostics, &(&1.code == :track_target_unit_missing))
 
-      assert [%{key: "read", target: %{"quantity" => 20}}] = preview.lists.goals
+      assert [%{key: "read", target: %{"quantity" => 20}}] = preview.lists.tracks
     end
   end
 end

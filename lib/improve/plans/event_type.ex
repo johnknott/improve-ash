@@ -88,7 +88,7 @@ defmodule Improve.Plans.EventType do
       public? true
     end
 
-    has_many :direct_goals, Improve.Plans.DirectGoal
+    has_many :tracks, Improve.Plans.Track
     has_many :event_instances, Improve.Journal.EventInstance
   end
 

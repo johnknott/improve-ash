@@ -77,10 +77,10 @@ defmodule Improve.Plans do
       define :list_session_slots, action: :read
     end
 
-    resource Improve.Plans.DirectGoal do
-      define :create_direct_goal, action: :create
-      define :get_direct_goal, action: :read, get_by: [:id]
-      define :list_direct_goals, action: :read
+    resource Improve.Plans.Track do
+      define :create_track, action: :create
+      define :get_track, action: :read, get_by: [:id]
+      define :list_tracks, action: :read
     end
   end
 
@@ -149,7 +149,7 @@ defmodule Improve.Plans do
          session_templates: plan.session_templates,
          session_slots: plan.session_slots,
          schedules: plan.schedules,
-         direct_goals: plan.direct_goals,
+         tracks: plan.tracks,
          journal_events: plan.event_instances,
          session_occurrences: plan.session_occurrences,
          slot_results: plan.slot_results,
@@ -172,7 +172,7 @@ defmodule Improve.Plans do
       :event_type_count,
       :session_template_count,
       :session_slot_count,
-      :direct_goal_count,
+      :track_count,
       :schedule_count
     ]
   end
@@ -187,7 +187,7 @@ defmodule Improve.Plans do
       event_types: plan.event_type_count,
       session_templates: plan.session_template_count,
       session_slots: plan.session_slot_count,
-      direct_goals: plan.direct_goal_count,
+      tracks: plan.track_count,
       schedules: plan.schedule_count
     }
   end
@@ -197,7 +197,7 @@ defmodule Improve.Plans do
       :session_templates,
       :session_slots,
       :schedules,
-      :direct_goals,
+      :tracks,
       :event_instances,
       :session_occurrences,
       :slot_results,

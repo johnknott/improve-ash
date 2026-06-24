@@ -367,19 +367,19 @@ defmodule Improve.Repo.Migrations.AddSessionsAndJournal do
             prefix: "public"
           )
 
-      add :direct_goal_id, :uuid
+      add :track_id, :uuid
       add :replaces_event_instance_id, :uuid
     end
 
-    create table(:direct_goals, primary_key: false) do
+    create table(:tracks, primary_key: false) do
       add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true
     end
 
     alter table(:event_instances) do
-      modify :direct_goal_id,
-             references(:direct_goals,
+      modify :track_id,
+             references(:tracks,
                column: :id,
-               name: "event_instances_direct_goal_id_fkey",
+               name: "event_instances_track_id_fkey",
                type: :uuid,
                prefix: "public"
              )
@@ -393,7 +393,7 @@ defmodule Improve.Repo.Migrations.AddSessionsAndJournal do
              )
     end
 
-    alter table(:direct_goals) do
+    alter table(:tracks) do
       add :key, :text, null: false
       add :name, :text, null: false
       add :description, :text
@@ -412,7 +412,7 @@ defmodule Improve.Repo.Migrations.AddSessionsAndJournal do
       add :plan_id,
           references(:plans,
             column: :id,
-            name: "direct_goals_plan_id_fkey",
+            name: "tracks_plan_id_fkey",
             type: :uuid,
             prefix: "public"
           ),
@@ -421,28 +421,26 @@ defmodule Improve.Repo.Migrations.AddSessionsAndJournal do
       add :event_type_id,
           references(:event_types,
             column: :id,
-            name: "direct_goals_event_type_id_fkey",
+            name: "tracks_event_type_id_fkey",
             type: :uuid,
             prefix: "public"
           ),
           null: false
     end
 
-    create unique_index(:direct_goals, [:plan_id, :key],
-             name: "direct_goals_unique_key_per_plan_index"
-           )
+    create unique_index(:tracks, [:plan_id, :key], name: "tracks_unique_key_per_plan_index")
   end
 
   def down do
-    drop constraint(:direct_goals, "direct_goals_plan_id_fkey")
+    drop constraint(:tracks, "tracks_plan_id_fkey")
 
-    drop constraint(:direct_goals, "direct_goals_event_type_id_fkey")
+    drop constraint(:tracks, "tracks_event_type_id_fkey")
 
-    drop_if_exists unique_index(:direct_goals, [:plan_id, :key],
-                     name: "direct_goals_unique_key_per_plan_index"
+    drop_if_exists unique_index(:tracks, [:plan_id, :key],
+                     name: "tracks_unique_key_per_plan_index"
                    )
 
-    alter table(:direct_goals) do
+    alter table(:tracks) do
       remove :event_type_id
       remove :plan_id
       remove :updated_at
@@ -455,16 +453,16 @@ defmodule Improve.Repo.Migrations.AddSessionsAndJournal do
       remove :key
     end
 
-    drop constraint(:event_instances, "event_instances_direct_goal_id_fkey")
+    drop constraint(:event_instances, "event_instances_track_id_fkey")
 
     drop constraint(:event_instances, "event_instances_replaces_event_instance_id_fkey")
 
     alter table(:event_instances) do
       modify :replaces_event_instance_id, :uuid
-      modify :direct_goal_id, :uuid
+      modify :track_id, :uuid
     end
 
-    drop table(:direct_goals)
+    drop table(:tracks)
 
     drop constraint(:event_instances, "event_instances_plan_id_fkey")
 
@@ -476,7 +474,7 @@ defmodule Improve.Repo.Migrations.AddSessionsAndJournal do
 
     alter table(:event_instances) do
       remove :replaces_event_instance_id
-      remove :direct_goal_id
+      remove :track_id
       remove :slot_result_id
       remove :session_occurrence_id
       remove :event_type_id

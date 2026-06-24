@@ -133,17 +133,17 @@ defmodule Improve.Plans.SamePlanIntegrityTest do
       end)
     end
 
-    test "direct goals and schedules cannot target foreign plan owners" do
+    test "tracks and schedules cannot target foreign plan owners" do
       user = user!("same-plan-schedule@example.com")
       plan_a = plan!(user, "Plan A")
       plan_b = plan!(user, "Plan B")
       event_type_a = event_type!(user, plan_a, "read_pages")
       event_type_b = event_type!(user, plan_b, "dose")
       template_b = session_template!(user, plan_b, "other_session")
-      direct_goal_a = direct_goal!(user, plan_a, event_type_a, "read")
+      track_a = track!(user, plan_a, event_type_a, "read")
 
       assert_same_plan_error(fn ->
-        Plans.create_direct_goal(
+        Plans.create_track(
           %{
             plan_id: plan_a.id,
             key: "dose",
@@ -172,8 +172,8 @@ defmodule Improve.Plans.SamePlanIntegrityTest do
         Plans.create_schedule(
           %{
             plan_id: plan_b.id,
-            owner_type: :direct_goal,
-            owner_id: direct_goal_a.id,
+            owner_type: :track,
+            owner_id: track_a.id,
             kind: :every_day,
             starts_on: ~D[2026-06-22]
           },
@@ -286,8 +286,8 @@ defmodule Improve.Plans.SamePlanIntegrityTest do
     )
   end
 
-  defp direct_goal!(user, plan, event_type, key) do
-    Plans.create_direct_goal!(
+  defp track!(user, plan, event_type, key) do
+    Plans.create_track!(
       %{
         plan_id: plan.id,
         event_type_id: event_type.id,

@@ -347,16 +347,16 @@
           "global": null,
           "strategy": null
         },
-        "name": "event_instances_direct_goal_id_fkey",
+        "name": "event_instances_track_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
         "schema": "public",
-        "table": "direct_goals"
+        "table": "tracks"
       },
       "scale": null,
       "size": null,
-      "source": "direct_goal_id",
+      "source": "track_id",
       "type": "uuid"
     },
     {

@@ -80,26 +80,26 @@ defmodule Improve.App.Logging do
     Journal.log_generic_event!(event_attrs(plan, opts, actor), actor: actor)
   end
 
-  def log_direct_goal!(projection, opts) do
+  def log_track!(projection, opts) do
     actor = Keyword.fetch!(opts, :actor)
     plan_id = projection.plan_id
-    direct_goal = Lookup.direct_goal!(plan_id, Keyword.fetch!(opts, :goal), actor)
-    event_type = direct_goal_event_type!(plan_id, direct_goal, opts, actor)
+    track = Lookup.track!(plan_id, Keyword.fetch!(opts, :track), actor)
+    event_type = track_event_type!(plan_id, track, opts, actor)
     effective_at = Keyword.get(opts, :effective_at, Value.default_datetime(projection.date))
     payload = Value.stringify_keys(Keyword.get(opts, :payload, %{}))
-    quantity = Keyword.get(opts, :quantity, quantity_from_target(payload, direct_goal.target))
-    unit = Keyword.get(opts, :unit, Value.value(direct_goal.target, "unit"))
+    quantity = Keyword.get(opts, :quantity, quantity_from_target(payload, track.target))
+    unit = Keyword.get(opts, :unit, Value.value(track.target, "unit"))
     note = Keyword.get(opts, :note, Value.value(payload, "note"))
-    links = item_links(plan_id, merged_links(direct_goal, opts), actor)
+    links = item_links(plan_id, merged_links(track, opts), actor)
 
     Journal.log_generic_event!(
       %{
         plan_id: plan_id,
         event_type_id: event_type.id,
-        direct_goal_id: direct_goal.id,
+        track_id: track.id,
         effective_at: effective_at,
         recorded_at: Keyword.get(opts, :recorded_at, effective_at),
-        summary: Keyword.get(opts, :summary, direct_goal_summary(direct_goal, quantity, unit)),
+        summary: Keyword.get(opts, :summary, track_summary(track, quantity, unit)),
         payload: payload,
         note: note,
         quantity: quantity,
@@ -137,7 +137,7 @@ defmodule Improve.App.Logging do
     |> Value.maybe_put(:origin, Keyword.get(opts, :origin))
     |> Value.maybe_put(:session_occurrence_id, Keyword.get(opts, :session_occurrence_id))
     |> Value.maybe_put(:slot_result_id, Keyword.get(opts, :slot_result_id))
-    |> Value.maybe_put(:direct_goal_id, Keyword.get(opts, :direct_goal_id))
+    |> Value.maybe_put(:track_id, Keyword.get(opts, :track_id))
   end
 
   def submit_offline_events!(entries, opts) do
@@ -146,22 +146,22 @@ defmodule Improve.App.Logging do
 
   def event_attrs(plan, opts, actor) do
     plan_id = Lookup.plan_id(plan)
-    direct_goal = maybe_direct_goal(plan_id, Keyword.get(opts, :goal), actor)
-    event_type = event_type!(plan_id, direct_goal, opts, actor)
+    track = maybe_track(plan_id, Keyword.get(opts, :track), actor)
+    event_type = event_type!(plan_id, track, opts, actor)
     payload = Value.stringify_keys(Keyword.get(opts, :payload, %{}))
-    links = item_links(plan_id, merged_links(direct_goal, opts), actor)
+    links = item_links(plan_id, merged_links(track, opts), actor)
     effective_at = event_datetime(opts)
-    quantity = Keyword.get(opts, :quantity, quantity_from_event(payload, direct_goal))
-    unit = Keyword.get(opts, :unit, unit_from_event(payload, direct_goal))
+    quantity = Keyword.get(opts, :quantity, quantity_from_event(payload, track))
+    unit = Keyword.get(opts, :unit, unit_from_event(payload, track))
 
     %{
       plan_id: plan_id,
       event_type_id: event_type.id,
-      direct_goal_id: if(direct_goal, do: direct_goal.id),
+      track_id: if(track, do: track.id),
       effective_at: effective_at,
       recorded_at: Keyword.get(opts, :recorded_at, effective_at),
       summary:
-        Keyword.get(opts, :summary, event_summary(event_type, links, direct_goal, quantity, unit)),
+        Keyword.get(opts, :summary, event_summary(event_type, links, track, quantity, unit)),
       quantity: quantity,
       unit: unit,
       payload: payload,
@@ -250,9 +250,9 @@ defmodule Improve.App.Logging do
     "#{actual_item.name} performed instead of #{recommended_item.name}"
   end
 
-  defp direct_goal_event_type!(plan_id, direct_goal, opts, actor) do
+  defp track_event_type!(plan_id, track, opts, actor) do
     case Keyword.get(opts, :as_event, Keyword.get(opts, :event)) do
-      nil -> Plans.get_event_type!(direct_goal.event_type_id, actor: actor)
+      nil -> Plans.get_event_type!(track.event_type_id, actor: actor)
       key -> Lookup.event_type!(plan_id, key, actor)
     end
   end
@@ -260,26 +260,26 @@ defmodule Improve.App.Logging do
   defp event_type!(plan_id, nil, opts, actor),
     do: Lookup.event_type!(plan_id, Keyword.fetch!(opts, :event), actor)
 
-  defp event_type!(plan_id, direct_goal, opts, actor) do
+  defp event_type!(plan_id, track, opts, actor) do
     case Keyword.get(opts, :event) do
-      nil -> Plans.get_event_type!(direct_goal.event_type_id, actor: actor)
+      nil -> Plans.get_event_type!(track.event_type_id, actor: actor)
       key -> Lookup.event_type!(plan_id, key, actor)
     end
   end
 
-  defp maybe_direct_goal(_plan_id, nil, _actor), do: nil
-  defp maybe_direct_goal(plan_id, key, actor), do: Lookup.direct_goal!(plan_id, key, actor)
+  defp maybe_track(_plan_id, nil, _actor), do: nil
+  defp maybe_track(plan_id, key, actor), do: Lookup.track!(plan_id, key, actor)
 
   defp merged_links(nil, opts), do: Value.stringify_keys(Keyword.get(opts, :links, %{}))
 
-  defp merged_links(direct_goal, opts) do
-    direct_goal
+  defp merged_links(track, opts) do
+    track
     |> default_links()
     |> Map.merge(Value.stringify_keys(Keyword.get(opts, :links, %{})))
   end
 
-  defp default_links(direct_goal) do
-    case Value.value(direct_goal.target, "default_links") do
+  defp default_links(track) do
+    case Value.value(track.target, "default_links") do
       links when is_map(links) -> Value.stringify_keys(links)
       _other -> %{}
     end
@@ -298,14 +298,14 @@ defmodule Improve.App.Logging do
 
   defp quantity_from_event(payload, nil), do: Value.value(payload, "amount")
 
-  defp quantity_from_event(payload, direct_goal) do
-    quantity_from_target(payload, direct_goal.target) || Value.value(payload, "amount")
+  defp quantity_from_event(payload, track) do
+    quantity_from_target(payload, track.target) || Value.value(payload, "amount")
   end
 
   defp unit_from_event(payload, nil), do: Value.value(payload, "unit")
 
-  defp unit_from_event(payload, direct_goal) do
-    Value.value(direct_goal.target, "unit") || Value.value(payload, "unit")
+  defp unit_from_event(payload, track) do
+    Value.value(track.target, "unit") || Value.value(payload, "unit")
   end
 
   defp quantity_from_target(payload, target) do
@@ -315,9 +315,9 @@ defmodule Improve.App.Logging do
     end
   end
 
-  defp event_summary(_event_type, _links, direct_goal, quantity, unit)
-       when not is_nil(direct_goal) do
-    direct_goal_summary(direct_goal, quantity, unit)
+  defp event_summary(_event_type, _links, track, quantity, unit)
+       when not is_nil(track) do
+    track_summary(track, quantity, unit)
   end
 
   defp event_summary(
@@ -332,20 +332,20 @@ defmodule Improve.App.Logging do
 
   defp event_summary(event_type, _links, _goal, _quantity, _unit), do: "#{event_type.name} logged"
 
-  defp direct_goal_summary(direct_goal, quantity, unit)
+  defp track_summary(track, quantity, unit)
        when not is_nil(quantity) and not is_nil(unit) do
-    case Value.value(direct_goal.target, "summary_template") do
+    case Value.value(track.target, "summary_template") do
       template when is_binary(template) ->
         template
         |> String.replace("%{quantity}", to_string(quantity))
         |> String.replace("%{unit}", to_string(unit))
 
       _other ->
-        "#{quantity} #{unit} for #{direct_goal.name}"
+        "#{quantity} #{unit} for #{track.name}"
     end
   end
 
-  defp direct_goal_summary(direct_goal, _quantity, _unit), do: "#{direct_goal.name} logged"
+  defp track_summary(track, _quantity, _unit), do: "#{track.name} logged"
 
   defp event_from(%{event: event}), do: event
   defp event_from(event), do: event

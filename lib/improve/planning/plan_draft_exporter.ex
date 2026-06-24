@@ -37,7 +37,7 @@ defmodule Improve.Planning.PlanDraftExporter do
          {:ok, session_templates} <-
            Plans.list_session_templates(actor: actor, query: plan_filter),
          {:ok, session_slots} <- Plans.list_session_slots(actor: actor, query: plan_filter),
-         {:ok, direct_goals} <- Plans.list_direct_goals(actor: actor, query: plan_filter),
+         {:ok, tracks} <- Plans.list_tracks(actor: actor, query: plan_filter),
          {:ok, schedules} <- Plans.list_schedules(actor: actor, query: plan_filter) do
       {:ok,
        %{
@@ -49,7 +49,7 @@ defmodule Improve.Planning.PlanDraftExporter do
          event_types: event_types,
          session_templates: session_templates,
          session_slots: session_slots,
-         direct_goals: direct_goals,
+         tracks: tracks,
          schedules: schedules
        }}
     end
@@ -80,8 +80,7 @@ defmodule Improve.Planning.PlanDraftExporter do
           sort_keyed(definitions.session_templates),
           &session_template_draft(&1, definitions, indexes)
         ),
-      direct_goals:
-        Enum.map(sort_keyed(definitions.direct_goals), &direct_goal_draft(&1, indexes)),
+      tracks: Enum.map(sort_keyed(definitions.tracks), &track_draft(&1, indexes)),
       schedules:
         Enum.map(sort_schedules(definitions.schedules, indexes), &schedule_draft(&1, indexes)),
       sample_events: []
@@ -96,7 +95,7 @@ defmodule Improve.Planning.PlanDraftExporter do
       environments: id_to_key(definitions.environments),
       event_types: id_to_key(definitions.event_types),
       session_templates: id_to_key(definitions.session_templates),
-      direct_goals: id_to_key(definitions.direct_goals)
+      tracks: id_to_key(definitions.tracks)
     }
   end
 
@@ -192,15 +191,15 @@ defmodule Improve.Planning.PlanDraftExporter do
     })
   end
 
-  defp direct_goal_draft(goal, indexes) do
+  defp track_draft(track, indexes) do
     compact(%{
-      key: goal.key,
-      name: goal.name,
-      description: goal.description,
-      event_type_key: Map.fetch!(indexes.event_types, goal.event_type_id),
-      target: goal.target,
-      completion_policy: goal.completion_policy,
-      missed_policy: goal.missed_policy
+      key: track.key,
+      name: track.name,
+      description: track.description,
+      event_type_key: Map.fetch!(indexes.event_types, track.event_type_id),
+      target: track.target,
+      completion_policy: track.completion_policy,
+      missed_policy: track.missed_policy
     })
   end
 
@@ -226,8 +225,8 @@ defmodule Improve.Planning.PlanDraftExporter do
     Map.fetch!(indexes.session_templates, owner_id)
   end
 
-  defp owner_key(%{owner_type: :direct_goal, owner_id: owner_id}, indexes) do
-    Map.fetch!(indexes.direct_goals, owner_id)
+  defp owner_key(%{owner_type: :track, owner_id: owner_id}, indexes) do
+    Map.fetch!(indexes.tracks, owner_id)
   end
 
   defp sort_keyed(records), do: Enum.sort_by(records, & &1.key)

@@ -48,13 +48,13 @@ defmodule Improve.App.Lookup do
     end
   end
 
-  def direct_goal!(plan_or_id, key, actor) do
+  def track!(plan_or_id, key, actor) do
     actor
-    |> direct_goals(plan_id(plan_or_id))
+    |> tracks(plan_id(plan_or_id))
     |> Enum.find(&(&1.key == to_string(key)))
     |> case do
-      nil -> raise ArgumentError, "No direct goal #{inspect(key)} exists in this plan."
-      direct_goal -> direct_goal
+      nil -> raise ArgumentError, "No track #{inspect(key)} exists in this plan."
+      track -> track
     end
   end
 
@@ -96,8 +96,8 @@ defmodule Improve.App.Lookup do
     Plans.list_pools!(actor: actor, query: [filter: [plan_id: plan_id(plan_or_id)]])
   end
 
-  def direct_goals(actor, plan_or_id) do
-    Plans.list_direct_goals!(actor: actor, query: [filter: [plan_id: plan_id(plan_or_id)]])
+  def tracks(actor, plan_or_id) do
+    Plans.list_tracks!(actor: actor, query: [filter: [plan_id: plan_id(plan_or_id)]])
   end
 
   def session_templates(actor, plan_or_id) do

@@ -23,7 +23,7 @@ defmodule Improve.Plans.Schedule do
                   id_field: :owner_id,
                   resources: %{
                     session_template: Improve.Plans.SessionTemplate,
-                    direct_goal: Improve.Plans.DirectGoal
+                    track: Improve.Plans.Track
                   }
                 ]}
     end
@@ -39,7 +39,7 @@ defmodule Improve.Plans.Schedule do
                   id_field: :owner_id,
                   resources: %{
                     session_template: Improve.Plans.SessionTemplate,
-                    direct_goal: Improve.Plans.DirectGoal
+                    track: Improve.Plans.Track
                   }
                 ]}
     end
@@ -61,7 +61,7 @@ defmodule Improve.Plans.Schedule do
     attribute :owner_type, :atom do
       allow_nil? false
       public? true
-      constraints one_of: [:session_template, :direct_goal]
+      constraints one_of: [:session_template, :track]
     end
 
     attribute :owner_id, :uuid do
@@ -78,6 +78,8 @@ defmodule Improve.Plans.Schedule do
                     :selected_weekdays,
                     :every_n_days,
                     :times_per_week,
+                    :every_n_weeks,
+                    :monthly,
                     :after_completion,
                     :custom
                   ]

@@ -112,7 +112,7 @@ defmodule Improve.Plans.Plan do
     has_many :schedules, Improve.Plans.Schedule
     has_many :session_templates, Improve.Plans.SessionTemplate
     has_many :session_slots, Improve.Plans.SessionSlot
-    has_many :direct_goals, Improve.Plans.DirectGoal
+    has_many :tracks, Improve.Plans.Track
     has_many :session_occurrences, Improve.Sessions.SessionOccurrence
     has_many :slot_results, Improve.Sessions.SlotResult
     has_many :event_instances, Improve.Journal.EventInstance
@@ -127,7 +127,7 @@ defmodule Improve.Plans.Plan do
     count :event_type_count, :event_types
     count :session_template_count, :session_templates
     count :session_slot_count, :session_slots
-    count :direct_goal_count, :direct_goals
+    count :track_count, :tracks
     count :schedule_count, :schedules
   end
 end

@@ -16,7 +16,7 @@ defmodule Improve.Planning.PlanDraft do
     :environments,
     :event_types,
     :session_templates,
-    :direct_goals,
+    :tracks,
     :schedules,
     :sample_events
   ]
@@ -76,7 +76,7 @@ defmodule Improve.Planning.PlanDraft do
           }
         }
       },
-      direct_goals: %{
+      tracks: %{
         required: [:key, :name, :event_type_key],
         optional: [:description, :target, :completion_policy, :missed_policy, :display_hints],
         references: %{event_type_key: :event_types},
@@ -86,10 +86,10 @@ defmodule Improve.Planning.PlanDraft do
         required: [:key, :owner_type, :owner_key, :kind, :starts_on],
         optional: [:ends_on, :rules, :display_hints],
         references: %{
-          owner_key: [:session_templates, :direct_goals]
+          owner_key: [:session_templates, :tracks]
         },
-        supported_owner_types: [:session_template, :direct_goal],
-        supported_kinds: [:every_day, :selected_weekdays, :times_per_week]
+        supported_owner_types: [:session_template, :track],
+        supported_kinds: [:every_day, :selected_weekdays, :every_n_days, :times_per_week]
       },
       sample_events: %{
         required: [:key, :event_type_key, :effective_at],
@@ -101,9 +101,9 @@ defmodule Improve.Planning.PlanDraft do
           :payload,
           :note,
           :item_links,
-          :direct_goal_key
+          :track_key
         ],
-        references: %{event_type_key: :event_types, direct_goal_key: :direct_goals}
+        references: %{event_type_key: :event_types, track_key: :tracks}
       }
     }
   }
@@ -127,7 +127,7 @@ defmodule Improve.Planning.PlanDraft do
         environments: [],
         event_types: [],
         session_templates: [],
-        direct_goals: [],
+        tracks: [],
         schedules: [],
         sample_events: []
       },

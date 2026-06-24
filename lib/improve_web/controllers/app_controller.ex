@@ -47,8 +47,8 @@ defmodule ImproveWeb.AppController do
     )
   end
 
-  def create_direct_goal(conn, params) do
-    call_app(conn, params, &UiApi.create_direct_goal/2,
+  def create_track(conn, params) do
+    call_app(conn, params, &UiApi.create_track/2,
       not_found_message: "That plan is not available.",
       fallback_status: 422,
       fallback_message: "We could not create that goal."

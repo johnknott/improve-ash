@@ -1,9 +1,10 @@
 alias Improve.App
 alias Improve.Stories, as: Story
+import Improve.App, only: [fixed: 2, number: 1]
 
 story =
-  Story.begin!("direct_goal_reading", reset?: true)
-  |> Story.user!("John", email: "story+direct-goal-reading@example.test")
+  Story.begin!("track_reading", reset?: true)
+  |> Story.user!("John", email: "story+track-reading@example.test")
 
 actor = story.user
 
@@ -15,29 +16,12 @@ plan =
     until: ~D[2026-07-23]
   )
 
-App.add_event_type!(plan, "Pages read",
-  actor: actor,
-  key: "pages_read",
-  payload: %{
-    required: ["pages"],
-    properties: %{
-      pages: %{type: "integer"},
-      note: %{type: "string"}
-    }
-  }
-)
-
-App.add_direct_goal!(plan, "Read 20 pages",
+App.add_track!(plan, "Read 20 pages",
   actor: actor,
   key: "daily_reading",
-  event: "pages_read",
   schedule: App.every_day(),
-  target: %{
-    quantity: 20,
-    unit: "pages",
-    quantity_path: "payload.pages",
-    summary_template: "Read %{quantity} %{unit}"
-  }
+  target: fixed(20, "pages"),
+  records: number("pages")
 )
 
 Story.show_plan_summary!(story, plan)
@@ -45,10 +29,10 @@ Story.show_plan_summary!(story, plan)
 today = App.project_today!(plan, actor: actor, date: ~D[2026-06-23])
 Story.show_projection!(story, today)
 
-App.log_direct_goal!(today,
+App.log_track!(today,
   actor: actor,
-  goal: "daily_reading",
-  payload: %{pages: 25, note: "Read before bed"}
+  track: "daily_reading",
+  payload: %{amount: 25, note: "Read before bed"}
 )
 
 Story.show_journal!(story, plan)

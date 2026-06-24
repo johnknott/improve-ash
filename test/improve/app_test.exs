@@ -6,9 +6,174 @@ defmodule Improve.AppTest do
   alias Improve.Journal
   alias Improve.Plans
 
-  describe "product-facing authoring and direct-goal logging" do
-    test "authors and logs a direct goal using target metadata" do
-      user = user!("app-direct-goal@example.com")
+  describe "product-facing target and record constructors" do
+    test "builds friendly target and record maps" do
+      assert App.fixed(20, "pages") == %{type: :fixed, quantity: 20, unit: "pages"}
+
+      assert App.metric("Bodyweight", unit: "kg") == %{
+               type: :metric,
+               metric: "Bodyweight",
+               unit: "kg"
+             }
+
+      assert App.checklist(["Tidy room"]) == %{type: :checklist, items: ["Tidy room"]}
+
+      assert App.period_total(100, "pages", per: :week) == %{
+               type: :period_total,
+               quantity: 100,
+               unit: "pages",
+               per: :week
+             }
+
+      assert App.progression(1_000, 10_000, unit: "steps", shape: :linear) == %{
+               type: :progression,
+               from: 1_000,
+               to: 10_000,
+               unit: "steps",
+               shape: :linear
+             }
+
+      assert App.adaptive(fields: [:sets, :reps, :load], effort: :rpe, review: :weekly) == %{
+               type: :adaptive,
+               fields: [:sets, :reps, :load],
+               effort: :rpe,
+               review: :weekly
+             }
+
+      assert App.number("pages") == %{
+               type: :number,
+               field: "amount",
+               unit: "pages",
+               quantity_path: "payload.amount"
+             }
+
+      assert App.fields([:sets, :reps, :load]) == %{
+               type: :fields,
+               fields: ["sets", "reps", "load"]
+             }
+    end
+
+    test "returns an honest projection diagnostic for recognized targets not supported yet" do
+      user = user!("app-target-diagnostic@example.com")
+
+      plan =
+        App.create_plan!("Metrics",
+          actor: user,
+          intention: "Record useful measurements",
+          from: ~D[2026-06-23],
+          until: ~D[2026-07-23]
+        )
+
+      App.add_event_type!(plan, "Weight recorded",
+        actor: user,
+        key: "weight_recorded",
+        payload: %{required: ["amount"]}
+      )
+
+      App.add_track!(plan, "Bodyweight",
+        actor: user,
+        key: "bodyweight",
+        event: "weight_recorded",
+        schedule: App.every_day(),
+        target: App.metric("Bodyweight", unit: "kg"),
+        records: App.number("kg")
+      )
+
+      projection = App.project_today!(plan, actor: user, date: ~D[2026-06-23])
+
+      assert [
+               %{
+                 code: :unsupported_track_target_type,
+                 severity: :info,
+                 details: %{target_type: "metric"}
+               }
+             ] =
+               projection.diagnostics
+    end
+  end
+
+  describe "product-facing schedule constructors" do
+    test "builds friendly schedule maps" do
+      assert App.every_day() == %{kind: :every_day, rules: %{}}
+
+      assert App.selected_weekdays([:monday, "wednesday"]) == %{
+               kind: :selected_weekdays,
+               rules: %{"weekdays" => ["monday", "wednesday"]}
+             }
+
+      assert App.every_n_days(3) == %{kind: :every_n_days, rules: %{"interval_days" => 3}}
+
+      assert App.times_per_week(3, on: [:monday, :wednesday], minimum_gap_days: 1) == %{
+               kind: :times_per_week,
+               rules: %{
+                 "times" => 3,
+                 "allowed_weekdays" => ["monday", "wednesday"],
+                 "minimum_gap_days" => 1
+               }
+             }
+
+      assert App.every_n_weeks(2, on: [:saturday]) == %{
+               kind: :every_n_weeks,
+               rules: %{"interval_weeks" => 2, "weekdays" => ["saturday"]}
+             }
+
+      assert App.monthly(day: 15) == %{kind: :monthly, rules: %{"day" => 15}}
+      assert App.after_completion(days: 2) == %{kind: :after_completion, rules: %{"days" => 2}}
+
+      assert App.custom("after a good weather day") == %{
+               kind: :custom,
+               rules: %{"description" => "after a good weather day"}
+             }
+    end
+
+    test "projects supported schedule shapes and diagnoses recognized unsupported ones" do
+      user = user!("app-schedule-shapes@example.com")
+
+      plan =
+        App.create_plan!("Schedules",
+          actor: user,
+          intention: "Try schedule shapes",
+          from: ~D[2026-06-23],
+          until: ~D[2026-07-23]
+        )
+
+      App.add_event_type!(plan, "Check in",
+        actor: user,
+        key: "check_in",
+        payload: %{required: ["amount"]}
+      )
+
+      App.add_track!(plan, "Every three days",
+        actor: user,
+        key: "every_three_days",
+        event: "check_in",
+        schedule: App.every_n_days(3),
+        target: App.fixed(1, "check"),
+        records: App.number("check")
+      )
+
+      App.add_track!(plan, "Monthly check",
+        actor: user,
+        key: "monthly_check",
+        event: "check_in",
+        schedule: App.monthly(day: 15),
+        target: App.fixed(1, "check"),
+        records: App.number("check")
+      )
+
+      due = App.project_today!(plan, actor: user, date: ~D[2026-06-26])
+      assert "Every three days" in Enum.map(due.projected_work, & &1.title)
+
+      not_due = App.project_today!(plan, actor: user, date: ~D[2026-06-27])
+      refute "Every three days" in Enum.map(not_due.projected_work, & &1.title)
+
+      assert Enum.any?(due.diagnostics, &(&1.code == :recognized_unsupported_schedule_kind))
+    end
+  end
+
+  describe "product-facing authoring and track logging" do
+    test "authors and logs a track using target metadata" do
+      user = user!("app-track@example.com")
 
       plan =
         App.create_plan!("Reading",
@@ -18,54 +183,50 @@ defmodule Improve.AppTest do
           until: ~D[2026-07-23]
         )
 
-      event_type =
-        App.add_event_type!(plan, "Pages read",
-          actor: user,
-          key: "pages_read",
-          payload: %{required: ["pages"]}
-        )
-
-      direct_goal =
-        App.add_direct_goal!(plan, "Read 20 pages",
+      track =
+        App.add_track!(plan, "Read 20 pages",
           actor: user,
           key: "daily_reading",
-          event: "pages_read",
           schedule: App.every_day(),
-          target: %{
-            quantity: 20,
-            unit: "pages",
-            quantity_path: "payload.pages",
-            summary_template: "Read %{quantity} %{unit}"
-          }
+          target: App.fixed(20, "pages"),
+          records: App.number("pages")
         )
+
+      event_type = Plans.get_event_type!(track.event_type_id, actor: user)
 
       projection = App.project_today!(plan, actor: user, date: ~D[2026-06-23])
 
       log =
-        App.log_direct_goal!(projection,
+        App.log_track!(projection,
           actor: user,
-          goal: "daily_reading",
-          payload: %{pages: 25, note: "Read before bed"}
+          track: "daily_reading",
+          payload: %{amount: 25, note: "Read before bed"}
         )
 
       assert log.event.event_type_id == event_type.id
-      assert log.event.direct_goal_id == direct_goal.id
-      assert log.event.summary == "Read 25 pages"
+      assert event_type.key == "daily_reading_logged"
+      assert event_type.payload_schema["required"] == ["amount"]
+      assert log.event.track_id == track.id
+      assert log.event.summary == "25 pages for Read 20 pages"
       assert log.event.quantity == Decimal.new(25)
       assert log.event.unit == "pages"
       assert log.event.note == "Read before bed"
+      assert track.target["type"] == "fixed"
+      assert track.target["quantity"] == 20
+      assert track.target["quantity_path"] == "payload.amount"
+      assert track.target["records"]["type"] == "number"
 
       summary = Plans.summarize_plan!(plan, actor: user)
       assert summary.event_types == 1
-      assert summary.direct_goals == 1
+      assert summary.tracks == 1
       assert summary.schedules == 1
 
       assert [%{id: event_id}] = Journal.read_journal!(plan, actor: user)
       assert event_id == log.event.id
     end
 
-    test "uses direct-goal default links when logging an effectful goal" do
-      user = user!("app-direct-goal-links@example.com")
+    test "uses track default links when logging an effectful track" do
+      user = user!("app-track-links@example.com")
 
       plan =
         App.create_plan!("Inventory",
@@ -99,7 +260,7 @@ defmodule Improve.AppTest do
         ]
       )
 
-      App.add_direct_goal!(plan, "Retatrutide",
+      App.add_track!(plan, "Retatrutide",
         actor: user,
         key: "retatrutide_dose",
         event: "dose_taken",
@@ -116,9 +277,9 @@ defmodule Improve.AppTest do
       projection = App.project_today!(plan, actor: user, date: ~D[2026-06-22])
 
       log =
-        App.log_direct_goal!(projection,
+        App.log_track!(projection,
           actor: user,
-          goal: "retatrutide_dose",
+          track: "retatrutide_dose",
           payload: %{amount: 2, unit: "mg", site: "abdomen"}
         )
 

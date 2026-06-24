@@ -72,8 +72,8 @@ defmodule ImproveWeb.AppControllerTest do
     assert %{"items" => [], "eventTypes" => []} = response["planDetail"]
   end
 
-  test "signed-in users can create a daily direct goal from the app API", %{conn: conn} do
-    conn = sign_in!(conn, "app-direct-goal-create@example.test")
+  test "signed-in users can create a daily track from the app API", %{conn: conn} do
+    conn = sign_in!(conn, "app-track-create@example.test")
 
     conn =
       post(conn, ~p"/api/app/plans", %{
@@ -87,7 +87,7 @@ defmodule ImproveWeb.AppControllerTest do
     plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
 
     conn =
-      post(conn, ~p"/api/app/direct-goals", %{
+      post(conn, ~p"/api/app/tracks", %{
         plan_id: plan_id,
         name: "Read for 15 minutes",
         event_name: "Read",
@@ -105,7 +105,7 @@ defmodule ImproveWeb.AppControllerTest do
                "target" => %{"quantity" => "15", "unit" => "minutes"},
                "schedule" => %{"kind" => "every_day"}
              }
-           ] = get_in(response, ["planDetail", "directGoals"])
+           ] = get_in(response, ["planDetail", "tracks"])
 
     assert [
              %{
@@ -131,7 +131,7 @@ defmodule ImproveWeb.AppControllerTest do
     plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
 
     conn =
-      post(conn, ~p"/api/app/direct-goals", %{
+      post(conn, ~p"/api/app/tracks", %{
         plan_id: plan_id,
         name: "Weigh myself",
         description: "Daily bodyweight check-in.",
@@ -157,7 +157,7 @@ defmodule ImproveWeb.AppControllerTest do
                },
                "schedule" => %{"kind" => "every_day"}
              }
-           ] = get_in(response, ["planDetail", "directGoals"])
+           ] = get_in(response, ["planDetail", "tracks"])
 
     assert [
              %{

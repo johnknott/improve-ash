@@ -313,7 +313,7 @@ defmodule Improve.Journal.GenericEventLoggingTest do
           "stale-key-1"
         )
 
-      missing_direct_goal_attrs =
+      missing_track_attrs =
         plan
         |> offline_dose_attrs(
           event_types["take_dose"],
@@ -321,11 +321,11 @@ defmodule Improve.Journal.GenericEventLoggingTest do
           "stale-op-2",
           "stale-key-2"
         )
-        |> Map.put(:direct_goal_id, "00000000-0000-0000-0000-000000000000")
+        |> Map.put(:track_id, "00000000-0000-0000-0000-000000000000")
 
       result =
         Journal.submit_offline_event_batch!(
-          [archived_item_attrs, missing_direct_goal_attrs],
+          [archived_item_attrs, missing_track_attrs],
           actor: user
         )
 

@@ -25,7 +25,7 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert projection.date == ~D[2026-06-22]
       assert projection.diagnostics == []
       assert [_explanation] = projection.explanations
-      assert projection.input_summary.direct_goals == 0
+      assert projection.input_summary.tracks == 0
       assert projection.input_summary.session_templates == 1
       assert projection.input_summary.session_template_schedules == 1
 
@@ -108,68 +108,68 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert saturday.diagnostics == []
     end
 
-    test "projects a scheduled direct goal as planned without mutating history" do
+    test "projects a scheduled track as planned without mutating history" do
       user =
         Accounts.create_user!(%{
-          email: "project-direct-goal-planned@example.com",
-          full_name: "Project Direct Goal Planned"
+          email: "project-track-planned@example.com",
+          full_name: "Project Track Planned"
         })
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
-      schedule!(user, plan, direct_goal)
+      track = track!(user, plan, event_type)
+      schedule!(user, plan, track)
 
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
       assert {:ok, []} = Journal.read_journal(plan, actor: user)
 
       assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
 
-      assert projection.input_summary.direct_goals == 1
-      assert projection.input_summary.direct_goal_schedules == 1
+      assert projection.input_summary.tracks == 1
+      assert projection.input_summary.track_schedules == 1
       assert projection.input_summary.session_templates == 0
       assert projection.projected_session_occurrences == []
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :planned,
                  title: "Read 20 pages",
                  planned_for: ~D[2026-06-22],
                  payload: %{
-                   direct_goal_id: direct_goal_id,
-                   direct_goal_key: "read_twenty_pages",
+                   track_id: track_id,
+                   track_key: "read_twenty_pages",
                    target: %{"quantity" => 20, "unit" => "pages"},
                    completed_event_ids: []
                  }
                }
              ] = projection.projected_work
 
-      assert direct_goal_id == direct_goal.id
+      assert track_id == track.id
       assert projection.diagnostics == []
 
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
       assert {:ok, []} = Journal.read_journal(plan, actor: user)
     end
 
-    test "projects a scheduled direct goal as completed from linked journal history" do
+    test "projects a scheduled track as completed from linked journal history" do
       user =
         Accounts.create_user!(%{
-          email: "project-direct-goal-completed@example.com",
-          full_name: "Project Direct Goal Completed"
+          email: "project-track-completed@example.com",
+          full_name: "Project Track Completed"
         })
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
-      schedule!(user, plan, direct_goal)
+      track = track!(user, plan, event_type)
+      schedule!(user, plan, track)
 
       log =
         Journal.log_generic_event!(
           %{
             plan_id: plan.id,
             event_type_id: event_type.id,
-            direct_goal_id: direct_goal.id,
+            track_id: track.id,
             effective_at: ~U[2026-06-22 20:00:00Z],
             recorded_at: ~U[2026-06-22 20:01:00Z],
             summary: "Read 25 pages",
@@ -184,7 +184,7 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :completed,
                  payload: %{completed_event_ids: [completed_event_id]}
                }
@@ -195,17 +195,17 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
-    test "projects a scheduled direct goal as missed when the date has passed without history" do
+    test "projects a scheduled track as missed when the date has passed without history" do
       user =
         Accounts.create_user!(%{
-          email: "project-direct-goal-missed@example.com",
-          full_name: "Project Direct Goal Missed"
+          email: "project-track-missed@example.com",
+          full_name: "Project Track Missed"
         })
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
-      schedule!(user, plan, direct_goal)
+      track = track!(user, plan, event_type)
+      schedule!(user, plan, track)
 
       assert {:ok, projection} =
                Plans.project_today(plan,
@@ -216,35 +216,35 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :missed,
-                 payload: %{direct_goal_id: direct_goal_id, completed_event_ids: []}
+                 payload: %{track_id: track_id, completed_event_ids: []}
                }
              ] = projection.projected_work
 
-      assert direct_goal_id == direct_goal.id
+      assert track_id == track.id
       assert {:ok, []} = Journal.read_journal(plan, actor: user)
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
-    test "counts completed history when placing times-per-week direct goal quota" do
+    test "counts completed history when placing times-per-week track quota" do
       user =
         Accounts.create_user!(%{
-          email: "project-direct-goal-quota@example.com",
-          full_name: "Project Direct Goal Quota"
+          email: "project-track-quota@example.com",
+          full_name: "Project Track Quota"
         })
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
-      quota_schedule!(user, plan, direct_goal)
+      track = track!(user, plan, event_type)
+      quota_schedule!(user, plan, track)
 
       log =
         Journal.log_generic_event!(
           %{
             plan_id: plan.id,
             event_type_id: event_type.id,
-            direct_goal_id: direct_goal.id,
+            track_id: track.id,
             effective_at: ~U[2026-06-22 20:00:00Z],
             recorded_at: ~U[2026-06-22 20:01:00Z],
             summary: "Read 20 pages",
@@ -258,7 +258,7 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :completed,
                  payload: %{completed_event_ids: [completed_event_id]}
                }
@@ -273,7 +273,7 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :planned,
                  payload: %{completed_event_ids: []}
                }
@@ -283,15 +283,15 @@ defmodule Improve.Planning.ProjectTodayTest do
     test "flows missed earlier weekly quota to remaining allowed days" do
       user =
         Accounts.create_user!(%{
-          email: "project-direct-goal-quota-forward@example.com",
-          full_name: "Project Direct Goal Quota Forward"
+          email: "project-track-quota-forward@example.com",
+          full_name: "Project Track Quota Forward"
         })
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
+      track = track!(user, plan, event_type)
 
-      quota_schedule!(user, plan, direct_goal,
+      quota_schedule!(user, plan, track,
         rules: %{
           "times" => 2,
           "allowed_weekdays" => ["monday", "wednesday", "friday"],
@@ -308,7 +308,7 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :planned,
                  planned_for: ~D[2026-06-24]
                }
@@ -323,7 +323,7 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       assert [
                %{
-                 kind: :direct_goal,
+                 kind: :track,
                  status: :planned,
                  planned_for: ~D[2026-06-26]
                }
@@ -339,9 +339,9 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
+      track = track!(user, plan, event_type)
 
-      quota_schedule!(user, plan, direct_goal,
+      quota_schedule!(user, plan, track,
         rules: %{"times" => 1, "allowed_weekdays" => ["sunday"]},
         ends_on: ~D[2026-06-26]
       )
@@ -352,7 +352,7 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert diagnostic(projection, :unplaceable_schedule).message =~ "cannot place any work"
     end
 
-    test "returns diagnostics for a missing direct goal target" do
+    test "returns diagnostics for a missing track target" do
       user =
         Accounts.create_user!(%{
           email: "project-missing-target@example.com",
@@ -361,16 +361,16 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal_without_target!(user, plan, event_type)
-      schedule!(user, plan, direct_goal)
+      track = track_without_target!(user, plan, event_type)
+      schedule!(user, plan, track)
 
       assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
 
       assert [_work] = projection.projected_work
-      assert diagnostic(projection, :missing_direct_goal_target).message =~ "has no target"
+      assert diagnostic(projection, :missing_track_target).message =~ "has no target"
     end
 
-    test "returns diagnostics for unsupported schedule kinds" do
+    test "returns diagnostics for recognized schedule kinds that are not projected yet" do
       user =
         Accounts.create_user!(%{
           email: "project-unsupported-schedule@example.com",
@@ -379,13 +379,15 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
-      unsupported_schedule!(user, plan, direct_goal)
+      track = track!(user, plan, event_type)
+      unsupported_schedule!(user, plan, track)
 
       assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
 
       assert projection.projected_work == []
-      assert diagnostic(projection, :unsupported_schedule_kind).message =~ "not supported"
+
+      assert diagnostic(projection, :recognized_unsupported_schedule_kind).message =~
+               "recognized, but projection support is not implemented yet"
     end
 
     test "returns diagnostics when quota rules are only partially placeable" do
@@ -397,9 +399,9 @@ defmodule Improve.Planning.ProjectTodayTest do
 
       plan = plan!(user)
       event_type = event_type!(user, plan)
-      direct_goal = direct_goal!(user, plan, event_type)
+      track = track!(user, plan, event_type)
 
-      quota_schedule!(user, plan, direct_goal,
+      quota_schedule!(user, plan, track,
         rules: %{
           "times" => 3,
           "allowed_weekdays" => ["monday", "tuesday", "wednesday"],
@@ -439,8 +441,8 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
-  defp direct_goal!(user, plan, event_type) do
-    Plans.create_direct_goal!(
+  defp track!(user, plan, event_type) do
+    Plans.create_track!(
       %{
         plan_id: plan.id,
         event_type_id: event_type.id,
@@ -454,8 +456,8 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
-  defp direct_goal_without_target!(user, plan, event_type) do
-    Plans.create_direct_goal!(
+  defp track_without_target!(user, plan, event_type) do
+    Plans.create_track!(
       %{
         plan_id: plan.id,
         event_type_id: event_type.id,
@@ -466,12 +468,12 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
-  defp schedule!(user, plan, direct_goal) do
+  defp schedule!(user, plan, track) do
     Plans.create_schedule!(
       %{
         plan_id: plan.id,
-        owner_type: :direct_goal,
-        owner_id: direct_goal.id,
+        owner_type: :track,
+        owner_id: track.id,
         kind: :every_day,
         starts_on: ~D[2026-06-22]
       },
@@ -479,12 +481,12 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
-  defp quota_schedule!(user, plan, direct_goal, opts \\ []) do
+  defp quota_schedule!(user, plan, track, opts \\ []) do
     Plans.create_schedule!(
       %{
         plan_id: plan.id,
-        owner_type: :direct_goal,
-        owner_id: direct_goal.id,
+        owner_type: :track,
+        owner_id: track.id,
         kind: :times_per_week,
         rules:
           Keyword.get(opts, :rules, %{
@@ -499,14 +501,14 @@ defmodule Improve.Planning.ProjectTodayTest do
     )
   end
 
-  defp unsupported_schedule!(user, plan, direct_goal) do
+  defp unsupported_schedule!(user, plan, track) do
     Plans.create_schedule!(
       %{
         plan_id: plan.id,
-        owner_type: :direct_goal,
-        owner_id: direct_goal.id,
-        kind: :every_n_days,
-        rules: %{"interval" => 2},
+        owner_type: :track,
+        owner_id: track.id,
+        kind: :monthly,
+        rules: %{"day" => 15},
         starts_on: ~D[2026-06-22]
       },
       actor: user

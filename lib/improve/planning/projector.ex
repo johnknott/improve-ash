@@ -24,11 +24,11 @@ defmodule Improve.Planning.Projector do
     {occurrences, session_diagnostics} =
       project_entries(templates, &template_projection(&1, input))
 
-    {direct_goal_work, direct_goal_diagnostics} =
-      project_entries(Map.get(input, :direct_goals, []), &direct_goal_projection(&1, input))
+    {track_work, track_diagnostics} =
+      project_entries(Map.get(input, :tracks, []), &track_projection(&1, input))
 
     occurrences = Enum.reverse(occurrences)
-    direct_goal_work = Enum.reverse(direct_goal_work)
+    track_work = Enum.reverse(track_work)
 
     projected_work =
       Enum.map(occurrences, fn occurrence ->
@@ -36,7 +36,7 @@ defmodule Improve.Planning.Projector do
           status: occurrence.projected_status,
           explanation: occurrence.projected_explanation
         )
-      end) ++ direct_goal_work
+      end) ++ track_work
 
     %{
       plan_id: plan.id,
@@ -44,7 +44,7 @@ defmodule Improve.Planning.Projector do
       projected_session_occurrences: occurrences,
       projected_work: projected_work,
       input_summary: input_summary(input),
-      diagnostics: Enum.reverse(session_diagnostics) ++ Enum.reverse(direct_goal_diagnostics),
+      diagnostics: Enum.reverse(session_diagnostics) ++ Enum.reverse(track_diagnostics),
       explanations: explanations(projected_work)
     }
   end
@@ -93,10 +93,10 @@ defmodule Improve.Planning.Projector do
     end
   end
 
-  defp direct_goal_projection(goal, input) do
+  defp track_projection(track, input) do
     date = Map.fetch!(input, :date)
     plan = Map.fetch!(input, :plan)
-    schedules = schedules_for(input.schedules, :direct_goal, goal.id)
+    schedules = schedules_for(input.schedules, :track, track.id)
 
     cond do
       not in_date_range?(date, plan.starts_on, plan.ends_on) ->
@@ -106,11 +106,11 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        target_diagnostics = direct_goal_target_diagnostics(goal)
+        target_diagnostics = track_target_diagnostics(track)
 
         case schedule_decisions(schedules, date, input) do
           {:ok, true, diagnostics} ->
-            {:ok, direct_goal_work(goal, input), target_diagnostics ++ diagnostics}
+            {:ok, track_work(track, input), target_diagnostics ++ diagnostics}
 
           {:ok, false, diagnostics} ->
             {:ok, nil, target_diagnostics ++ diagnostics}
@@ -256,32 +256,32 @@ defmodule Improve.Planning.Projector do
     "Projected #{template.name} as missed from its session occurrence."
   end
 
-  defp direct_goal_work(goal, input) do
-    completed_events = completed_direct_goal_events(goal, input)
+  defp track_work(track, input) do
+    completed_events = completed_track_events(track, input)
 
     status =
-      direct_goal_status(input.date, Map.get(input, :as_of_date, input.date), completed_events)
+      track_status(input.date, Map.get(input, :as_of_date, input.date), completed_events)
 
-    ProjectedWork.direct_goal(goal,
+    ProjectedWork.track(track,
       planned_for: input.date,
       status: status,
       completed_event_ids: Enum.map(completed_events, & &1.id),
-      explanation: direct_goal_explanation(goal, status, completed_events)
+      explanation: track_explanation(track, status, completed_events)
     )
   end
 
-  defp completed_direct_goal_events(goal, input) do
+  defp completed_track_events(track, input) do
     input
     |> Map.get(:journal_events, [])
     |> Enum.filter(fn event ->
-      event.direct_goal_id == goal.id and event.status == :active and
+      event.track_id == track.id and event.status == :active and
         Date.compare(DateTime.to_date(event.effective_at), input.date) == :eq
     end)
   end
 
-  defp direct_goal_status(_date, _as_of_date, [_event | _events]), do: :completed
+  defp track_status(_date, _as_of_date, [_event | _events]), do: :completed
 
-  defp direct_goal_status(date, as_of_date, []) do
+  defp track_status(date, as_of_date, []) do
     if Date.compare(date, as_of_date) == :lt do
       :missed
     else
@@ -289,44 +289,83 @@ defmodule Improve.Planning.Projector do
     end
   end
 
-  defp direct_goal_explanation(goal, :completed, events) do
-    "Projected #{goal.name} as completed from #{length(events)} linked journal event(s)."
+  defp track_explanation(track, :completed, events) do
+    "Projected #{track.name} as completed from #{length(events)} linked journal event(s)."
   end
 
-  defp direct_goal_explanation(goal, :missed, _events) do
-    "Projected #{goal.name} as missed because the date has passed without a linked journal event."
+  defp track_explanation(track, :missed, _events) do
+    "Projected #{track.name} as missed because the date has passed without a linked journal event."
   end
 
-  defp direct_goal_explanation(goal, :planned, _events) do
-    "Projected #{goal.name} from its direct goal schedule."
+  defp track_explanation(track, :planned, _events) do
+    "Projected #{track.name} from its track schedule."
   end
 
-  defp direct_goal_target_diagnostics(%{target: nil} = goal) do
+  defp track_target_diagnostics(%{target: nil} = track) do
     [
       %{
-        code: :missing_direct_goal_target,
+        code: :missing_track_target,
         severity: :warning,
         message:
-          "Direct goal has no target, so completion can only be inferred from linked journal events.",
-        details: %{direct_goal_id: goal.id, direct_goal_key: goal.key}
+          "Track has no target, so completion can only be inferred from linked journal events.",
+        details: %{track_id: track.id, track_key: track.key}
       }
     ]
   end
 
-  defp direct_goal_target_diagnostics(%{target: target} = goal)
+  defp track_target_diagnostics(%{target: target} = track)
        when is_map(target) and map_size(target) == 0 do
     [
       %{
-        code: :missing_direct_goal_target,
+        code: :missing_track_target,
         severity: :warning,
         message:
-          "Direct goal has no target, so completion can only be inferred from linked journal events.",
-        details: %{direct_goal_id: goal.id, direct_goal_key: goal.key}
+          "Track has no target, so completion can only be inferred from linked journal events.",
+        details: %{track_id: track.id, track_key: track.key}
       }
     ]
   end
 
-  defp direct_goal_target_diagnostics(_goal), do: []
+  defp track_target_diagnostics(%{target: target} = track) when is_map(target) do
+    case target_type(target) do
+      nil ->
+        []
+
+      "fixed" ->
+        []
+
+      type when type in ["metric", "checklist", "period_total", "progression", "adaptive"] ->
+        [
+          %{
+            code: :unsupported_track_target_type,
+            severity: :info,
+            message:
+              "This track target type is recognized, but projection support is not implemented yet.",
+            details: %{track_id: track.id, track_key: track.key, target_type: type}
+          }
+        ]
+
+      type ->
+        [
+          %{
+            code: :unknown_track_target_type,
+            severity: :warning,
+            message: "This track target type is not recognized.",
+            details: %{track_id: track.id, track_key: track.key, target_type: type}
+          }
+        ]
+    end
+  end
+
+  defp track_target_diagnostics(_track), do: []
+
+  defp target_type(target) do
+    case Map.get(target, "type") || Map.get(target, :type) do
+      nil -> nil
+      type when is_atom(type) -> Atom.to_string(type)
+      type when is_binary(type) -> type
+    end
+  end
 
   defp schedule_decisions(schedules, date, input) do
     Enum.reduce_while(schedules, {:ok, false, []}, &schedule_decision(&1, date, input, &2))
@@ -350,16 +389,52 @@ defmodule Improve.Planning.Projector do
     {:ok, weekday(date) in Map.get(rules, "weekdays", []), []}
   end
 
+  defp schedule_applies?(%{kind: :every_n_days, rules: rules} = schedule, date, _input) do
+    interval_days = Map.get(rules, "interval_days", Map.get(rules, "days"))
+
+    case parse_positive_integer(interval_days) do
+      nil ->
+        {:ok, false,
+         [
+           %{
+             code: :unsupported_schedule_rules,
+             severity: :error,
+             message: "Every-N-days schedules need a positive interval_days rule.",
+             details: %{schedule_id: schedule.id, value: interval_days}
+           }
+         ]}
+
+      interval_days ->
+        due? = rem(Date.diff(date, schedule.starts_on), interval_days) == 0
+        {:ok, due?, []}
+    end
+  end
+
   defp schedule_applies?(%{kind: :times_per_week} = schedule, date, input) do
     quota = quota_plan(schedule, date, input)
     {:ok, date in quota.due_dates, quota.diagnostics}
+  end
+
+  defp schedule_applies?(%{kind: kind} = schedule, _date, _input)
+       when kind in [:after_completion, :custom, :every_n_weeks, :monthly] do
+    {:ok, false,
+     [
+       %{
+         code: :recognized_unsupported_schedule_kind,
+         severity: :info,
+         message:
+           "This schedule kind is recognized, but projection support is not implemented yet.",
+         details: %{schedule_id: schedule.id, kind: kind}
+       }
+     ]}
   end
 
   defp schedule_applies?(schedule, _date, _input) do
     {:error,
      %{
        code: :unsupported_schedule_kind,
-       message: "Schedule kind is not supported by the POC projector.",
+       severity: :warning,
+       message: "Schedule kind is not recognized by the projector.",
        details: %{schedule_id: schedule.id, kind: schedule.kind}
      }}
   end
@@ -479,10 +554,10 @@ defmodule Improve.Planning.Projector do
     end)
   end
 
-  defp completed_dates(%{owner_type: :direct_goal, owner_id: owner_id}, input) do
+  defp completed_dates(%{owner_type: :track, owner_id: owner_id}, input) do
     input
     |> Map.get(:journal_events, [])
-    |> Enum.filter(&(&1.direct_goal_id == owner_id and &1.status == :active))
+    |> Enum.filter(&(&1.track_id == owner_id and &1.status == :active))
     |> Enum.map(&DateTime.to_date(&1.effective_at))
   end
 
@@ -528,6 +603,17 @@ defmodule Improve.Planning.Projector do
 
   defp positive_integer(value, default), do: max(non_negative_integer(value, default), 1)
 
+  defp parse_positive_integer(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> integer
+      _other -> nil
+    end
+  end
+
+  defp parse_positive_integer(_value), do: nil
+
   defp non_negative_integer(value, _default) when is_integer(value) and value >= 0, do: value
 
   defp non_negative_integer(value, default) when is_binary(value) do
@@ -549,10 +635,10 @@ defmodule Improve.Planning.Projector do
     %{
       session_templates: length(Map.get(input, :session_templates, [])),
       session_slots: length(Map.get(input, :session_slots, [])),
-      direct_goals: length(Map.get(input, :direct_goals, [])),
+      tracks: length(Map.get(input, :tracks, [])),
       schedules: length(schedules),
       session_template_schedules: count_schedules(schedules, :session_template),
-      direct_goal_schedules: count_schedules(schedules, :direct_goal),
+      track_schedules: count_schedules(schedules, :track),
       journal_events: length(Map.get(input, :journal_events, [])),
       session_occurrences: length(Map.get(input, :session_occurrences, [])),
       slot_results: length(Map.get(input, :slot_results, [])),

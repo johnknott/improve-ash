@@ -33,7 +33,7 @@ defmodule Improve.App.AiContext do
   defp shape_today_context(context) do
     projected_work = get(context, :projected_work, [])
     sessions = Enum.filter(projected_work, &(get(&1, :kind) == "session"))
-    direct_goals = Enum.filter(projected_work, &(get(&1, :kind) == "direct_goal"))
+    tracks = Enum.filter(projected_work, &(get(&1, :kind) == "track"))
     completed = Enum.filter(projected_work, &(get(&1, :status) == "completed"))
 
     still_to_do =
@@ -42,31 +42,31 @@ defmodule Improve.App.AiContext do
     missed_or_skipped = Enum.filter(projected_work, &(get(&1, :status) in ["missed", "skipped"]))
 
     context
-    |> Map.put(:headline, headline(sessions, direct_goals, completed, still_to_do))
-    |> Map.put(:sections, sections(sessions, direct_goals))
+    |> Map.put(:headline, headline(sessions, tracks, completed, still_to_do))
+    |> Map.put(:sections, sections(sessions, tracks))
     |> Map.put(:completed, completed)
     |> Map.put(:still_to_do, still_to_do)
     |> Map.put(:missed_or_skipped, missed_or_skipped)
   end
 
-  defp headline(sessions, direct_goals, completed, still_to_do) do
-    "Today has #{length(direct_goals)} direct goal(s) and #{length(sessions)} session(s). " <>
+  defp headline(sessions, tracks, completed, still_to_do) do
+    "Today has #{length(tracks)} track(s) and #{length(sessions)} session(s). " <>
       "#{length(completed)} completed; #{length(still_to_do)} still to do."
   end
 
-  defp sections(sessions, direct_goals) do
-    grouped_direct_goals = Enum.group_by(direct_goals, &direct_goal_section/1)
+  defp sections(sessions, tracks) do
+    grouped_tracks = Enum.group_by(tracks, &track_section/1)
 
     [
       section(:sessions, "Sessions", sessions),
-      section(:daily_goals, "Daily goals", Map.get(grouped_direct_goals, :daily_goals, [])),
+      section(:daily_tracks, "Daily tracks", Map.get(grouped_tracks, :daily_tracks, [])),
       section(
-        :linked_item_goals,
-        "Linked item goals",
-        Map.get(grouped_direct_goals, :linked_item_goals, [])
+        :linked_item_tracks,
+        "Linked item tracks",
+        Map.get(grouped_tracks, :linked_item_tracks, [])
       ),
-      section(:recovery, "Recovery and mind", Map.get(grouped_direct_goals, :recovery, [])),
-      section(:other_goals, "Other goals", Map.get(grouped_direct_goals, :other_goals, []))
+      section(:recovery, "Recovery and mind", Map.get(grouped_tracks, :recovery, [])),
+      section(:other_tracks, "Other tracks", Map.get(grouped_tracks, :other_tracks, []))
     ]
     |> Enum.reject(&(get(&1, :items) == []))
   end
@@ -80,25 +80,25 @@ defmodule Improve.App.AiContext do
     }
   end
 
-  defp direct_goal_section(work) do
+  defp track_section(work) do
     title = work |> get(:title, "") |> to_string() |> String.downcase()
-    target = work |> get(:direct_goal, %{}) |> get(:target, %{}) |> ensure_map()
+    target = work |> get(:track, %{}) |> get(:target, %{}) |> ensure_map()
     unit = target |> get(:unit, "") |> to_string() |> String.downcase()
     default_links = target |> get(:default_links, %{}) |> ensure_map()
 
     cond do
       map_size(default_links) > 0 ->
-        :linked_item_goals
+        :linked_item_tracks
 
       title =~ "reading" or title =~ "watch" or title =~ "listen" or
           unit in ["pages", "album"] ->
         :recovery
 
       title =~ "bins" ->
-        :other_goals
+        :other_tracks
 
       true ->
-        :daily_goals
+        :daily_tracks
     end
   end
 

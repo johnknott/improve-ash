@@ -1,4 +1,4 @@
-defmodule Improve.Plans.DirectGoal do
+defmodule Improve.Plans.Track do
   use Ash.Resource,
     otp_app: :improve,
     domain: Improve.Plans,
@@ -6,7 +6,7 @@ defmodule Improve.Plans.DirectGoal do
     authorizers: [Ash.Policy.Authorizer]
 
   postgres do
-    table "direct_goals"
+    table "tracks"
     repo Improve.Repo
   end
 

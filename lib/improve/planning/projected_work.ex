@@ -4,11 +4,11 @@ defmodule Improve.Planning.ProjectedWork do
 
   Projection answers "what should appear for this date?" without mutating
   history. A projected work item is intentionally broader than a session
-  occurrence: it can represent a projected session or a direct goal target.
+  occurrence: it can represent a projected session or a track target.
 
   Common fields:
 
-  - `:kind` is `:session` or `:direct_goal`.
+  - `:kind` is `:session` or `:track`.
   - `:status` is one of `:planned`, `:started`, `:partial`, `:completed`,
     `:missed`, `:skipped`, or `:partially_completed`.
   - `:planned_for` is the date the work belongs to.
@@ -44,32 +44,32 @@ defmodule Improve.Planning.ProjectedWork do
     }
   end
 
-  def direct_goal(goal, opts) do
+  def track(track, opts) do
     planned_for = Keyword.fetch!(opts, :planned_for)
     status = status!(Keyword.get(opts, :status, :planned))
 
     %{
-      kind: :direct_goal,
+      kind: :track,
       status: status,
-      plan_id: goal.plan_id,
+      plan_id: track.plan_id,
       planned_for: planned_for,
-      owner_type: :direct_goal,
-      owner_id: goal.id,
-      title: goal.name,
+      owner_type: :track,
+      owner_id: track.id,
+      title: track.name,
       payload: %{
-        direct_goal_id: goal.id,
-        direct_goal_key: goal.key,
-        event_type_id: goal.event_type_id,
-        target: goal.target,
-        completion_policy: goal.completion_policy,
-        missed_policy: goal.missed_policy,
+        track_id: track.id,
+        track_key: track.key,
+        event_type_id: track.event_type_id,
+        target: track.target,
+        completion_policy: track.completion_policy,
+        missed_policy: track.missed_policy,
         completed_event_ids: Keyword.get(opts, :completed_event_ids, [])
       },
       explanation:
         Keyword.get(
           opts,
           :explanation,
-          "Projected #{goal.name} from its direct goal schedule."
+          "Projected #{track.name} from its track schedule."
         )
     }
   end

@@ -20,7 +20,7 @@ defmodule ImproveWeb.Router do
 
     get "/app/dashboard", AppController, :dashboard
     post "/app/plans", AppController, :create_plan
-    post "/app/direct-goals", AppController, :create_direct_goal
+    post "/app/tracks", AppController, :create_track
     post "/app/demo-plans", AppController, :install_demo_plan
     post "/app/start-session", AppController, :start_session
     post "/app/log-session-slot", AppController, :log_session_slot

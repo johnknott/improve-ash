@@ -15,28 +15,50 @@ defmodule Improve.App do
   alias Improve.App.Schedule
   alias Improve.App.Session
   alias Improve.App.State
+  alias Improve.App.Target
   alias Improve.App.Today
 
   defdelegate create_plan!(name, opts), to: Authoring
   defdelegate add_event_type!(plan, name, opts), to: Authoring
   defdelegate add_item_type!(plan, name, opts), to: Authoring
   defdelegate add_item!(plan, name, opts), to: Authoring
-  defdelegate add_exercise!(plan, name, opts), to: Authoring
   defdelegate add_pool!(plan, name, opts), to: Authoring
-  defdelegate add_direct_goal!(plan, name, opts), to: Authoring
+  defdelegate add_track!(plan, name, opts), to: Authoring
   defdelegate add_session!(plan, name, opts), to: Authoring
 
   defdelegate every_day(), to: Schedule
+  defdelegate selected_weekdays(days), to: Schedule
+  defdelegate every_n_days(days), to: Schedule
+  defdelegate times_per_week(times), to: Schedule
+  defdelegate times_per_week(times, opts), to: Schedule
   defdelegate every_week(opts), to: Schedule
+  defdelegate every_n_weeks(weeks, opts), to: Schedule
+  defdelegate monthly(opts), to: Schedule
+  defdelegate after_completion(opts), to: Schedule
+  defdelegate custom(description), to: Schedule
   defdelegate choose(count, opts), to: Session
   defdelegate subtract_quantity(opts), to: Effects
+  defdelegate fixed(quantity, unit), to: Target
+  defdelegate fixed(quantity, unit, opts), to: Target
+  defdelegate metric(name), to: Target
+  defdelegate metric(name, opts), to: Target
+  defdelegate checklist(items), to: Target
+  defdelegate period_total(quantity, unit, opts), to: Target
+  defdelegate progression(opts), to: Target
+  defdelegate progression(from, to, opts), to: Target
+  defdelegate adaptive(opts), to: Target
+  defdelegate number(unit), to: Target
+  defdelegate number(unit, opts), to: Target
+  defdelegate amount(unit), to: Target
+  defdelegate amount(unit, opts), to: Target
+  defdelegate fields(fields), to: Target
 
   defdelegate project_today!(plan, opts), to: Today
 
   defdelegate start_session!(projection, session_key, opts), to: Logging
   defdelegate log_session_slot!(started_session, opts), to: Logging
   defdelegate log_event!(plan, opts), to: Logging
-  defdelegate log_direct_goal!(projection, opts), to: Logging
+  defdelegate log_track!(projection, opts), to: Logging
   defdelegate correct_event!(original_log_or_event, opts), to: Logging
   defdelegate build_offline_event(plan, opts), to: Logging
   defdelegate submit_offline_events!(entries, opts), to: Logging

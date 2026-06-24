@@ -13,7 +13,7 @@ defmodule Improve.Planning.PlanDraftTest do
 
       assert MapSet.new(Map.keys(schema.collections)) ==
                MapSet.new([
-                 :direct_goals,
+                 :tracks,
                  :environments,
                  :event_types,
                  :item_types,
@@ -34,31 +34,32 @@ defmodule Improve.Planning.PlanDraftTest do
 
       assert schema.collections.session_templates.children.slots.references == %{pool_key: :pools}
 
-      assert schema.collections.direct_goals.references == %{event_type_key: :event_types}
+      assert schema.collections.tracks.references == %{event_type_key: :event_types}
 
-      assert schema.collections.direct_goals.policy_fields == [
+      assert schema.collections.tracks.policy_fields == [
                :target,
                :completion_policy,
                :missed_policy
              ]
 
       assert schema.collections.schedules.references == %{
-               owner_key: [:session_templates, :direct_goals]
+               owner_key: [:session_templates, :tracks]
              }
 
       assert schema.collections.schedules.supported_owner_types == [
                :session_template,
-               :direct_goal
+               :track
              ]
 
       assert schema.collections.schedules.supported_kinds == [
                :every_day,
                :selected_weekdays,
+               :every_n_days,
                :times_per_week
              ]
 
       assert schema.collections.sample_events.references == %{
-               direct_goal_key: :direct_goals,
+               track_key: :tracks,
                event_type_key: :event_types
              }
     end
@@ -66,9 +67,9 @@ defmodule Improve.Planning.PlanDraftTest do
     test "documents stable-key reference fields" do
       assert {:items, :item_type_key} in PlanDraft.stable_reference_fields()
       assert {:session_templates, :environment_key} in PlanDraft.stable_reference_fields()
-      assert {:direct_goals, :event_type_key} in PlanDraft.stable_reference_fields()
+      assert {:tracks, :event_type_key} in PlanDraft.stable_reference_fields()
       assert {:schedules, :owner_key} in PlanDraft.stable_reference_fields()
-      assert {:sample_events, :direct_goal_key} in PlanDraft.stable_reference_fields()
+      assert {:sample_events, :track_key} in PlanDraft.stable_reference_fields()
     end
   end
 
@@ -103,29 +104,29 @@ defmodule Improve.Planning.PlanDraftTest do
       assert draft.key == "gym"
       assert draft.name == "Gym"
       assert draft.item_types == [%{"key" => "exercise", "name" => "Exercise"}]
-      assert draft.direct_goals == []
+      assert draft.tracks == []
       assert draft.schedules == []
     end
   end
 
   describe "diagnostics integration" do
-    test "direct goals and schedules participate in keyed draft diagnostics" do
+    test "tracks and schedules participate in keyed draft diagnostics" do
       diagnostics =
         Diagnostics.validate_plan_draft(%{
-          direct_goals: [
+          tracks: [
             %{key: "read", name: "Read", event_type_key: "read_pages"},
             %{key: "read", name: "Read duplicate", event_type_key: "read_pages"}
           ],
           schedules: [
             %{
               key: "read_daily",
-              owner_type: "direct_goal",
+              owner_type: "track",
               owner_key: "read",
               kind: "every_day"
             },
             %{
               key: "read_daily",
-              owner_type: "direct_goal",
+              owner_type: "track",
               owner_key: "read",
               kind: "every_day"
             }

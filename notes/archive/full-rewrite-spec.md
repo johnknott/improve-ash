@@ -1,5 +1,10 @@
 # Improve, Built From Scratch, in Plain English
 
+Archived note: this document is historical context and is no longer
+authoritative project guidance. Do not use it to steer implementation unless
+the user explicitly asks for it. Prefer the current README, tests, and
+`notes/story-api-improvement-plan.md`.
+
 This document describes Improve as if we were building it from scratch.
 
 It combines the product ideas that already work with the cleaner model the app

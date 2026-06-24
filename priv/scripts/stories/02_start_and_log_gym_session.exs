@@ -32,11 +32,12 @@ App.add_event_type!(plan, "Exercise performed",
   }
 )
 
-App.add_exercise!(plan, "Chest Press", actor: actor, key: "chest_press")
-App.add_exercise!(plan, "Shoulder Press", actor: actor, key: "shoulder_press")
-App.add_exercise!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown")
-App.add_exercise!(plan, "Seated Row", actor: actor, key: "seated_row")
-App.add_exercise!(plan, "Cable Fly", actor: actor, key: "cable_fly")
+App.add_item_type!(plan, "Exercise", actor: actor, key: "exercise")
+App.add_item!(plan, "Chest Press", actor: actor, key: "chest_press", type: "exercise")
+App.add_item!(plan, "Shoulder Press", actor: actor, key: "shoulder_press", type: "exercise")
+App.add_item!(plan, "Lat Pulldown", actor: actor, key: "lat_pulldown", type: "exercise")
+App.add_item!(plan, "Seated Row", actor: actor, key: "seated_row", type: "exercise")
+App.add_item!(plan, "Cable Fly", actor: actor, key: "cable_fly", type: "exercise")
 
 App.add_pool!(plan, "Push exercises",
   actor: actor,

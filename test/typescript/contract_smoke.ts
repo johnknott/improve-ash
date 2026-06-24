@@ -19,7 +19,7 @@ import type {
 
 const planFields = ["id", "name", "startsOn"] as const satisfies readonly (keyof PlanResourceSchema)[];
 const itemFields = ["id", "key", "facts"] as const satisfies readonly (keyof ItemResourceSchema)[];
-const eventFields = ["id", "summary", "status"] as const satisfies readonly (keyof EventInstanceResourceSchema)[];
+const eventFields = ["id", "summary", "status", "trackId"] as const satisfies readonly (keyof EventInstanceResourceSchema)[];
 const effectFields = ["id", "effectType", "status"] as const satisfies readonly (keyof ItemEffectResourceSchema)[];
 const occurrenceFields = ["id", "plannedFor", "status"] as const satisfies readonly (keyof SessionOccurrenceResourceSchema)[];
 

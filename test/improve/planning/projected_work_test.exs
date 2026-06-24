@@ -26,25 +26,25 @@ defmodule Improve.Planning.ProjectedWorkTest do
     end
   end
 
-  describe "direct_goal/2" do
-    test "represents a direct goal target without pretending it is a session" do
-      goal = direct_goal()
+  describe "track/2" do
+    test "represents a track target without pretending it is a session" do
+      track = track()
 
       work =
-        ProjectedWork.direct_goal(goal,
+        ProjectedWork.track(track,
           planned_for: ~D[2026-06-22],
           status: :completed,
           completed_event_ids: ["event-1"],
           explanation: "Read pages was completed by one journal event."
         )
 
-      assert work.kind == :direct_goal
+      assert work.kind == :track
       assert work.status == :completed
-      assert work.owner_type == :direct_goal
-      assert work.owner_id == "goal-1"
+      assert work.owner_type == :track
+      assert work.owner_id == "track-1"
       assert work.title == "Read pages"
-      assert work.payload.direct_goal_id == "goal-1"
-      assert work.payload.direct_goal_key == "read_pages"
+      assert work.payload.track_id == "track-1"
+      assert work.payload.track_key == "read_pages"
       assert work.payload.event_type_id == "event-type-1"
       assert work.payload.target == %{"quantity" => 20, "unit" => "pages"}
       assert work.payload.completed_event_ids == ["event-1"]
@@ -53,14 +53,14 @@ defmodule Improve.Planning.ProjectedWorkTest do
 
     test "rejects unsupported target statuses" do
       assert_raise ArgumentError, ~r/Unsupported projected work status/, fn ->
-        ProjectedWork.direct_goal(direct_goal(), planned_for: ~D[2026-06-22], status: :invented)
+        ProjectedWork.track(track(), planned_for: ~D[2026-06-22], status: :invented)
       end
     end
   end
 
-  defp direct_goal do
+  defp track do
     %{
-      id: "goal-1",
+      id: "track-1",
       plan_id: "plan-1",
       key: "read_pages",
       name: "Read pages",

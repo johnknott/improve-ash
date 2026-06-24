@@ -1,11 +1,9 @@
 # Improve Ash
 
-Improve Ash is a headless Phoenix/Ash proof-of-concept for the Improve product
-model.
+Improve Ash is a Phoenix/Ash proof-of-concept for the Improve product model.
 
-The active product spike is described in `notes/spike-spec.md`. The broader
-future product direction is in `notes/full-rewrite-spec.md`; it is useful
-context, but it is not the current build scope.
+The current product-language and story/API direction is described in
+`notes/story-api-improvement-plan.md`.
 
 This repo is intentionally not building a React UI, LiveView UI, admin section,
 billing, full auth, mobile client, or full offline sync system yet. The spike is

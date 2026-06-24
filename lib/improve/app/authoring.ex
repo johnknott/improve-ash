@@ -4,6 +4,7 @@ defmodule Improve.App.Authoring do
   """
 
   alias Improve.App.Lookup
+  alias Improve.App.Target
   alias Improve.App.Value
   alias Improve.Plans
 
@@ -68,23 +69,6 @@ defmodule Improve.App.Authoring do
     )
   end
 
-  def add_exercise!(plan, name, opts) do
-    actor = actor!(opts)
-
-    unless Enum.any?(Lookup.item_types(actor, plan), &(&1.key == "exercise")) do
-      add_item_type!(plan, "Exercise", actor: actor, key: "exercise")
-    end
-
-    add_item!(
-      plan,
-      name,
-      opts
-      |> Keyword.put(:actor, actor)
-      |> Keyword.put(:type, "exercise")
-      |> Keyword.put_new(:facts, %{})
-    )
-  end
-
   def add_pool!(plan, name, opts) do
     actor = actor!(opts)
 
@@ -113,28 +97,51 @@ defmodule Improve.App.Authoring do
     pool
   end
 
-  def add_direct_goal!(plan, name, opts) do
+  def add_track!(plan, name, opts) do
     actor = actor!(opts)
-    event_type = Lookup.event_type!(plan, Keyword.fetch!(opts, :event), actor)
     schedule = Keyword.fetch!(opts, :schedule)
+    key = Keyword.get(opts, :key, Value.key_from(name))
+    records = Keyword.get(opts, :records)
+    target = Target.apply_records(Keyword.get(opts, :target, %{}), records)
+    event_type = track_event_type!(plan, name, key, target, records, opts, actor)
 
-    direct_goal =
-      Plans.create_direct_goal!(
+    track =
+      Plans.create_track!(
         %{
           plan_id: plan.id,
           event_type_id: event_type.id,
-          key: Keyword.get(opts, :key, Value.key_from(name)),
+          key: key,
           name: name,
           description: Keyword.get(opts, :description),
-          target: Value.stringify_keys(Keyword.get(opts, :target, %{})),
+          target: Value.stringify_keys(target),
           completion_policy: Value.stringify_keys(Keyword.get(opts, :completion_policy, %{})),
           missed_policy: Value.stringify_keys(Keyword.get(opts, :missed_policy, %{}))
         },
         actor: actor
       )
 
-    create_schedule!(plan, :direct_goal, direct_goal, schedule, actor)
-    direct_goal
+    create_schedule!(plan, :track, track, schedule, actor)
+    track
+  end
+
+  defp track_event_type!(plan, name, key, target, records, opts, actor) do
+    if event_key = Keyword.get(opts, :event) do
+      Lookup.event_type!(plan, event_key, actor)
+    else
+      event_key = Keyword.get(opts, :event_key, "#{key}_logged")
+
+      case Enum.find(Lookup.event_types(actor, plan), &(&1.key == event_key)) do
+        nil ->
+          add_event_type!(plan, Keyword.get(opts, :event_name, "#{name} logged"),
+            actor: actor,
+            key: event_key,
+            payload: inferred_payload_schema(target, records)
+          )
+
+        event_type ->
+          event_type
+      end
+    end
   end
 
   def add_session!(plan, name, opts) do
@@ -194,6 +201,47 @@ defmodule Improve.App.Authoring do
       },
       actor: actor
     )
+  end
+
+  defp inferred_payload_schema(_target, %{type: type} = records)
+       when type in [:number, :amount] do
+    field = Map.fetch!(records, :field)
+
+    %{
+      required: [field],
+      properties: %{
+        field => %{type: "number"},
+        note: %{type: "string"}
+      }
+    }
+  end
+
+  defp inferred_payload_schema(_target, %{type: :fields, fields: fields}) do
+    %{
+      required: fields,
+      properties: Map.new(fields, &{&1, %{type: "string"}})
+    }
+  end
+
+  defp inferred_payload_schema(%{type: :checklist}, _records) do
+    %{
+      required: ["checked_items"],
+      properties: %{
+        checked_items: %{type: "array", items: %{type: "string"}},
+        note: %{type: "string"}
+      }
+    }
+  end
+
+  defp inferred_payload_schema(%{type: type} = target, _records)
+       when type in [:fixed, :metric, :period_total, :progression] do
+    unit = Map.get(target, :unit, "amount")
+    inferred_payload_schema(target, Target.number(unit))
+  end
+
+  defp inferred_payload_schema(_target, _records) do
+    raise ArgumentError,
+          "A track without an explicit event needs records metadata, such as records: number(\"pages\")."
   end
 
   defp slot_rules(slot, defaults) do

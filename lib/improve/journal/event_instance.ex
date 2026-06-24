@@ -33,7 +33,7 @@ defmodule Improve.Journal.EventInstance do
         :event_type_id,
         :session_occurrence_id,
         :slot_result_id,
-        :direct_goal_id,
+        :track_id,
         :effective_at,
         :recorded_at,
         :summary,
@@ -55,7 +55,7 @@ defmodule Improve.Journal.EventInstance do
                   event_type_id: Improve.Plans.EventType,
                   session_occurrence_id: Improve.Sessions.SessionOccurrence,
                   slot_result_id: Improve.Sessions.SlotResult,
-                  direct_goal_id: Improve.Plans.DirectGoal,
+                  track_id: Improve.Plans.Track,
                   replaces_event_instance_id: Improve.Journal.EventInstance
                 ]}
     end
@@ -184,7 +184,7 @@ defmodule Improve.Journal.EventInstance do
       public? true
     end
 
-    belongs_to :direct_goal, Improve.Plans.DirectGoal do
+    belongs_to :track, Improve.Plans.Track do
       public? true
     end
 
