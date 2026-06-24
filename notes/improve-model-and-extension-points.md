@@ -672,3 +672,66 @@ How could we represent the model more cleanly so that:
   become much more flexible without turning into hidden business logic
 
 That is the design problem to solve next.
+
+## 5. Planned: Time-Off Windows
+
+A time-off window is a planned span during which the user is unavailable, or
+only partially available - a holiday, travel, a busy period, or planned rest.
+It is distinct from a journal event: a journal event records what happened,
+while a time-off window declares a constraint on what should be scheduled. Both
+can cover the same dates without conflict.
+
+This matters for adaptive plans. A two-week holiday mid-training is a common
+case, and handling it well is part of what makes a plan genuinely adaptive
+rather than static.
+
+### Shape
+
+A time-off window is plan-scoped:
+
+- `key`: a stable, plan-unique identifier
+- `from_date` / `to_date`: an inclusive date range
+- `kind`: `holiday`, `travel`, `sick`, or similar
+- `availability`: `fully_off` (the default) or `limited`
+- `note`
+
+It belongs to a plan. It is not a schedule (it is negative space - when not to
+schedule) and not an event (it is intent, not history).
+
+### How Projection Treats It
+
+A `fully_off` window occludes scheduled work. Tracks and sessions that fall
+inside the range are suppressed and shown as on hold - importantly, they are
+not marked missed. Blocking dates on the calendar should mean the plan respects
+them, not that the user falls behind.
+
+A `limited` window is left to the adaptation evaluator, because "what is still
+doable while travelling" is domain-specific. A marathon plan might keep easy
+hotel runs; a reading plan might be unaffected. Core projection handles only
+the simple universal case; richer judgement lives in the evaluator.
+
+### How Adaptation Treats It
+
+The adaptation evaluator reads time-off windows alongside history and derived
+load, and proposes how to recover:
+
+- During a `limited` window: a maintenance version of the work (derived, no
+  write).
+- After any window: a gentler re-entry or rebuild, since fitness is lost
+  (derived, no write).
+- To absorb the gap: extend the plan, insert a rebuild block, or shift the
+  schedule (committed - these mutate plan structure, so they surface for
+  approval and the core writes them).
+
+### The Immovable Deadline
+
+Committed proposals like extending assume the plan's end date can move. Often
+it cannot: a marathon is a fixed external event. When the deadline is
+immovable, the evaluator shifts from "extend" to "compress the taper" or
+"adjust the goal" (for example, target sub-4:00 becomes finish). The deadline
+is just the plan's end date, supplied as input; whether it can move is domain
+judgement the evaluator owns.
+
+This is why time-off handling cannot be a hardcoded rule. The right answer
+depends on the kind of plan, where the window falls, and whether the deadline
+is soft or hard.
