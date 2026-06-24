@@ -5,16 +5,7 @@ defmodule Improve.Planning.Projector do
 
   alias Improve.Planning.ProjectedWork
   alias Improve.Planning.Recommender
-
-  @weekdays %{
-    1 => "monday",
-    2 => "tuesday",
-    3 => "wednesday",
-    4 => "thursday",
-    5 => "friday",
-    6 => "saturday",
-    7 => "sunday"
-  }
+  alias Improve.Planning.Schedules
 
   def project_today(input) do
     date = Map.fetch!(input, :date)
@@ -376,255 +367,13 @@ defmodule Improve.Planning.Projector do
     if not in_date_range?(date, schedule.starts_on, schedule.ends_on) do
       {:cont, {:ok, matched?, diagnostics}}
     else
-      case schedule_applies?(schedule, date, input) do
+      case Schedules.decide(schedule, date, input) do
         {:ok, true, new_diagnostics} -> {:halt, {:ok, true, diagnostics ++ new_diagnostics}}
         {:ok, false, new_diagnostics} -> {:cont, {:ok, matched?, diagnostics ++ new_diagnostics}}
         {:error, diagnostic} -> {:halt, {:error, diagnostic}}
       end
     end
   end
-
-  defp schedule_applies?(%{kind: :every_day}, _date, _input), do: {:ok, true, []}
-
-  defp schedule_applies?(%{kind: :selected_weekdays, rules: rules}, date, _input) do
-    {:ok, weekday(date) in Map.get(rules, "weekdays", []), []}
-  end
-
-  defp schedule_applies?(%{kind: :every_n_days, rules: rules} = schedule, date, _input) do
-    interval_days = Map.get(rules, "interval_days", Map.get(rules, "days"))
-
-    case parse_positive_integer(interval_days) do
-      nil ->
-        {:ok, false,
-         [
-           %{
-             code: :unsupported_schedule_rules,
-             severity: :error,
-             message: "Every-N-days schedules need a positive interval_days rule.",
-             details: %{schedule_id: schedule.id, value: interval_days}
-           }
-         ]}
-
-      interval_days ->
-        due? = rem(Date.diff(date, schedule.starts_on), interval_days) == 0
-        {:ok, due?, []}
-    end
-  end
-
-  defp schedule_applies?(%{kind: :times_per_week} = schedule, date, input) do
-    quota = quota_plan(schedule, date, input)
-    {:ok, date in quota.due_dates, quota.diagnostics}
-  end
-
-  defp schedule_applies?(%{kind: kind} = schedule, _date, _input)
-       when kind in [:after_completion, :custom, :every_n_weeks, :monthly] do
-    {:ok, false,
-     [
-       %{
-         code: :recognized_unsupported_schedule_kind,
-         severity: :info,
-         message:
-           "This schedule kind is recognized, but projection support is not implemented yet.",
-         details: %{schedule_id: schedule.id, kind: kind}
-       }
-     ]}
-  end
-
-  defp schedule_applies?(schedule, _date, _input) do
-    {:error,
-     %{
-       code: :unsupported_schedule_kind,
-       severity: :warning,
-       message: "Schedule kind is not recognized by the projector.",
-       details: %{schedule_id: schedule.id, kind: schedule.kind}
-     }}
-  end
-
-  defp quota_plan(schedule, date, input) do
-    rules = schedule.rules || %{}
-    times = positive_integer(Map.get(rules, "times", Map.get(rules, "count", 1)), 1)
-    minimum_gap_days = non_negative_integer(Map.get(rules, "minimum_gap_days", 0), 0)
-    {allowed_weekdays, rule_diagnostics} = allowed_weekdays(schedule, rules)
-    {week_start, week_end} = week_bounds(date)
-    as_of_date = Map.get(input, :as_of_date, date)
-    placement_start = quota_placement_start(date, as_of_date, week_start)
-
-    candidate_dates =
-      week_start
-      |> dates_through(week_end)
-      |> Enum.filter(fn candidate_date ->
-        in_date_range?(candidate_date, schedule.starts_on, schedule.ends_on) and
-          weekday(candidate_date) in allowed_weekdays
-      end)
-
-    completed_dates =
-      schedule
-      |> completed_dates(input)
-      |> Enum.filter(&in_date_range?(&1, week_start, week_end))
-      |> Enum.uniq()
-      |> Enum.sort_by(& &1, Date)
-
-    remaining = max(times - length(completed_dates), 0)
-
-    placed_dates =
-      candidate_dates
-      |> Enum.reject(&(&1 in completed_dates))
-      |> Enum.reject(&(Date.compare(&1, placement_start) == :lt))
-      |> place_quota_dates(remaining, completed_dates, minimum_gap_days)
-
-    (completed_dates ++ placed_dates)
-    |> Enum.uniq()
-    |> Enum.sort_by(& &1, Date)
-    |> then(fn due_dates ->
-      %{
-        due_dates: due_dates,
-        diagnostics:
-          rule_diagnostics ++
-            quota_diagnostics(schedule, times, candidate_dates, completed_dates, placed_dates)
-      }
-    end)
-  end
-
-  defp allowed_weekdays(schedule, rules) do
-    case Map.get(rules, "allowed_weekdays") do
-      nil ->
-        {Map.values(@weekdays), []}
-
-      weekdays when is_list(weekdays) ->
-        {weekdays, []}
-
-      other ->
-        {[],
-         [
-           %{
-             code: :unsupported_schedule_rules,
-             severity: :error,
-             message: "Schedule allowed weekdays must be a list of weekday names.",
-             details: %{schedule_id: schedule.id, value: other}
-           }
-         ]}
-    end
-  end
-
-  defp quota_diagnostics(schedule, times, candidate_dates, completed_dates, placed_dates) do
-    placed_count = length(completed_dates) + length(placed_dates)
-
-    cond do
-      candidate_dates == [] and completed_dates == [] ->
-        [
-          %{
-            code: :unplaceable_schedule,
-            severity: :warning,
-            message:
-              "Schedule cannot place any work this week because no allowed dates fall inside the schedule range.",
-            details: %{schedule_id: schedule.id, requested: times, placed: 0}
-          }
-        ]
-
-      placed_count < times ->
-        [
-          %{
-            code: :partially_placeable_schedule,
-            severity: :warning,
-            message:
-              "Schedule can only place #{placed_count} of #{times} requested occurrence(s) this week with the current allowed weekdays and minimum gap.",
-            details: %{schedule_id: schedule.id, requested: times, placed: placed_count}
-          }
-        ]
-
-      true ->
-        []
-    end
-  end
-
-  defp place_quota_dates(_candidate_dates, 0, _occupied_dates, _minimum_gap_days), do: []
-
-  defp place_quota_dates(candidate_dates, remaining, occupied_dates, minimum_gap_days) do
-    candidate_dates
-    |> Enum.reduce_while([], fn candidate_date, placed_dates ->
-      cond do
-        length(placed_dates) == remaining ->
-          {:halt, placed_dates}
-
-        gap_ok?(candidate_date, occupied_dates ++ placed_dates, minimum_gap_days) ->
-          {:cont, placed_dates ++ [candidate_date]}
-
-        true ->
-          {:cont, placed_dates}
-      end
-    end)
-  end
-
-  defp completed_dates(%{owner_type: :track, owner_id: owner_id}, input) do
-    input
-    |> Map.get(:journal_events, [])
-    |> Enum.filter(&(&1.track_id == owner_id and &1.status == :active))
-    |> Enum.map(&DateTime.to_date(&1.effective_at))
-  end
-
-  defp completed_dates(%{owner_type: :session_template, owner_id: owner_id}, input) do
-    input
-    |> Map.get(:session_occurrences, [])
-    |> Enum.filter(&(&1.session_template_id == owner_id and &1.status == :completed))
-    |> Enum.map(& &1.planned_for)
-  end
-
-  defp completed_dates(_schedule, _input), do: []
-
-  defp gap_ok?(_date, [], _minimum_gap_days), do: true
-
-  defp gap_ok?(date, occupied_dates, minimum_gap_days) do
-    Enum.all?(occupied_dates, &(abs(Date.diff(date, &1)) > minimum_gap_days))
-  end
-
-  defp week_bounds(date) do
-    week_start = Date.add(date, 1 - Date.day_of_week(date))
-    {week_start, Date.add(week_start, 6)}
-  end
-
-  defp quota_placement_start(date, as_of_date, week_start) do
-    if Date.compare(date, as_of_date) == :eq do
-      week_start
-    else
-      max_date(week_start, as_of_date)
-    end
-  end
-
-  defp max_date(left, right) do
-    case Date.compare(left, right) do
-      :lt -> right
-      _other -> left
-    end
-  end
-
-  defp dates_through(start_date, end_date) do
-    0..Date.diff(end_date, start_date)
-    |> Enum.map(&Date.add(start_date, &1))
-  end
-
-  defp positive_integer(value, default), do: max(non_negative_integer(value, default), 1)
-
-  defp parse_positive_integer(value) when is_integer(value) and value > 0, do: value
-
-  defp parse_positive_integer(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {integer, ""} when integer > 0 -> integer
-      _other -> nil
-    end
-  end
-
-  defp parse_positive_integer(_value), do: nil
-
-  defp non_negative_integer(value, _default) when is_integer(value) and value >= 0, do: value
-
-  defp non_negative_integer(value, default) when is_binary(value) do
-    case Integer.parse(value) do
-      {integer, ""} when integer >= 0 -> integer
-      _other -> default
-    end
-  end
-
-  defp non_negative_integer(_value, default), do: default
 
   defp schedules_for(schedules, owner_type, owner_id) do
     Enum.filter(schedules, &(&1.owner_type == owner_type and &1.owner_id == owner_id))
@@ -658,8 +407,6 @@ defmodule Improve.Planning.Projector do
   defp in_date_range?(date, starts_on, ends_on) do
     Date.compare(date, starts_on) != :lt and Date.compare(date, ends_on) != :gt
   end
-
-  defp weekday(date), do: Map.fetch!(@weekdays, Date.day_of_week(date))
 
   defp explanations([]), do: ["No projected work is scheduled for this date."]
 

@@ -4,6 +4,7 @@ defmodule Improve.Planning.ProjectTodayTest do
   alias Improve.Accounts
   alias Improve.Fixtures.GymPlan
   alias Improve.Journal
+  alias Improve.Planning.Projector
   alias Improve.Plans
   alias Improve.Sessions
 
@@ -106,6 +107,80 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert saturday.projected_session_occurrences == []
       assert saturday.projected_work == []
       assert saturday.diagnostics == []
+    end
+
+    test "projects selected weekdays only on matching days" do
+      monday =
+        projector_input(
+          schedule: %{
+            id: "weekday-schedule",
+            kind: :selected_weekdays,
+            rules: %{"weekdays" => ["monday", "wednesday"]},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22]
+        )
+        |> Projector.project_today()
+
+      assert [%{title: "Read 20 pages", planned_for: ~D[2026-06-22]}] = monday.projected_work
+      assert monday.diagnostics == []
+
+      tuesday =
+        projector_input(
+          schedule: %{
+            id: "weekday-schedule",
+            kind: :selected_weekdays,
+            rules: %{"weekdays" => ["monday", "wednesday"]},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-23]
+        )
+        |> Projector.project_today()
+
+      assert tuesday.projected_work == []
+      assert tuesday.diagnostics == []
+    end
+
+    test "returns diagnostics for malformed every-n-days rules" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "bad-every-n-days",
+            kind: :every_n_days,
+            rules: %{"interval_days" => "soon"},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22]
+        )
+        |> Projector.project_today()
+
+      assert projection.projected_work == []
+
+      diagnostic = diagnostic(projection, :unsupported_schedule_rules)
+      assert diagnostic.severity == :error
+      assert diagnostic.message == "Every-N-days schedules need a positive interval_days rule."
+      assert diagnostic.details == %{schedule_id: "bad-every-n-days", value: "soon"}
+    end
+
+    test "returns diagnostics for schedule kinds the projector does not recognize" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "moon-phase-schedule",
+            kind: :moon_phase,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22]
+        )
+        |> Projector.project_today()
+
+      assert projection.projected_work == []
+
+      diagnostic = diagnostic(projection, :unsupported_schedule_kind)
+      assert diagnostic.severity == :warning
+      assert diagnostic.message == "Schedule kind is not recognized by the projector."
+      assert diagnostic.details == %{schedule_id: "moon-phase-schedule", kind: :moon_phase}
     end
 
     test "projects a scheduled track as planned without mutating history" do
@@ -518,5 +593,49 @@ defmodule Improve.Planning.ProjectTodayTest do
   defp diagnostic(projection, code) do
     Enum.find(projection.diagnostics, &(&1.code == code)) ||
       flunk("Expected diagnostic #{inspect(code)} in #{inspect(projection.diagnostics)}")
+  end
+
+  defp projector_input(opts) do
+    plan = %{
+      id: "plan-1",
+      starts_on: ~D[2026-06-22],
+      ends_on: ~D[2026-07-20]
+    }
+
+    track = %{
+      id: "track-1",
+      plan_id: plan.id,
+      event_type_id: "event-type-1",
+      key: "read_twenty_pages",
+      name: "Read 20 pages",
+      target: %{"quantity" => 20, "unit" => "pages"},
+      completion_policy: %{"mode" => "at_least_target"},
+      missed_policy: %{"mode" => "miss_if_no_event_by_end_of_day"}
+    }
+
+    schedule =
+      opts
+      |> Keyword.fetch!(:schedule)
+      |> Map.merge(%{
+        plan_id: plan.id,
+        owner_type: :track,
+        owner_id: track.id,
+        ends_on: nil
+      })
+
+    %{
+      date: Keyword.fetch!(opts, :date),
+      plan: plan,
+      session_templates: [],
+      session_slots: [],
+      schedules: [schedule],
+      tracks: [track],
+      journal_events: [],
+      session_occurrences: [],
+      slot_results: [],
+      items: [],
+      pool_memberships: [],
+      environments: []
+    }
   end
 end

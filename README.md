@@ -1,15 +1,20 @@
 # Improve Ash
 
-Improve Ash is a Phoenix/Ash proof-of-concept for the Improve product model.
+Improve Ash is the Phoenix/Ash product codebase for the next version of
+Improve.
 
 The current product-language and story/API direction is described in
 `notes/story-api-improvement-plan.md`.
 
-This repo is intentionally not building a React UI, LiveView UI, admin section,
-billing, full auth, mobile client, or full offline sync system yet. The spike is
-about proving the product kernel with Ash resources, Postgres persistence,
-plain Elixir planning modules, scenario tests, generated TypeScript contracts,
-and small read-only AshAI tool experiments.
+The project is still early, but it is now building toward the real product: a
+Phoenix API, Ash resources, Postgres persistence, plain Elixir planning
+modules, executable product stories, generated TypeScript contracts, read-only
+AshAI context tools, and a Svelte UI wired to the backend.
+
+The current scope is intentionally focused on the core Improve loop. This repo
+is not building a React UI, LiveView UI, admin section, billing, Stripe
+integration, mobile client, or full offline sync system unless that scope is
+explicitly expanded.
 
 ## Setup
 
@@ -58,9 +63,9 @@ Run the frontend on its own:
 mise run frontend:dev
 ```
 
-The first frontend app lives in `frontend/`. It is a plain Svelte + TypeScript
-+ Vite app with no routing, auth, styling framework, component library, or API
-wiring yet.
+The frontend app lives in `frontend/`. It is a plain Svelte + TypeScript + Vite
+app with a basic authenticated app shell, plan switching, demo plan setup, daily
+dashboard data, and logging/check-in flows wired through the Phoenix API.
 
 Open a plain IEx session with the app loaded:
 
@@ -83,10 +88,11 @@ mise run db:seed
 `mise run db:seed` creates or reuses `demo@improve.local` and installs the gym
 and vial demo plans if they are not already present.
 
-## Spike Workflows
+## Product Workflows
 
-The POC is exercised primarily through scenario tests and IEx/code interfaces.
-The main implemented stories are:
+The product kernel is exercised through scenario tests, executable stories,
+IEx/code interfaces, Phoenix API endpoints, and the Svelte UI. The main
+implemented workflows are:
 
 - install a gym demo plan
 - project today's gym work without mutating session history
@@ -101,6 +107,8 @@ The main implemented stories are:
 - generate TypeScript contracts for representative resources/actions
 - expose read-only AshAI tools for projection, summaries, journal reads, and
   item state
+- sign in through the basic auth flow, complete a profile, load the dashboard,
+  switch plans, install demo plans, and create new plans from the Svelte UI
 
 Useful IEx examples:
 
@@ -180,7 +188,7 @@ The test task starts local Postgres automatically before running ExUnit.
 
 ## TypeScript Contracts
 
-AshTypescript generates the spike contracts into `priv/generated/`:
+AshTypescript generates TypeScript contracts into `priv/generated/`:
 
 - `priv/generated/ash_types.ts`
 - `priv/generated/ash_rpc.ts`
@@ -213,36 +221,32 @@ through `AshAi.Tools.execute/3` and verify cross-user reads are rejected.
 
 ## Still Unresolved
 
-- There is no real authentication or user session wiring.
-- There is no UI; tests and IEx are the interface for this spike.
-- The TypeScript RPC surface is intentionally small and representative, not the
-  final client API.
+- Authentication and user session wiring are basic and product-shaped, but not
+  final.
+- The Svelte UI is useful but still early; many screens are placeholders or
+  thin flows over the current dashboard API.
+- The Phoenix UI API and TypeScript RPC surfaces are intentionally small and
+  representative; the final client API still needs deliberate design.
 - AshAI is proven as read-only tool exposure, not as a full assistant workflow.
 - Authored-plan diagnostics are useful but not a comprehensive schema validator.
 - The planner supports only the simple schedule/recommendation rules needed for
-  the spike.
+  the current product loop.
 - Audit/change-history infrastructure beyond the product journal remains
   undecided.
 
-## POC Verdict Checklist
+## Direction
 
-1. Are the resources/actions easier to understand than the Go/sqlc version?
-   Tentatively yes: the resource graph now reads close to the product model.
-2. Are the hard workflows smaller?
-   Yes for the tested workflows; explicit orchestration modules kept the complex
-   journal/session flows approachable.
-3. Are transaction boundaries clear?
-   Yes: session start, event logging, dose logging, and correction are explicit
-   transactions.
-4. Are errors and diagnostics understandable?
-   Improving: authored-content diagnostics are plain English, while raw Ash
-   errors still need UI-facing translation later.
-5. Does generated TypeScript look good enough for a future React/shadcn app?
-   Yes for representative read contracts; the final app API still needs design.
-6. Do AshAI tools feel naturally derived from domain actions?
-   Yes: the useful tool layer is thin once the normal domain helpers exist.
-7. Is debugging acceptable?
-   Yes so far: pure modules and scenario tests make failures local and readable.
-8. Would we be comfortable building the real product on this?
-   Tentatively yes, with real auth, a deliberate client API, and continued care
-   around keeping deterministic planning outside framework DSL hooks.
+The product direction is to keep growing this codebase into Improve. The
+architecture should continue to follow the same boundary:
+
+- Ash owns durable domain structure, actions, validation, authorization,
+  persistence, and transaction boundaries.
+- Plain Elixir modules own deterministic planning, projection, recommendation,
+  item state, diagnostics, and review logic.
+- Phoenix controllers, the Svelte UI, story scripts, generated TypeScript
+  contracts, and AshAI tools expose those same domain operations instead of
+  becoming alternate business-rule engines.
+
+The next product work should keep tightening the story/API language, filling
+out the Svelte flows, and proving more of the core Improve loop through the
+same backend model.
