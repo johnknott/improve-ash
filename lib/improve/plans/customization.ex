@@ -1,4 +1,15 @@
-defmodule Improve.Plans.Track do
+defmodule Improve.Plans.Customization do
+  @moduledoc """
+  Durable record of a one-time plan customization run.
+
+  Customization is Layer 2 of an adaptive plan: it derives values (for example
+  training paces) from a baseline once, and writes the results into ordinary
+  plan data (track guidance). This record captures what was derived, from which
+  baseline, using which recipe, and where it was applied, so the origin of
+  derived static structure is auditable and clearly separable from
+  projection-time adaptation, which never writes.
+  """
+
   use Ash.Resource,
     otp_app: :improve,
     domain: Improve.Plans,
@@ -6,7 +17,7 @@ defmodule Improve.Plans.Track do
     authorizers: [Ash.Policy.Authorizer]
 
   postgres do
-    table "tracks"
+    table "customizations"
     repo Improve.Repo
   end
 
@@ -15,44 +26,13 @@ defmodule Improve.Plans.Track do
 
     create :create do
       primary? true
-
-      accept [
-        :plan_id,
-        :key,
-        :name,
-        :description,
-        :event_type_id,
-        :target,
-        :guidance,
-        :completion_policy,
-        :missed_policy
-      ]
-
-      validate {Improve.Validations.SamePlan,
-                references: [
-                  event_type_id: Improve.Plans.EventType
-                ]}
+      accept [:plan_id, :key, :kind, :baseline, :recipe, :outputs, :applied_changes]
     end
 
     update :update do
       primary? true
       require_atomic? false
-
-      accept [
-        :key,
-        :name,
-        :description,
-        :event_type_id,
-        :target,
-        :guidance,
-        :completion_policy,
-        :missed_policy
-      ]
-
-      validate {Improve.Validations.SamePlan,
-                references: [
-                  event_type_id: Improve.Plans.EventType
-                ]}
+      accept [:key, :kind, :baseline, :recipe, :outputs, :applied_changes]
     end
   end
 
@@ -74,34 +54,32 @@ defmodule Improve.Plans.Track do
       public? true
     end
 
-    attribute :name, :string do
+    attribute :kind, :atom do
       allow_nil? false
       public? true
+      default :other
+      constraints one_of: [:baseline, :other]
     end
 
-    attribute :description, :string do
-      public? true
-    end
-
-    attribute :target, :map do
-      allow_nil? false
-      public? true
-      default %{}
-    end
-
-    attribute :guidance, :map do
+    attribute :baseline, :map do
       allow_nil? false
       public? true
       default %{}
     end
 
-    attribute :completion_policy, :map do
+    attribute :recipe, :map do
       allow_nil? false
       public? true
       default %{}
     end
 
-    attribute :missed_policy, :map do
+    attribute :outputs, :map do
+      allow_nil? false
+      public? true
+      default %{}
+    end
+
+    attribute :applied_changes, :map do
       allow_nil? false
       public? true
       default %{}
@@ -116,13 +94,6 @@ defmodule Improve.Plans.Track do
       allow_nil? false
       public? true
     end
-
-    belongs_to :event_type, Improve.Plans.EventType do
-      allow_nil? false
-      public? true
-    end
-
-    has_many :event_instances, Improve.Journal.EventInstance
   end
 
   identities do

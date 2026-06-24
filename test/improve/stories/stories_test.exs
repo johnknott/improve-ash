@@ -169,6 +169,85 @@ defmodule Improve.StoriesTest do
     end
   end
 
+  describe "customization story helpers" do
+    test "derives baseline paces, bakes them into track guidance, and records the run" do
+      story =
+        Story.begin!("test_customization", reset?: true)
+        |> Story.user!("Story Customize", email: "story+test-customization@example.test")
+
+      plan =
+        Story.create_plan!(story, "Adaptive running plan",
+          intention: "Derive training paces from a baseline",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      Story.add_event_type!(story, plan, "Time trial",
+        key: "time_trial",
+        payload: %{required: ["distance_km", "minutes"]}
+      )
+
+      Story.log_event!(story, plan,
+        event: "time_trial",
+        on: ~D[2026-06-21],
+        summary: "5k baseline: 25:00",
+        payload: %{distance_km: 5, minutes: 25}
+      )
+
+      Story.add_event_type!(story, plan, "Run completed",
+        key: "run_completed",
+        payload: %{required: ["amount", "unit"]}
+      )
+
+      Story.add_track!(story, plan, "Easy run",
+        key: "easy_run",
+        event: "run_completed",
+        schedule: Story.every_week(times: 1, on: [:wednesday]),
+        target: Story.fixed(5, "km"),
+        records: Story.amount("km")
+      )
+
+      Story.add_track!(story, plan, "Tempo run",
+        key: "tempo_run",
+        event: "run_completed",
+        schedule: Story.every_week(times: 1, on: [:thursday]),
+        target: Story.fixed(8, "km"),
+        records: Story.amount("km")
+      )
+
+      result =
+        Story.customize_plan!(story, plan,
+          from_baseline: "time_trial",
+          derive: %{
+            easy_pace: {:secs_per_km, :five_k, plus: 75},
+            tempo_pace: {:secs_per_km, :five_k, plus: 25}
+          },
+          apply_to: %{
+            "easy_run" => :easy_pace,
+            "tempo_run" => :tempo_pace
+          }
+        )
+
+      assert result.outputs.easy_pace == %{secs_per_km: 375, label: "6:15/km"}
+      assert result.outputs.tempo_pace == %{secs_per_km: 325, label: "5:25/km"}
+
+      [easy, tempo] =
+        Plans.list_tracks!(actor: story.user, query: [filter: [plan_id: plan.id]])
+        |> Enum.sort_by(& &1.key)
+
+      assert easy.guidance["pace"]["label"] == "6:15/km"
+      assert tempo.guidance["pace"]["label"] == "5:25/km"
+
+      shown =
+        capture_return(fn ->
+          Story.show_customization!(story, plan, result)
+        end)
+
+      assert shown.kind == :baseline
+      assert shown.baseline["event_type_key"] == "time_trial"
+    end
+  end
+
   describe "session-from-pools story helpers" do
     test "express a projected generic session with a completed slot and a swap" do
       story =

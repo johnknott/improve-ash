@@ -71,6 +71,13 @@ defmodule Improve.Plans do
       define :list_time_off_windows, action: :read
     end
 
+    resource Improve.Plans.Customization do
+      define :create_customization, action: :create
+      define :update_customization, action: :update
+      define :get_customization, action: :read, get_by: [:id]
+      define :list_customizations, action: :read
+    end
+
     resource Improve.Plans.SessionTemplate do
       define :create_session_template, action: :create
       define :get_session_template, action: :read, get_by: [:id]
@@ -86,6 +93,7 @@ defmodule Improve.Plans do
 
     resource Improve.Plans.Track do
       define :create_track, action: :create
+      define :update_track, action: :update
       define :get_track, action: :read, get_by: [:id]
       define :list_tracks, action: :read
     end

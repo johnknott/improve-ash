@@ -10,6 +10,7 @@ defmodule Improve.App do
 
   alias Improve.App.AiContext
   alias Improve.App.Authoring
+  alias Improve.App.Customize
   alias Improve.App.Effects
   alias Improve.App.Logging
   alias Improve.App.Review
@@ -27,6 +28,7 @@ defmodule Improve.App do
   defdelegate add_track!(plan, name, opts), to: Authoring
   defdelegate add_session!(plan, name, opts), to: Authoring
   defdelegate add_time_off!(plan, opts), to: Authoring
+  defdelegate customize_plan!(plan, opts), to: Customize
 
   defdelegate every_day(), to: Schedule
   defdelegate selected_weekdays(days), to: Schedule

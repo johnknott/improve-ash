@@ -10,6 +10,7 @@ defmodule Improve.Stories do
 
   alias Improve.Accounts
   alias Improve.App
+  alias Improve.App.Value
   alias Improve.Journal
   alias Improve.Plans
   alias Improve.Repo
@@ -81,6 +82,10 @@ defmodule Improve.Stories do
 
   def add_time_off!(%Story{} = story, plan, opts) do
     App.add_time_off!(plan, Keyword.put(opts, :actor, actor!(story)))
+  end
+
+  def customize_plan!(%Story{} = story, plan, opts) do
+    App.customize_plan!(plan, Keyword.put(opts, :actor, actor!(story)))
   end
 
   def every_day, do: App.every_day()
@@ -248,6 +253,30 @@ defmodule Improve.Stories do
     review
   end
 
+  def show_customization!(%Story{} = story, plan, result) do
+    tracks = track_index!(story, plan.id)
+    record = result.customization
+    baseline = record.baseline
+
+    Print.section("Baseline Customization")
+
+    Print.key_values([
+      {"Kind", record.kind},
+      {"Baseline event", Value.value(baseline, "event_type_key")},
+      {"Baseline payload", format_baseline(baseline)},
+      {"Customization key", record.key}
+    ])
+
+    Print.rows(record.applied_changes, fn {track_key, applied} ->
+      pace = Value.value(applied, "pace")
+      track = Map.get(tracks, track_key)
+      track_name = if track, do: track.name, else: track_key
+      "#{track_name}: #{Value.value(pace, "label")}"
+    end)
+
+    record
+  end
+
   def show_item_state!(%Story{} = story, plan, item_key) do
     state = App.get_item_state!(plan, item_key, actor: actor!(story))
 
@@ -362,6 +391,11 @@ defmodule Improve.Stories do
     |> Map.new(&{&1.id, &1})
   end
 
+  defp track_index!(story, plan_id) do
+    Plans.list_tracks!(actor: actor!(story), query: [filter: [plan_id: plan_id]])
+    |> Map.new(&{&1.key, &1})
+  end
+
   defp session_slot_index!(story, plan_id) do
     Plans.list_session_slots!(actor: actor!(story), query: [filter: [plan_id: plan_id]])
     |> Map.new(&{&1.id, &1})
@@ -369,6 +403,14 @@ defmodule Improve.Stories do
 
   defp item_name(nil), do: "(none)"
   defp item_name(item), do: item.name
+
+  defp format_baseline(baseline) do
+    payload = Value.value(baseline, "payload")
+    minutes = Value.value(payload, "minutes")
+    seconds = Value.value(payload, "seconds") || 0
+    distance = Value.value(payload, "distance_km")
+    "#{minutes}:#{String.pad_leading(Integer.to_string(seconds), 2, "0")} #{distance} km"
+  end
 
   defp reset!(source_key) do
     plan_ids =
@@ -386,6 +428,7 @@ defmodule Improve.Stories do
         delete_story_rows("slot_results", plan_ids)
         delete_story_rows("session_occurrences", plan_ids)
         delete_story_rows("schedules", plan_ids)
+        delete_story_rows("customizations", plan_ids)
         delete_story_rows("pool_memberships", plan_ids)
         delete_story_rows("session_slots", plan_ids)
         delete_story_rows("session_templates", plan_ids)

@@ -624,6 +624,252 @@ defmodule Improve.AppTest do
     end
   end
 
+  describe "customize_plan!/2" do
+    test "derives paces from a baseline event, writes track guidance, and records the run" do
+      user = user!("app-customize@example.com")
+
+      plan =
+        App.create_plan!("Customize",
+          actor: user,
+          intention: "Customize from baseline",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      App.add_event_type!(plan, "Time trial",
+        actor: user,
+        key: "time_trial",
+        payload: %{required: ["distance_km", "minutes"]}
+      )
+
+      App.log_event!(plan,
+        actor: user,
+        event: "time_trial",
+        on: ~D[2026-06-21],
+        summary: "5k baseline: 25:00",
+        payload: %{distance_km: 5, minutes: 25}
+      )
+
+      App.add_event_type!(plan, "Run completed",
+        actor: user,
+        key: "run_completed",
+        payload: %{required: ["amount", "unit"]}
+      )
+
+      easy_track =
+        App.add_track!(plan, "Easy run",
+          actor: user,
+          key: "easy_run",
+          event: "run_completed",
+          schedule: App.every_week(times: 1, on: [:wednesday]),
+          target: App.fixed(5, "km"),
+          records: App.amount("km")
+        )
+
+      Plans.update_track!(
+        easy_track,
+        %{guidance: %{"surface" => "road", "notes" => "Keep this guidance"}},
+        actor: user
+      )
+
+      App.add_track!(plan, "Tempo run",
+        actor: user,
+        key: "tempo_run",
+        event: "run_completed",
+        schedule: App.every_week(times: 1, on: [:thursday]),
+        target: App.fixed(8, "km"),
+        records: App.amount("km")
+      )
+
+      result =
+        App.customize_plan!(plan,
+          actor: user,
+          from_baseline: "time_trial",
+          derive: %{
+            easy_pace: {:secs_per_km, :five_k, plus: 75},
+            tempo_pace: {:secs_per_km, :five_k, plus: 25}
+          },
+          apply_to: %{
+            "easy_run" => :easy_pace,
+            "tempo_run" => :tempo_pace
+          }
+        )
+
+      # Derived paces are returned to the caller.
+      assert result.outputs.easy_pace == %{secs_per_km: 375, label: "6:15/km"}
+      assert result.outputs.tempo_pace == %{secs_per_km: 325, label: "5:25/km"}
+
+      # Guidance was baked into the tracks as ordinary, auditable plan data.
+      [easy, tempo] =
+        Plans.list_tracks!(actor: user, query: [filter: [plan_id: plan.id]])
+        |> Enum.sort_by(& &1.key)
+
+      assert easy.guidance == %{
+               "surface" => "road",
+               "notes" => "Keep this guidance",
+               "pace" => %{"secs_per_km" => 375, "label" => "6:15/km"}
+             }
+
+      assert tempo.guidance == %{"pace" => %{"secs_per_km" => 325, "label" => "5:25/km"}}
+
+      # The customization run is recorded with a self-contained baseline snapshot.
+      [run] = Plans.list_customizations!(actor: user, query: [filter: [plan_id: plan.id]])
+      assert run.kind == :baseline
+      assert run.outputs["easy_pace"]["label"] == "6:15/km"
+      assert run.applied_changes["easy_run"]["pace"]["label"] == "6:15/km"
+      assert run.baseline["event_type_key"] == "time_trial"
+      assert run.baseline["payload"]["minutes"] == 25
+    end
+
+    test "re-customizing updates the same auditable run rather than stacking duplicates" do
+      user = user!("app-recustomize@example.com")
+
+      plan =
+        App.create_plan!("Re-customize",
+          actor: user,
+          intention: "Re-customize",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      App.add_event_type!(plan, "Time trial",
+        actor: user,
+        key: "time_trial",
+        payload: %{required: ["distance_km", "minutes"]}
+      )
+
+      App.log_event!(plan,
+        actor: user,
+        event: "time_trial",
+        on: ~D[2026-06-21],
+        summary: "5k baseline: 25:00",
+        payload: %{distance_km: 5, minutes: 25}
+      )
+
+      App.add_event_type!(plan, "Run completed",
+        actor: user,
+        key: "run_completed",
+        payload: %{required: ["amount", "unit"]}
+      )
+
+      App.add_track!(plan, "Easy run",
+        actor: user,
+        key: "easy_run",
+        event: "run_completed",
+        schedule: App.every_week(times: 1, on: [:wednesday]),
+        target: App.fixed(5, "km"),
+        records: App.amount("km")
+      )
+
+      App.customize_plan!(plan,
+        actor: user,
+        from_baseline: "time_trial",
+        derive: %{easy_pace: {:secs_per_km, :five_k, plus: 75}},
+        apply_to: %{"easy_run" => :easy_pace}
+      )
+
+      App.customize_plan!(plan,
+        actor: user,
+        from_baseline: "time_trial",
+        derive: %{easy_pace: {:secs_per_km, :five_k, plus: 90}},
+        apply_to: %{"easy_run" => :easy_pace}
+      )
+
+      runs = Plans.list_customizations!(actor: user, query: [filter: [plan_id: plan.id]])
+      assert length(runs) == 1
+
+      [track] = Plans.list_tracks!(actor: user, query: [filter: [plan_id: plan.id]])
+      assert track.guidance["pace"]["secs_per_km"] == 390
+    end
+
+    test "rolls back guidance writes if applying customization fails part way through" do
+      user = user!("app-customize-rollback@example.com")
+
+      plan =
+        App.create_plan!("Rollback customization",
+          actor: user,
+          intention: "Customize atomically",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      App.add_event_type!(plan, "Time trial",
+        actor: user,
+        key: "time_trial",
+        payload: %{required: ["distance_km", "minutes"]}
+      )
+
+      App.log_event!(plan,
+        actor: user,
+        event: "time_trial",
+        on: ~D[2026-06-21],
+        summary: "5k baseline: 25:00",
+        payload: %{distance_km: 5, minutes: 25}
+      )
+
+      App.add_event_type!(plan, "Run completed",
+        actor: user,
+        key: "run_completed",
+        payload: %{required: ["amount", "unit"]}
+      )
+
+      easy_track =
+        App.add_track!(plan, "Easy run",
+          actor: user,
+          key: "easy_run",
+          event: "run_completed",
+          schedule: App.every_week(times: 1, on: [:wednesday]),
+          target: App.fixed(5, "km"),
+          records: App.amount("km")
+        )
+
+      Plans.update_track!(easy_track, %{guidance: %{"surface" => "trail"}}, actor: user)
+
+      assert_raise ArgumentError, ~r/No track "missing_track" exists in this plan/, fn ->
+        App.customize_plan!(plan,
+          actor: user,
+          from_baseline: "time_trial",
+          derive: %{
+            easy_pace: {:secs_per_km, :five_k, plus: 75},
+            tempo_pace: {:secs_per_km, :five_k, plus: 25}
+          },
+          apply_to: [{"easy_run", :easy_pace}, {"missing_track", :tempo_pace}]
+        )
+      end
+
+      [track] = Plans.list_tracks!(actor: user, query: [filter: [plan_id: plan.id]])
+      assert track.guidance == %{"surface" => "trail"}
+      assert [] = Plans.list_customizations!(actor: user, query: [filter: [plan_id: plan.id]])
+    end
+
+    test "raises with a plain-English diagnostic when the baseline event is missing" do
+      user = user!("app-no-baseline@example.com")
+
+      plan =
+        App.create_plan!("No baseline",
+          actor: user,
+          intention: "No baseline",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      App.add_event_type!(plan, "Time trial",
+        actor: user,
+        key: "time_trial",
+        payload: %{required: ["distance_km", "minutes"]}
+      )
+
+      assert_raise ArgumentError, ~r/No active baseline event of type "time_trial"/, fn ->
+        App.customize_plan!(plan,
+          actor: user,
+          from_baseline: "time_trial",
+          derive: %{easy_pace: {:secs_per_km, :five_k, plus: 75}},
+          apply_to: %{}
+        )
+      end
+    end
+  end
+
   defp user!(email) do
     Accounts.create_user!(%{email: email, full_name: "App User"})
   end

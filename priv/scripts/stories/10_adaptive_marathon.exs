@@ -198,39 +198,51 @@ mid_holiday = App.project_today!(plan, actor: actor, date: ~D[2026-08-16])
 Story.show_projection!(story, mid_holiday)
 
 # =============================================================================
-# Everything below is INTENDED product flow. It does not execute today.
-# It specifies what the customization and adaptation layers must produce.
-# The desired calls are written as comments so the script stays runnable.
+# Layer 2 (Customization) now runs. Layer 3 (Adaptation) below remains INTENDED
+# product flow, written as comments so the script stays runnable.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# LAYER 2 — Baseline customization (INTENDED; not yet implemented)
+# LAYER 2 — Baseline customization (RUNS today)
 #
-# One-time plan generation derives training paces from the 5k baseline and
-# bakes them into each track's target as auditable static structure. This is
-# not a hot-loop computation — it runs at customization time.
+# One-time plan generation derives training paces from the 5k baseline and bakes
+# them into each track's guidance as auditable static structure. This is not a
+# hot-loop computation — it runs once, at customization time, and writes ordinary
+# plan data. Projection later reads that data; it never re-derives it. That is
+# what keeps customization (Layer 2) separate from projection-time adaptation
+# (Layer 3).
 #
 # With a 25:00 5k (300 s/km):
 #   easy      300 + 75 = 6:15 /km
 #   marathon  300 + 40 = 5:40 /km   (sub-4:00 race pace)
 #   tempo     300 + 25 = 5:25 /km
 #   interval  300 -  5 = 4:55 /km
-#
-# Intended product flow:
-#
-#   App.customize_plan!(plan,
-#     from_baseline: "time_trial",
-#     derive: %{
-#       easy_pace:     {:secs_per_km, :five_k, plus: 75},
-#       marathon_pace: {:secs_per_km, :five_k, plus: 40},
-#       tempo_pace:    {:secs_per_km, :five_k, plus: 25},
-#       interval_pace: {:secs_per_km, :five_k, minus: 5}
-#     },
-#     actor: actor
-#   )
-#
-# Bean: improve-ash-mcev (baseline customization as one-time plan generation).
 # -----------------------------------------------------------------------------
+
+customization =
+  Story.customize_plan!(story, plan,
+    from_baseline: "time_trial",
+    derive: %{
+      easy_pace: {:secs_per_km, :five_k, plus: 75},
+      marathon_pace: {:secs_per_km, :five_k, plus: 40},
+      tempo_pace: {:secs_per_km, :five_k, plus: 25},
+      interval_pace: {:secs_per_km, :five_k, minus: 5}
+    },
+    apply_to: %{
+      "easy_run" => :easy_pace,
+      "long_run" => :easy_pace,
+      "tempo_run" => :tempo_pace,
+      "intervals" => :interval_pace
+    }
+  )
+
+Story.show_customization!(story, plan, customization)
+
+# The derived paces now ride on the tracks as guidance. Re-projecting a week
+# shows the plan with its baseline-derived structure in place, ready for Layer 3
+# adaptation to respond to what actually happens.
+mid_week = App.project_today!(plan, actor: actor, date: ~D[2026-07-09])
+Story.show_projection!(story, mid_week)
 
 # -----------------------------------------------------------------------------
 # LAYER 3 — Adaptation (INTENDED; not yet implemented)
