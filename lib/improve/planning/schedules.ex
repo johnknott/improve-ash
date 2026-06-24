@@ -19,6 +19,11 @@ defmodule Improve.Planning.Schedules do
   @implemented Map.new(@implemented_evaluators, &{&1.kind(), &1})
   @recognized_unsupported [:after_completion, :custom, :every_n_weeks, :monthly]
 
+  @type diagnostic :: map()
+  @type result :: {:ok, due? :: boolean(), diagnostics :: [diagnostic()]} | {:error, diagnostic()}
+  @type support :: {:implemented, module()} | :recognized_unsupported | :unknown
+
+  @spec decide(map(), Date.t(), map()) :: result()
   def decide(schedule, date, input) do
     case support(schedule.kind) do
       {:implemented, evaluator} ->
@@ -32,6 +37,7 @@ defmodule Improve.Planning.Schedules do
     end
   end
 
+  @spec support(atom()) :: support()
   def support(kind) do
     cond do
       Map.has_key?(@implemented, kind) -> {:implemented, Map.fetch!(@implemented, kind)}

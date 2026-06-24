@@ -6,6 +6,7 @@ defmodule Improve.Planning.Projector do
   alias Improve.Planning.ProjectedWork
   alias Improve.Planning.Recommender
   alias Improve.Planning.Schedules
+  alias Improve.Planning.Targets
 
   def project_today(input) do
     date = Map.fetch!(input, :date)
@@ -97,7 +98,7 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        target_diagnostics = track_target_diagnostics(track)
+        target_diagnostics = Targets.diagnostics(track)
 
         case schedule_decisions(schedules, date, input) do
           {:ok, true, diagnostics} ->
@@ -291,72 +292,6 @@ defmodule Improve.Planning.Projector do
 
   defp track_explanation(track, :planned, _events) do
     "Projected #{track.name} from its track schedule."
-  end
-
-  defp track_target_diagnostics(%{target: nil} = track) do
-    [
-      %{
-        code: :missing_track_target,
-        severity: :warning,
-        message:
-          "Track has no target, so completion can only be inferred from linked journal events.",
-        details: %{track_id: track.id, track_key: track.key}
-      }
-    ]
-  end
-
-  defp track_target_diagnostics(%{target: target} = track)
-       when is_map(target) and map_size(target) == 0 do
-    [
-      %{
-        code: :missing_track_target,
-        severity: :warning,
-        message:
-          "Track has no target, so completion can only be inferred from linked journal events.",
-        details: %{track_id: track.id, track_key: track.key}
-      }
-    ]
-  end
-
-  defp track_target_diagnostics(%{target: target} = track) when is_map(target) do
-    case target_type(target) do
-      nil ->
-        []
-
-      "fixed" ->
-        []
-
-      type when type in ["metric", "checklist", "period_total", "progression", "adaptive"] ->
-        [
-          %{
-            code: :unsupported_track_target_type,
-            severity: :info,
-            message:
-              "This track target type is recognized, but projection support is not implemented yet.",
-            details: %{track_id: track.id, track_key: track.key, target_type: type}
-          }
-        ]
-
-      type ->
-        [
-          %{
-            code: :unknown_track_target_type,
-            severity: :warning,
-            message: "This track target type is not recognized.",
-            details: %{track_id: track.id, track_key: track.key, target_type: type}
-          }
-        ]
-    end
-  end
-
-  defp track_target_diagnostics(_track), do: []
-
-  defp target_type(target) do
-    case Map.get(target, "type") || Map.get(target, :type) do
-      nil -> nil
-      type when is_atom(type) -> Atom.to_string(type)
-      type when is_binary(type) -> type
-    end
   end
 
   defp schedule_decisions(schedules, date, input) do

@@ -8,4 +8,10 @@ defmodule Improve.Planning.Schedules.Evaluation do
 
   @enforce_keys [:schedule, :date, :input]
   defstruct [:schedule, :date, :input]
+
+  @type t :: %__MODULE__{
+          schedule: map(),
+          date: Date.t(),
+          input: map()
+        }
 end

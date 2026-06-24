@@ -445,6 +445,33 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert diagnostic(projection, :missing_track_target).message =~ "has no target"
     end
 
+    test "returns diagnostics for target types the projector does not recognize" do
+      projection =
+        projector_input(
+          target: %{"type" => "moonshot", "quantity" => 1},
+          schedule: %{
+            id: "daily-schedule",
+            kind: :every_day,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22]
+        )
+        |> Projector.project_today()
+
+      assert [_work] = projection.projected_work
+
+      diagnostic = diagnostic(projection, :unknown_track_target_type)
+      assert diagnostic.severity == :warning
+      assert diagnostic.message == "This track target type is not recognized."
+
+      assert diagnostic.details == %{
+               track_id: "track-1",
+               track_key: "read_twenty_pages",
+               target_type: "moonshot"
+             }
+    end
+
     test "returns diagnostics for recognized schedule kinds that are not projected yet" do
       user =
         Accounts.create_user!(%{
@@ -608,7 +635,7 @@ defmodule Improve.Planning.ProjectTodayTest do
       event_type_id: "event-type-1",
       key: "read_twenty_pages",
       name: "Read 20 pages",
-      target: %{"quantity" => 20, "unit" => "pages"},
+      target: Keyword.get(opts, :target, %{"quantity" => 20, "unit" => "pages"}),
       completion_policy: %{"mode" => "at_least_target"},
       missed_policy: %{"mode" => "miss_if_no_event_by_end_of_day"}
     }
