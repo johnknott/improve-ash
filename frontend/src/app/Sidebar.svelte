@@ -1,5 +1,18 @@
 <script lang="ts">
-  import { ChevronUp, LogOut, Settings } from '@lucide/svelte'
+  import {
+    Boxes,
+    Calendar,
+    ChevronUp,
+    ClipboardList,
+    Layers,
+    LogOut,
+    NotebookPen,
+    Route,
+    Settings,
+    Sun,
+    Tags,
+    TrendingUp,
+  } from '@lucide/svelte'
   import { DropdownMenu } from 'bits-ui'
   import type { CurrentUser } from '../features/auth/authClient'
   import type { DashboardData } from '../api/types'
@@ -19,22 +32,24 @@
     onNavigate?: () => void
   } = $props()
 
-  const mainNav: Array<{ id: AppRoute; label: string }> = [
-    { id: 'today', label: 'Today' },
-    { id: 'journal', label: 'Journal' },
-    { id: 'calendar', label: 'Calendar' },
+  type NavItem = { id: AppRoute; label: string; icon: typeof Sun }
+
+  const mainNav: NavItem[] = [
+    { id: 'today', label: 'Today', icon: Sun },
+    { id: 'journal', label: 'Journal', icon: NotebookPen },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
   ]
 
-  const planNav: Array<{ id: AppRoute; label: string }> = [
-    { id: 'plan', label: 'Plan' },
-    { id: 'progress', label: 'Progress' },
-    { id: 'sessions', label: 'Sessions' },
-    { id: 'inventory', label: 'Inventory' },
+  const planNav: NavItem[] = [
+    { id: 'plan', label: 'Plan', icon: Route },
+    { id: 'progress', label: 'Progress', icon: TrendingUp },
+    { id: 'sessions', label: 'Sessions', icon: ClipboardList },
+    { id: 'inventory', label: 'Inventory', icon: Boxes },
   ]
 
-  const setupNav: Array<{ id: AppRoute; label: string }> = [
-    { id: 'event-types', label: 'Event Types' },
-    { id: 'resource-types', label: 'Resource Types' },
+  const setupNav: NavItem[] = [
+    { id: 'event-types', label: 'Event Types', icon: Tags },
+    { id: 'resource-types', label: 'Resource Types', icon: Layers },
   ]
 
   function go(route: AppRoute) {
@@ -44,32 +59,61 @@
 </script>
 
 <aside class:open class="sidebar">
+  <div class="sidebar-header">
+    <img class="brand-mark" src="/logo.svg" alt="" />
+    <span class="brand-name">
+      <strong>Improve</strong>
+      <small>Daily planner</small>
+    </span>
+  </div>
+
   <PlanSwitcher plans={data?.plans ?? []} currentPlan={data?.currentPlan ?? null} />
 
   <nav class="nav-groups" aria-label="Primary">
     <div class="nav-group">
       <p>Main</p>
-      {#each mainNav as item}
-        <button class:active={$activeRoute === item.id} type="button" onclick={() => go(item.id)}>
-          {item.label}
+      {#each mainNav as item (item.id)}
+        {@const Icon = item.icon}
+        <button
+          class="nav-item"
+          class:active={$activeRoute === item.id}
+          type="button"
+          onclick={() => go(item.id)}
+        >
+          <Icon size={17} />
+          <span>{item.label}</span>
         </button>
       {/each}
     </div>
 
     <div class="nav-group">
       <p>Current plan</p>
-      {#each planNav as item}
-        <button class:active={$activeRoute === item.id} type="button" onclick={() => go(item.id)}>
-          {item.label}
+      {#each planNav as item (item.id)}
+        {@const Icon = item.icon}
+        <button
+          class="nav-item"
+          class:active={$activeRoute === item.id}
+          type="button"
+          onclick={() => go(item.id)}
+        >
+          <Icon size={17} />
+          <span>{item.label}</span>
         </button>
       {/each}
     </div>
 
     <div class="nav-group">
       <p>Setup</p>
-      {#each setupNav as item}
-        <button class:active={$activeRoute === item.id} type="button" onclick={() => go(item.id)}>
-          {item.label}
+      {#each setupNav as item (item.id)}
+        {@const Icon = item.icon}
+        <button
+          class="nav-item"
+          class:active={$activeRoute === item.id}
+          type="button"
+          onclick={() => go(item.id)}
+        >
+          <Icon size={17} />
+          <span>{item.label}</span>
         </button>
       {/each}
     </div>
@@ -78,7 +122,7 @@
   <div class="sidebar-footer">
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="user-chip">
-        <span>{user.fullName?.slice(0, 1) ?? user.email.slice(0, 1).toUpperCase()}</span>
+        <span class="avatar">{user.fullName?.slice(0, 1) ?? user.email.slice(0, 1).toUpperCase()}</span>
         <div>
           <strong>{user.fullName ?? user.email}</strong>
           <small>{user.email}</small>

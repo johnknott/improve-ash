@@ -70,6 +70,13 @@ there if they can live clearly on an Ash resource/action. Phoenix controllers,
 frontend code, story scripts, and assistant tools should not become alternate
 business-rule engines.
 
+Prefer AshTypescript for frontend/backend boundaries when it fits the shape of
+the work: resource reads, named Ash actions, generated contracts, form inputs,
+and resource-shaped mutations should use the generated TypeScript/RPC path where
+practical. Keep hand-shaped Phoenix endpoints for composed page payloads such as
+Today, Dashboard, Plan, or Journal views when they are clearer than forcing a UI
+screen into a fake resource.
+
 Use Ash where it makes the product model clearer:
 
 - resources and relationships

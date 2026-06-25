@@ -29,7 +29,10 @@
 
 {#if $authState.loading}
   <main class="loading-shell">
-    <p>Loading Improve</p>
+    <div class="loading-shell-inner">
+      <div class="loading-dot"></div>
+      <p>Loading Improve</p>
+    </div>
   </main>
 {:else if !$authState.user}
   <LoginPage />
