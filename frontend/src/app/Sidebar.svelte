@@ -6,6 +6,7 @@
     ClipboardList,
     Layers,
     LogOut,
+    Moon,
     NotebookPen,
     Route,
     Settings,
@@ -17,6 +18,7 @@
   import type { CurrentUser } from '../features/auth/authClient'
   import type { DashboardData } from '../api/types'
   import { logoutCurrentUser } from '../features/auth/authStore'
+  import { theme, toggleTheme } from '../lib/theme'
   import PlanSwitcher from './PlanSwitcher.svelte'
   import { activeRoute, navigate, type AppRoute } from './routes'
 
@@ -51,6 +53,8 @@
     { id: 'event-types', label: 'Event Types', icon: Tags },
     { id: 'resource-types', label: 'Resource Types', icon: Layers },
   ]
+
+  let isDark = $derived($theme === 'dark')
 
   function go(route: AppRoute) {
     navigate(route)
@@ -135,6 +139,15 @@
           <DropdownMenu.Item class="dropdown-item dropdown-action" onclick={() => go('resource-types')}>
             <Settings size={16} />
             <span>Settings</span>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item class="dropdown-item dropdown-action" onclick={toggleTheme}>
+            {#if isDark}
+              <Sun size={16} />
+              <span>Switch to light</span>
+            {:else}
+              <Moon size={16} />
+              <span>Switch to dark</span>
+            {/if}
           </DropdownMenu.Item>
           <div class="dropdown-separator"></div>
           <DropdownMenu.Item class="dropdown-item dropdown-danger" onclick={logoutCurrentUser}>

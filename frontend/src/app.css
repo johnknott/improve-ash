@@ -837,12 +837,24 @@ form > button:not(:disabled):active,
   gap: 0.5rem;
 }
 
+.today-button,
+.today-slot {
+  width: 4.35rem;
+}
+
+.today-slot {
+  display: block;
+  flex: 0 0 auto;
+  height: var(--control-h);
+}
+
 /* segmented date stepper */
 
 .date-controls {
   display: inline-flex;
   align-items: center;
   gap: 0;
+  height: var(--control-h);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface-2);
@@ -850,8 +862,8 @@ form > button:not(:disabled):active,
 }
 
 .date-controls .icon-button {
-  width: 2.15rem;
-  min-height: 2.15rem;
+  width: var(--control-h);
+  min-height: var(--control-h);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -865,7 +877,7 @@ form > button:not(:disabled):active,
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 2.15rem;
+  min-height: var(--control-h);
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
   background: transparent;

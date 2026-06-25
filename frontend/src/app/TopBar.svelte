@@ -6,8 +6,6 @@
     ChevronRight,
     ClipboardPlus,
     Menu,
-    Moon,
-    Sun,
   } from '@lucide/svelte'
   import {
     changeSelectedDate,
@@ -17,9 +15,9 @@
     selectedDate,
     stepSelectedDate,
   } from './appState'
+  import { todayIso } from '../api/improveClient'
   import type { AppRoute } from './routes'
   import { routeInfo } from './routes'
-  import { theme, toggleTheme } from '../lib/theme'
 
   let {
     route,
@@ -30,7 +28,7 @@
   } = $props()
 
   let info = $derived(routeInfo(route))
-  let isDark = $derived($theme === 'dark')
+  let isSelectedToday = $derived($selectedDate === todayIso())
 </script>
 
 <header class="topbar">
@@ -45,6 +43,13 @@
     </div>
 
     <div class="topbar-actions">
+      {#if isSelectedToday}
+        <span class="today-slot" aria-hidden="true"></span>
+      {:else}
+        <button class="secondary-button compact-button today-button" type="button" onclick={resetSelectedDate}>
+          Today
+        </button>
+      {/if}
       <div class="date-controls">
         <button class="icon-button" type="button" aria-label="Previous day" onclick={() => stepSelectedDate(-1)}>
           <ChevronLeft size={18} />
@@ -61,20 +66,6 @@
           <ChevronRight size={18} />
         </button>
       </div>
-      <button class="secondary-button compact-button" type="button" onclick={resetSelectedDate}>Today</button>
-      <button
-        class="ghost-button"
-        type="button"
-        aria-label="Toggle theme"
-        title={isDark ? 'Switch to light' : 'Switch to dark'}
-        onclick={toggleTheme}
-      >
-        {#if isDark}
-          <Sun size={18} />
-        {:else}
-          <Moon size={18} />
-        {/if}
-      </button>
       <button class="secondary-button" type="button" onclick={() => checkInDialogOpen.set(true)}>
         <CheckCircle2 size={18} />
         <span>Check-in</span>
