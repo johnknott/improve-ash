@@ -1,7 +1,7 @@
 ---
 # improve-ash-9d40
 title: Rewrite vial inventory story as generic stateful item story
-status: done
+status: completed
 type: task
 priority: normal
 tags:

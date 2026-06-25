@@ -1,7 +1,7 @@
 ---
 # improve-ash-xqim
 title: Generalize sessions, pools, recommendations, and actuals
-status: done
+status: completed
 type: epic
 priority: normal
 tags:

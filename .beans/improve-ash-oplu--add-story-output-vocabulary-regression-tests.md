@@ -1,7 +1,7 @@
 ---
 # improve-ash-oplu
 title: Add story-output vocabulary regression tests
-status: done
+status: completed
 type: task
 priority: normal
 tags:

@@ -1,7 +1,7 @@
 ---
 # improve-ash-7on2
 title: Generalize stateful item effects, correction, and offline stories
-status: done
+status: completed
 type: epic
 priority: normal
 tags:

@@ -1,7 +1,7 @@
 ---
 # improve-ash-gbxn
 title: Rename and reorder stories to match the product question set
-status: done
+status: completed
 type: task
 priority: normal
 tags:

@@ -1,7 +1,7 @@
 ---
 # improve-ash-qdoa
 title: Product story scripts
-status: done
+status: completed
 type: milestone
 priority: normal
 created_at: 2026-06-23T06:57:39Z

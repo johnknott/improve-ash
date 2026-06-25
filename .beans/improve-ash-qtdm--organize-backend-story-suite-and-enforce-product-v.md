@@ -1,7 +1,7 @@
 ---
 # improve-ash-qtdm
 title: Organize backend story suite and enforce product vocabulary
-status: done
+status: completed
 type: epic
 priority: normal
 tags:

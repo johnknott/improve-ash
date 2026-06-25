@@ -1,7 +1,7 @@
 ---
 # improve-ash-igl6
 title: Rewrite gym session story as generic session-from-pools story
-status: done
+status: completed
 type: task
 priority: normal
 tags:

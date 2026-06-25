@@ -1,7 +1,7 @@
 ---
 # improve-ash-ogg4
 title: Neutralize frontend product screens while backend model settles
-status: complete
+status: completed
 type: task
 created_at: 2026-06-23T21:01:27Z
 updated_at: 2026-06-23T21:09:27Z

@@ -1,7 +1,7 @@
 ---
 # improve-ash-fzzv
 title: Preserve recommendation versus actual slot results
-status: done
+status: completed
 type: task
 priority: normal
 tags:

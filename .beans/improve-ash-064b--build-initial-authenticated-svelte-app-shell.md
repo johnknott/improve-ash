@@ -1,7 +1,7 @@
 ---
 # improve-ash-064b
 title: Build initial authenticated Svelte app shell
-status: done
+status: completed
 type: feature
 created_at: 2026-06-23T14:51:48Z
 updated_at: 2026-06-23T14:51:48Z

@@ -1,7 +1,7 @@
 ---
 # improve-ash-zhka
 title: Add generic stateful item and effect authoring helpers
-status: done
+status: completed
 type: task
 priority: normal
 tags:

@@ -1,7 +1,7 @@
 ---
 # improve-ash-c1xd
 title: Add adaptive item-work suggestion structures
-status: done
+status: completed
 type: task
 priority: normal
 tags:

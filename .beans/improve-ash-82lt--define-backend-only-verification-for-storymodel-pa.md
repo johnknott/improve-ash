@@ -1,7 +1,7 @@
 ---
 # improve-ash-82lt
 title: Define backend-only verification for story/model pass
-status: done
+status: completed
 type: task
 priority: normal
 tags:

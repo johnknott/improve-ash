@@ -1,7 +1,7 @@
 ---
 # improve-ash-ooye
 title: Make correction and offline stories product-facing
-status: done
+status: completed
 type: task
 priority: normal
 tags:

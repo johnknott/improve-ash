@@ -1,7 +1,7 @@
 ---
 # improve-ash-jd16
 title: Use stable client-facing references for offline commands
-status: done
+status: completed
 type: task
 priority: deferred
 created_at: 2026-06-23T09:58:39Z
