@@ -1,6 +1,6 @@
 defmodule Improve.Fixtures.VialPlan do
   @moduledoc """
-  Installs the vial inventory demo plan used by the headless POC scenario tests.
+  Installs the vial inventory demo plan used by product story tests and local demos.
 
   This fixture models inventory tracking only. It does not provide medical
   advice or dosing guidance.

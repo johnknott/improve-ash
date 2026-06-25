@@ -1,15 +1,19 @@
 defmodule Improve.Planning.Targets.Evaluation do
   @moduledoc """
-  Explicit input passed to internal target diagnostic evaluators.
+  Explicit input passed to internal target evaluators.
 
-  Target evaluators currently only report projection diagnostics. They do not
-  decide completion yet.
+  This stays small on purpose: evaluators decide target-specific completion
+  from already-assembled projection input.
   """
 
   @enforce_keys [:track]
-  defstruct [:track]
+  defstruct [:track, :plan, :date, :as_of_date, journal_events: []]
 
   @type t :: %__MODULE__{
-          track: map()
+          track: map(),
+          plan: map() | nil,
+          date: Date.t() | nil,
+          as_of_date: Date.t() | nil,
+          journal_events: [map()]
         }
 end

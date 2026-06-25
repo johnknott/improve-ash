@@ -80,39 +80,39 @@ defmodule Improve.AppTest do
              }
     end
 
-    test "returns an honest projection diagnostic for recognized targets not supported yet" do
+    test "returns an honest projection diagnostic for unknown targets" do
       user = user!("app-target-diagnostic@example.com")
 
       plan =
-        App.create_plan!("Metrics",
+        App.create_plan!("Moonshot",
           actor: user,
-          intention: "Record useful measurements",
+          intention: "Surface authoring problems",
           from: ~D[2026-06-23],
           until: ~D[2026-07-23]
         )
 
-      App.add_event_type!(plan, "Weight recorded",
+      App.add_event_type!(plan, "Moonshot logged",
         actor: user,
-        key: "weight_recorded",
+        key: "moonshot_logged",
         payload: %{required: ["amount"]}
       )
 
-      App.add_track!(plan, "Bodyweight",
+      App.add_track!(plan, "Moonshot",
         actor: user,
-        key: "bodyweight",
-        event: "weight_recorded",
+        key: "moonshot",
+        event: "moonshot_logged",
         schedule: App.every_day(),
-        target: App.metric("Bodyweight", unit: "kg"),
-        records: App.number("kg")
+        target: %{type: :moonshot, quantity: 1},
+        records: App.number("moon")
       )
 
       projection = App.project_today!(plan, actor: user, date: ~D[2026-06-23])
 
       assert [
                %{
-                 code: :unsupported_track_target_type,
-                 severity: :info,
-                 details: %{target_type: "metric"}
+                 code: :unknown_track_target_type,
+                 severity: :warning,
+                 details: %{target_type: "moonshot"}
                }
              ] =
                projection.diagnostics
@@ -153,7 +153,7 @@ defmodule Improve.AppTest do
              }
     end
 
-    test "projects supported schedule shapes and diagnoses recognized unsupported ones" do
+    test "projects supported schedule shapes" do
       user = user!("app-schedule-shapes@example.com")
 
       plan =
@@ -188,13 +188,30 @@ defmodule Improve.AppTest do
         records: App.number("check")
       )
 
+      App.add_track!(plan, "Every two weeks",
+        actor: user,
+        key: "every_two_weeks",
+        event: "check_in",
+        schedule: App.every_n_weeks(2, on: [:tuesday]),
+        target: App.fixed(1, "check"),
+        records: App.number("check")
+      )
+
       due = App.project_today!(plan, actor: user, date: ~D[2026-06-26])
       assert "Every three days" in Enum.map(due.projected_work, & &1.title)
 
       not_due = App.project_today!(plan, actor: user, date: ~D[2026-06-27])
       refute "Every three days" in Enum.map(not_due.projected_work, & &1.title)
 
-      assert Enum.any?(due.diagnostics, &(&1.code == :recognized_unsupported_schedule_kind))
+      monthly_due = App.project_today!(plan, actor: user, date: ~D[2026-07-15])
+      assert "Monthly check" in Enum.map(monthly_due.projected_work, & &1.title)
+      assert monthly_due.diagnostics == []
+
+      every_two_weeks_due = App.project_today!(plan, actor: user, date: ~D[2026-07-07])
+      assert "Every two weeks" in Enum.map(every_two_weeks_due.projected_work, & &1.title)
+
+      every_two_weeks_off_week = App.project_today!(plan, actor: user, date: ~D[2026-06-30])
+      refute "Every two weeks" in Enum.map(every_two_weeks_off_week.projected_work, & &1.title)
     end
   end
 
@@ -622,6 +639,86 @@ defmodule Improve.AppTest do
       assert_raise Ash.Error.Invalid, fn ->
         App.review!(plan, actor: other_user, on: ~D[2026-06-23])
       end
+    end
+  end
+
+  describe "approval-required proposal application" do
+    test "applies an approved extend_plan proposal through the plan action" do
+      user = user!("app-apply-proposal@example.com")
+
+      plan =
+        App.create_plan!("Apply proposal",
+          actor: user,
+          intention: "Approve durable edits deliberately",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      App.add_track!(plan, "Daily check",
+        actor: user,
+        key: "daily_check",
+        schedule: App.every_day(),
+        target: App.fixed(1, "check"),
+        records: App.number("check")
+      )
+
+      before_apply = App.project_today!(plan, actor: user, date: ~D[2026-10-11])
+      assert before_apply.projected_work == []
+
+      proposal = %{
+        kind: :extend_plan,
+        requires_approval: true,
+        effect: :committed,
+        proposed_edit: %{action: :extend_plan, weeks: 2}
+      }
+
+      assert {:ok,
+              %{
+                action: :extend_plan,
+                plan: %{id: plan_id, ends_on: ~D[2026-10-18]} = extended_plan
+              }} = App.apply_proposal(plan, proposal, actor: user)
+
+      assert plan_id == plan.id
+      assert Plans.get_plan!(plan.id, actor: user).ends_on == ~D[2026-10-18]
+
+      after_apply = App.project_today!(extended_plan, actor: user, date: ~D[2026-10-11])
+
+      assert [%{title: "Daily check", status: :planned}] = after_apply.projected_work
+    end
+
+    test "returns clear diagnostics for unsupported proposal actions" do
+      user = user!("app-apply-proposal-unsupported@example.com")
+
+      plan =
+        App.create_plan!("Apply unsupported proposal",
+          actor: user,
+          intention: "Keep unsupported edits explicit",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      assert {:error, ["Proposal action adjust_goal is not supported yet."]} =
+               App.apply_proposal(plan, %{proposed_edit: %{action: :adjust_goal}}, actor: user)
+    end
+
+    test "does not apply proposals to another user's plan" do
+      owner = user!("app-apply-proposal-owner@example.com")
+      other_user = user!("app-apply-proposal-other@example.com")
+
+      plan =
+        App.create_plan!("Private proposal",
+          actor: owner,
+          intention: "Keep proposal writes owner scoped",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               App.apply_proposal(
+                 plan,
+                 %{proposed_edit: %{action: :extend_plan, weeks: 1}},
+                 actor: other_user
+               )
     end
   end
 

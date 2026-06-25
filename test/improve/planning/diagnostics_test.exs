@@ -98,7 +98,7 @@ defmodule Improve.Planning.DiagnosticsTest do
       assert diagnostic(diagnostics, :invalid_schedule_kind).ref == "moon_phase"
 
       assert diagnostic(diagnostics, :unsupported_schedule_rule).message ==
-               "This schedule kind is recognized, but the POC planner does not support it yet."
+               "This schedule kind is recognized, but the planner does not support it yet."
 
       assert diagnostic(diagnostics, :unsupported_schedule_rule).ref == "after_completion"
 

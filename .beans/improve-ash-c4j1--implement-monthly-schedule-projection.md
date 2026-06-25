@@ -1,12 +1,14 @@
 ---
 # improve-ash-c4j1
 title: Implement monthly schedule projection
-status: todo
+status: completed
 type: task
 priority: high
 created_at: 2026-06-25T09:54:58Z
-updated_at: 2026-06-25T09:55:24Z
+updated_at: 2026-06-25T10:36:50Z
 parent: improve-ash-aszg
 ---
 
 Add a monthly schedule evaluator for the existing monthly vocabulary. It should project on the configured day of month, handle short months deliberately, emit plain-English diagnostics for malformed rules, and cover both track and session owners in tests.
+
+- Summary of Changes: Added a monthly schedule evaluator for day-of-month rules, with short-month fallback to the month end, malformed-rule diagnostics, and track/session projection coverage. Verified with focused projection/app/story tests and full `mise run verify:backend`.

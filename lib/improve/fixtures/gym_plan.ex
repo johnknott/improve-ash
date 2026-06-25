@@ -1,6 +1,6 @@
 defmodule Improve.Fixtures.GymPlan do
   @moduledoc """
-  Installs the gym demo plan used by the headless POC scenario tests.
+  Installs the gym demo plan used by product story tests and local demos.
   """
 
   alias Improve.CommandError

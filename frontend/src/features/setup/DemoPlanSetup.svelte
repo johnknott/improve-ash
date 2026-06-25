@@ -4,7 +4,7 @@
 
   let {
     title = 'Start with a demo plan',
-    message = 'Install one of the spike demo plans to populate Today, Journal, Plan, and the setup screens.'
+    message = 'Install one of the demo plans to populate Today, Journal, Plan, and the setup screens.'
   }: {
     title?: string
     message?: string

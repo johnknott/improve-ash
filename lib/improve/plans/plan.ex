@@ -33,6 +33,27 @@ defmodule Improve.Plans.Plan do
       accept []
       change set_attribute(:status, :archived)
     end
+
+    update :extend_plan do
+      require_atomic? false
+      accept []
+
+      argument :weeks, :integer do
+        allow_nil? false
+        constraints min: 1
+      end
+
+      change fn changeset, _context ->
+        weeks = Ash.Changeset.get_argument(changeset, :weeks)
+        ends_on = Ash.Changeset.get_attribute(changeset, :ends_on)
+
+        if is_integer(weeks) and weeks > 0 and ends_on do
+          Ash.Changeset.change_attribute(changeset, :ends_on, Date.add(ends_on, weeks * 7))
+        else
+          changeset
+        end
+      end
+    end
   end
 
   policies do

@@ -1,6 +1,6 @@
 defmodule Improve.Ai.ReadTool do
   @moduledoc """
-  Read-only Ash actions exposed as AshAI tools for the product spike.
+  Read-only Ash actions exposed as AshAI tools for the product backend.
   """
 
   use Ash.Resource,
@@ -123,6 +123,7 @@ defmodule Improve.Ai.ReadTool do
         target: payload.target,
         completion_policy: payload.completion_policy,
         missed_policy: payload.missed_policy,
+        target_progress: Map.get(payload, :target_progress, %{}),
         completed_event_ids: payload.completed_event_ids
       }
     }

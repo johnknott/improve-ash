@@ -9,8 +9,16 @@ defmodule Improve.Planning.Targets.Evaluator do
   alias Improve.Planning.Targets.Evaluation
 
   @type diagnostic :: map()
-  @type result :: [diagnostic()]
+  @type diagnostics_result :: [diagnostic()]
+  @type completion_status :: :completed | :incomplete
+  @type completion :: %{
+          required(:status) => completion_status(),
+          optional(:completed_events) => [map()],
+          optional(:progress) => map()
+        }
+  @type completion_result :: {:ok, completion(), [diagnostic()]}
 
   @callback target_type() :: String.t()
-  @callback diagnostics(Evaluation.t()) :: result()
+  @callback diagnostics(Evaluation.t()) :: diagnostics_result()
+  @callback completion(Evaluation.t()) :: completion_result()
 end

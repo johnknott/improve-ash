@@ -261,7 +261,13 @@ defmodule Improve.Planning.ProjectTodayTest do
                %{
                  kind: :track,
                  status: :completed,
-                 payload: %{completed_event_ids: [completed_event_id]}
+                 payload: %{
+                   completed_event_ids: [completed_event_id],
+                   target_progress: %{
+                     completed_event_count: 1,
+                     completed_event_ids: [completed_event_id]
+                   }
+                 }
                }
              ] = projection.projected_work
 
@@ -585,6 +591,442 @@ defmodule Improve.Planning.ProjectTodayTest do
              }
     end
 
+    test "projects a metric target as completed with the recorded value" do
+      projection =
+        projector_input(
+          target: %{
+            "type" => "metric",
+            "metric" => "Bodyweight",
+            "unit" => "kg",
+            "quantity_path" => "payload.value"
+          },
+          schedule: %{
+            id: "daily-schedule",
+            kind: :every_day,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22],
+          journal_events: [
+            event(%{
+              id: "event-1",
+              track_id: "track-1",
+              payload: %{"value" => 82.5}
+            })
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 status: :completed,
+                 payload: %{
+                   completed_event_ids: ["event-1"],
+                   target_progress: %{
+                     recorded_value: 82.5,
+                     unit: "kg",
+                     label: "Recorded 82.5 kg"
+                   }
+                 }
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "projects checklist progress across same-day linked events" do
+      projection =
+        projector_input(
+          target: %{"type" => "checklist", "items" => ["Tidy room", "Brush teeth"]},
+          schedule: %{
+            id: "daily-schedule",
+            kind: :every_day,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22],
+          journal_events: [
+            event(%{
+              id: "event-1",
+              track_id: "track-1",
+              payload: %{"completed_items" => ["Tidy room"]}
+            }),
+            event(%{
+              id: "event-2",
+              track_id: "track-1",
+              payload: %{"completed_items" => ["Brush teeth"]}
+            })
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 status: :completed,
+                 payload: %{
+                   completed_event_ids: ["event-1", "event-2"],
+                   target_progress: %{
+                     completed_count: 2,
+                     required_count: 2,
+                     label: "2 of 2 complete"
+                   }
+                 }
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "projects period-total progress across the containing week" do
+      projection =
+        projector_input(
+          target: %{
+            "type" => "period_total",
+            "quantity" => 100,
+            "unit" => "pages",
+            "per" => "week",
+            "quantity_path" => "payload.amount"
+          },
+          schedule: %{
+            id: "daily-schedule",
+            kind: :every_day,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-24],
+          journal_events: [
+            event(%{id: "event-1", track_id: "track-1", payload: %{"amount" => 40}}),
+            event(%{
+              id: "event-2",
+              track_id: "track-1",
+              effective_at: ~U[2026-06-26 20:00:00Z],
+              payload: %{"amount" => 60}
+            })
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 status: :completed,
+                 payload: %{
+                   completed_event_ids: ["event-1", "event-2"],
+                   target_progress: %{
+                     total_quantity: "100",
+                     target_quantity: "100",
+                     unit: "pages",
+                     period: :week,
+                     label: "100 of 100 pages this week"
+                   }
+                 }
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "projects progression completion against the expected amount for the date" do
+      projection =
+        projector_input(
+          target: %{
+            "type" => "progression",
+            "from" => 1_000,
+            "to" => 10_000,
+            "unit" => "steps",
+            "quantity_path" => "payload.amount",
+            "shape" => "linear"
+          },
+          schedule: %{
+            id: "daily-schedule",
+            kind: :every_day,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-06],
+          journal_events: [
+            event(%{
+              id: "event-1",
+              track_id: "track-1",
+              effective_at: ~U[2026-07-06 20:00:00Z],
+              payload: %{"amount" => 5_500}
+            })
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 status: :completed,
+                 payload: %{
+                   completed_event_ids: ["event-1"],
+                   target_progress: %{
+                     total_quantity: "5500",
+                     expected_quantity: "5500",
+                     unit: "steps",
+                     from: "1000",
+                     to: "10000",
+                     label: "5500 of 5500 steps expected today"
+                   }
+                 }
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "projects adaptive completion from configured fields" do
+      projection =
+        projector_input(
+          target: %{
+            "type" => "adaptive",
+            "fields" => ["sets", "reps", "load"],
+            "effort" => "effort"
+          },
+          schedule: %{
+            id: "daily-schedule",
+            kind: :every_day,
+            rules: %{},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-22],
+          journal_events: [
+            event(%{
+              id: "event-1",
+              track_id: "track-1",
+              payload: %{"sets" => 3, "reps" => 10, "load" => 45, "effort" => "steady"}
+            })
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 status: :completed,
+                 payload: %{
+                   completed_event_ids: ["event-1"],
+                   target_progress: %{
+                     required_fields: ["sets", "reps", "load", "effort"],
+                     recorded_fields: ["sets", "reps", "load", "effort"],
+                     missing_fields: [],
+                     label: "4 of 4 adaptive fields recorded"
+                   }
+                 }
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "projects monthly tracks on the configured day" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "monthly-schedule",
+            kind: :monthly,
+            rules: %{"day" => 15},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-15]
+        )
+        |> Projector.project_today()
+
+      assert [%{kind: :track, title: "Read 20 pages"}] = projection.projected_work
+      assert projection.diagnostics == []
+
+      not_due =
+        projector_input(
+          schedule: %{
+            id: "monthly-schedule",
+            kind: :monthly,
+            rules: %{"day" => 15},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-16]
+        )
+        |> Projector.project_today()
+
+      assert not_due.projected_work == []
+      assert not_due.diagnostics == []
+    end
+
+    test "projects monthly schedules on the last day of shorter months" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "monthly-schedule",
+            kind: :monthly,
+            rules: %{"day" => 31},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-30]
+        )
+        |> Projector.project_today()
+
+      assert [%{kind: :track, title: "Read 20 pages"}] = projection.projected_work
+      assert projection.diagnostics == []
+    end
+
+    test "projects monthly session templates" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "monthly-session-schedule",
+            kind: :monthly,
+            rules: %{"day" => 15},
+            starts_on: ~D[2026-06-22],
+            owner_type: :session_template,
+            owner_id: "template-1"
+          },
+          date: ~D[2026-07-15],
+          tracks: [],
+          session_templates: [
+            %{
+              id: "template-1",
+              key: "monthly_review",
+              plan_id: "plan-1",
+              name: "Monthly review",
+              environment_id: nil
+            }
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 kind: :session,
+                 title: "Monthly review",
+                 planned_for: ~D[2026-07-15]
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "returns diagnostics for malformed monthly schedules" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "bad-monthly",
+            kind: :monthly,
+            rules: %{"day" => 32},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-20]
+        )
+        |> Projector.project_today()
+
+      assert projection.projected_work == []
+
+      diagnostic = diagnostic(projection, :unsupported_schedule_rules)
+      assert diagnostic.severity == :error
+      assert diagnostic.message == "Monthly schedules need a day rule between 1 and 31."
+      assert diagnostic.details == %{schedule_id: "bad-monthly", value: 32}
+    end
+
+    test "projects every-N-weeks tracks on selected weekdays in matching weeks" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "every-two-weeks",
+            kind: :every_n_weeks,
+            rules: %{"interval_weeks" => 2, "weekdays" => ["monday", "friday"]},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-06]
+        )
+        |> Projector.project_today()
+
+      assert [%{kind: :track, title: "Read 20 pages"}] = projection.projected_work
+      assert projection.diagnostics == []
+
+      off_week =
+        projector_input(
+          schedule: %{
+            id: "every-two-weeks",
+            kind: :every_n_weeks,
+            rules: %{"interval_weeks" => 2, "weekdays" => ["monday", "friday"]},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-06-29]
+        )
+        |> Projector.project_today()
+
+      assert off_week.projected_work == []
+      assert off_week.diagnostics == []
+
+      off_weekday =
+        projector_input(
+          schedule: %{
+            id: "every-two-weeks",
+            kind: :every_n_weeks,
+            rules: %{"interval_weeks" => 2, "weekdays" => ["monday", "friday"]},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-07]
+        )
+        |> Projector.project_today()
+
+      assert off_weekday.projected_work == []
+      assert off_weekday.diagnostics == []
+    end
+
+    test "projects every-N-weeks session templates" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "every-two-weeks-session",
+            kind: :every_n_weeks,
+            rules: %{"interval_weeks" => 2, "weekdays" => ["monday"]},
+            starts_on: ~D[2026-06-22],
+            owner_type: :session_template,
+            owner_id: "template-1"
+          },
+          date: ~D[2026-07-06],
+          tracks: [],
+          session_templates: [
+            %{
+              id: "template-1",
+              key: "fortnightly_review",
+              plan_id: "plan-1",
+              name: "Fortnightly review",
+              environment_id: nil
+            }
+          ]
+        )
+        |> Projector.project_today()
+
+      assert [
+               %{
+                 kind: :session,
+                 title: "Fortnightly review",
+                 planned_for: ~D[2026-07-06]
+               }
+             ] = projection.projected_work
+
+      assert projection.diagnostics == []
+    end
+
+    test "returns diagnostics for malformed every-N-weeks schedules" do
+      projection =
+        projector_input(
+          schedule: %{
+            id: "bad-every-n-weeks",
+            kind: :every_n_weeks,
+            rules: %{"interval_weeks" => 0, "weekdays" => ["monday"]},
+            starts_on: ~D[2026-06-22]
+          },
+          date: ~D[2026-07-06]
+        )
+        |> Projector.project_today()
+
+      assert projection.projected_work == []
+
+      diagnostic = diagnostic(projection, :unsupported_schedule_rules)
+      assert diagnostic.severity == :error
+      assert diagnostic.message == "Every-N-weeks schedules need a positive interval_weeks rule."
+      assert diagnostic.details == %{schedule_id: "bad-every-n-weeks", value: 0}
+    end
+
     test "returns diagnostics for recognized schedule kinds that are not projected yet" do
       user =
         Accounts.create_user!(%{
@@ -722,8 +1164,8 @@ defmodule Improve.Planning.ProjectTodayTest do
         plan_id: plan.id,
         owner_type: :track,
         owner_id: track.id,
-        kind: :monthly,
-        rules: %{"day" => 15},
+        kind: :after_completion,
+        rules: %{"days" => 2},
         starts_on: ~D[2026-06-22]
       },
       actor: user
@@ -754,23 +1196,39 @@ defmodule Improve.Planning.ProjectTodayTest do
     }
 
     schedule =
-      opts
-      |> Keyword.fetch!(:schedule)
-      |> Map.merge(%{
-        plan_id: plan.id,
-        owner_type: :track,
-        owner_id: track.id,
-        ends_on: nil
-      })
+      Map.merge(
+        %{
+          id: "schedule-1",
+          kind: :every_day,
+          rules: %{},
+          starts_on: ~D[2026-06-22],
+          plan_id: plan.id,
+          owner_type: :track,
+          owner_id: track.id,
+          ends_on: nil
+        },
+        Keyword.fetch!(opts, :schedule)
+      )
+
+    schedule =
+      Map.merge(
+        %{
+          plan_id: plan.id,
+          owner_type: :track,
+          owner_id: track.id,
+          ends_on: nil
+        },
+        schedule
+      )
 
     %{
       date: Keyword.fetch!(opts, :date),
       plan: plan,
-      session_templates: [],
+      session_templates: Keyword.get(opts, :session_templates, []),
       session_slots: [],
       schedules: [schedule],
-      tracks: [track],
-      journal_events: [],
+      tracks: Keyword.get(opts, :tracks, [track]),
+      journal_events: Keyword.get(opts, :journal_events, []),
       session_occurrences: [],
       slot_results: [],
       items: [],
@@ -778,5 +1236,20 @@ defmodule Improve.Planning.ProjectTodayTest do
       environments: [],
       time_off_windows: Keyword.get(opts, :time_off_windows, [])
     }
+  end
+
+  defp event(attrs) do
+    Map.merge(
+      %{
+        id: "event-1",
+        track_id: "track-1",
+        status: :active,
+        effective_at: ~U[2026-06-22 20:00:00Z],
+        quantity: nil,
+        unit: nil,
+        payload: %{}
+      },
+      attrs
+    )
   end
 end

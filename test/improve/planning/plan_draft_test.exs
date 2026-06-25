@@ -55,7 +55,9 @@ defmodule Improve.Planning.PlanDraftTest do
                :every_day,
                :selected_weekdays,
                :every_n_days,
-               :times_per_week
+               :every_n_weeks,
+               :times_per_week,
+               :monthly
              ]
 
       assert schema.collections.sample_events.references == %{

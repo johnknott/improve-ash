@@ -110,7 +110,9 @@ defmodule Improve.Planning.Projector do
 
         case schedule_decisions(schedules, date, input) do
           {:ok, true, diagnostics} ->
-            {:ok, track_work(track, input, time_off_window), target_diagnostics ++ diagnostics}
+            {work, completion_diagnostics} = track_work(track, input, time_off_window)
+
+            {:ok, work, target_diagnostics ++ diagnostics ++ completion_diagnostics}
 
           {:ok, false, diagnostics} ->
             {:ok, nil, target_diagnostics ++ diagnostics}
@@ -270,13 +272,14 @@ defmodule Improve.Planning.Projector do
   end
 
   defp track_work(track, input, time_off_window) do
-    completed_events = completed_track_events(track, input)
+    {:ok, target_completion, diagnostics} = Targets.completion(track, input)
+    completed_events = Map.get(target_completion, :completed_events, [])
 
     status =
       track_status(
         input.date,
         Map.get(input, :as_of_date, input.date),
-        completed_events,
+        Map.fetch!(target_completion, :status),
         time_off_window
       )
 
@@ -284,23 +287,16 @@ defmodule Improve.Planning.Projector do
       planned_for: input.date,
       status: status,
       completed_event_ids: Enum.map(completed_events, & &1.id),
+      target_progress: Map.get(target_completion, :progress),
       time_off_window: time_off_payload(time_off_window),
       explanation: track_explanation(track, status, completed_events, time_off_window)
     )
+    |> then(&{&1, diagnostics})
   end
 
-  defp completed_track_events(track, input) do
-    input
-    |> Map.get(:journal_events, [])
-    |> Enum.filter(fn event ->
-      event.track_id == track.id and event.status == :active and
-        Date.compare(DateTime.to_date(event.effective_at), input.date) == :eq
-    end)
-  end
+  defp track_status(_date, _as_of_date, :completed, _time_off_window), do: :completed
 
-  defp track_status(_date, _as_of_date, [_event | _events], _time_off_window), do: :completed
-
-  defp track_status(date, as_of_date, [], time_off_window) do
+  defp track_status(date, as_of_date, :incomplete, time_off_window) do
     cond do
       time_off_window ->
         :on_hold

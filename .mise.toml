@@ -90,7 +90,7 @@ run = "npm --prefix frontend run check"
 
 [tasks.verify]
 description = "Run local verification"
-run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check && mise run frontend:check && mise run frontend:build"
+run = "mise run fmt && mise run lint && mise run test && mix ash_typescript.codegen --check && mise run typescript:check && mise run stories:run && mise run frontend:check && mise run frontend:build"
 
 [tasks."verify:backend"]
 description = "Run backend-only story/model verification"

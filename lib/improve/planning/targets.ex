@@ -9,14 +9,20 @@ defmodule Improve.Planning.Targets do
   alias Improve.Planning.Targets.Evaluation
 
   @implemented_evaluators [
-    Improve.Planning.Targets.Fixed
+    Improve.Planning.Targets.Fixed,
+    Improve.Planning.Targets.Metric,
+    Improve.Planning.Targets.Checklist,
+    Improve.Planning.Targets.PeriodTotal,
+    Improve.Planning.Targets.Progression,
+    Improve.Planning.Targets.Adaptive
   ]
 
   @implemented Map.new(@implemented_evaluators, &{&1.target_type(), &1})
-  @recognized_unsupported ~w(metric checklist period_total progression adaptive)
+  @recognized_unsupported MapSet.new([])
 
   @type diagnostic :: map()
-  @type result :: [diagnostic()]
+  @type diagnostics_result :: [diagnostic()]
+  @type completion_result :: {:ok, map(), [diagnostic()]}
   @type target_support ::
           :missing
           | :implicit
@@ -24,7 +30,7 @@ defmodule Improve.Planning.Targets do
           | {:recognized_unsupported, String.t()}
           | {:unknown, String.t()}
 
-  @spec diagnostics(map()) :: result()
+  @spec diagnostics(map()) :: diagnostics_result()
   def diagnostics(track) do
     case target_support(track) do
       :missing ->
@@ -42,6 +48,21 @@ defmodule Improve.Planning.Targets do
       {:unknown, type} ->
         [unknown_diagnostic(track, type)]
     end
+  end
+
+  @spec completion(map(), map()) :: completion_result()
+  def completion(track, input) do
+    evaluation = %Evaluation{
+      track: track,
+      plan: Map.get(input, :plan),
+      date: Map.fetch!(input, :date),
+      as_of_date: Map.get(input, :as_of_date, Map.fetch!(input, :date)),
+      journal_events: Map.get(input, :journal_events, [])
+    }
+
+    track
+    |> completion_evaluator()
+    |> then(& &1.completion(evaluation))
   end
 
   @spec target_support(map()) :: target_support()
@@ -70,17 +91,47 @@ defmodule Improve.Planning.Targets do
   def support(type) do
     cond do
       Map.has_key?(@implemented, type) -> {:implemented, Map.fetch!(@implemented, type)}
-      type in @recognized_unsupported -> {:recognized_unsupported, type}
+      MapSet.member?(@recognized_unsupported, type) -> {:recognized_unsupported, type}
       true -> {:unknown, type}
     end
   end
 
+  defp completion_evaluator(track) do
+    case target_support(track) do
+      {:implemented, evaluator} -> evaluator
+      _other -> Improve.Planning.Targets.Fixed
+    end
+  end
+
   defp target_type(target) do
-    case Map.get(target, "type") || Map.get(target, :type) do
+    case Map.get(target, "type") || Map.get(target, :type) || Map.get(target, "mode") ||
+           Map.get(target, :mode) || inferred_target_type(target) do
       nil -> nil
       type when is_atom(type) -> Atom.to_string(type)
       type when is_binary(type) -> type
     end
+  end
+
+  defp inferred_target_type(target) do
+    cond do
+      has_value?(target, "checklist_items") or has_value?(target, "items") ->
+        "checklist"
+
+      has_value?(target, "metric") or has_value?(target, "metric_name") ->
+        "metric"
+
+      has_value?(target, "progression") ->
+        "progression"
+
+      true ->
+        nil
+    end
+  end
+
+  defp has_value?(target, key) do
+    Map.has_key?(target, key) or Map.has_key?(target, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> Map.has_key?(target, key)
   end
 
   defp missing_target_diagnostic(track) do

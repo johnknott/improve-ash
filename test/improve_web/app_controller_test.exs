@@ -46,6 +46,32 @@ defmodule ImproveWeb.AppControllerTest do
              json_response(conn, 422)
   end
 
+  test "app API requests require a signed-in user", %{conn: conn} do
+    conn = get(conn, ~p"/api/app/dashboard")
+
+    assert %{"error" => %{"message" => "Please sign in to continue."}} =
+             json_response(conn, 401)
+  end
+
+  test "malformed plan creation payloads return validation errors", %{conn: conn} do
+    conn =
+      conn
+      |> sign_in!("app-plan-create-invalid@example.test")
+      |> post(~p"/api/app/plans", %{
+        name: "",
+        intention: "",
+        starts_on: "2026-08-19",
+        ends_on: "2026-06-23"
+      })
+
+    assert %{
+             "error" => %{
+               "message" =>
+                 "Plan name is required. Plan intention is required. Plan end date must be after the start date."
+             }
+           } = json_response(conn, 422)
+  end
+
   test "signed-in users can create an empty plan from the app API", %{conn: conn} do
     conn =
       conn
@@ -111,9 +137,76 @@ defmodule ImproveWeb.AppControllerTest do
              %{
                "title" => "Read for 15 minutes",
                "target" => %{"quantity" => "15", "unit" => "minutes"},
+               "targetProgress" => %{
+                 "completed_event_count" => 0,
+                 "completed_event_ids" => []
+               },
                "canLog" => true
              }
            ] = get_in(response, ["today", "work"])
+  end
+
+  test "users cannot create tracks in another user's plan", %{conn: conn} do
+    owner = Accounts.create_user!(%{email: "app-track-owner@example.test", full_name: "Owner"})
+
+    plan =
+      Plans.create_plan!(
+        %{
+          name: "Owner Plan",
+          intention: "Private work",
+          starts_on: ~D[2026-06-23],
+          ends_on: ~D[2026-08-19]
+        },
+        actor: owner
+      )
+
+    conn =
+      conn
+      |> sign_in!("app-track-other-user@example.test")
+      |> post(~p"/api/app/tracks", %{
+        plan_id: plan.id,
+        name: "Read",
+        event_name: "Read",
+        quantity: "15",
+        unit: "minutes",
+        date: "2026-06-23"
+      })
+
+    assert %{"error" => %{"message" => "That plan is not available."}} =
+             json_response(conn, 404)
+  end
+
+  test "malformed track creation payloads return validation errors", %{conn: conn} do
+    conn = sign_in!(conn, "app-track-create-invalid@example.test")
+
+    conn =
+      post(conn, ~p"/api/app/plans", %{
+        name: "Reading",
+        intention: "Read a little every day",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
+
+    conn =
+      post(conn, ~p"/api/app/tracks", %{
+        plan_id: plan_id,
+        name: "",
+        target_mode: "fixed",
+        quantity: "",
+        unit: "",
+        event_name: "",
+        date: "2026-06-23"
+      })
+
+    assert %{
+             "error" => %{
+               "message" =>
+                 "Track name is required. Track amount is required. Track unit is required. Choose what this track logs."
+             }
+           } = json_response(conn, 422)
   end
 
   test "signed-in users can create a daily metric track from the app API", %{conn: conn} do
@@ -166,6 +259,12 @@ defmodule ImproveWeb.AppControllerTest do
                  "mode" => "metric",
                  "metricName" => "Weight",
                  "quantity" => nil,
+                 "unit" => "kg"
+               },
+               "targetProgress" => %{
+                 "completed_event_count" => 0,
+                 "completed_event_ids" => [],
+                 "recorded_value" => nil,
                  "unit" => "kg"
                },
                "canLog" => true

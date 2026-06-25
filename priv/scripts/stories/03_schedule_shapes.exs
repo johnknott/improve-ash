@@ -52,11 +52,38 @@ App.add_track!(plan, "Every three days",
   records: number("check")
 )
 
+App.add_track!(plan, "Every two weeks",
+  actor: actor,
+  key: "every_two_weeks",
+  event: "check_in",
+  schedule: App.every_n_weeks(2, on: [:friday]),
+  target: fixed(1, "check"),
+  records: number("check")
+)
+
 App.add_track!(plan, "Monthly check",
   actor: actor,
   key: "monthly_check",
   event: "check_in",
   schedule: App.monthly(day: 15),
+  target: fixed(1, "check"),
+  records: number("check")
+)
+
+App.add_track!(plan, "After completion check",
+  actor: actor,
+  key: "after_completion_check",
+  event: "check_in",
+  schedule: App.after_completion(days: 2),
+  target: fixed(1, "check"),
+  records: number("check")
+)
+
+App.add_track!(plan, "Custom check",
+  actor: actor,
+  key: "custom_check",
+  event: "check_in",
+  schedule: App.custom("when the weather is good"),
   target: fixed(1, "check"),
   records: number("check")
 )
@@ -69,3 +96,9 @@ Story.show_projection!(story, today)
 if today.diagnostics != [] do
   Story.show_ai_today_context!(story, plan, on: ~D[2026-06-26])
 end
+
+fortnightly = App.project_today!(plan, actor: actor, date: ~D[2026-07-10])
+Story.show_projection!(story, fortnightly)
+
+monthly = App.project_today!(plan, actor: actor, date: ~D[2026-07-15])
+Story.show_projection!(story, monthly)

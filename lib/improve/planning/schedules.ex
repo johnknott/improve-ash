@@ -13,11 +13,13 @@ defmodule Improve.Planning.Schedules do
     Improve.Planning.Schedules.EveryDay,
     Improve.Planning.Schedules.SelectedWeekdays,
     Improve.Planning.Schedules.EveryNDays,
-    Improve.Planning.Schedules.TimesPerWeek
+    Improve.Planning.Schedules.EveryNWeeks,
+    Improve.Planning.Schedules.TimesPerWeek,
+    Improve.Planning.Schedules.Monthly
   ]
 
   @implemented Map.new(@implemented_evaluators, &{&1.kind(), &1})
-  @recognized_unsupported [:after_completion, :custom, :every_n_weeks, :monthly]
+  @recognized_unsupported [:after_completion, :custom]
 
   @type diagnostic :: map()
   @type result :: {:ok, due? :: boolean(), diagnostics :: [diagnostic()]} | {:error, diagnostic()}

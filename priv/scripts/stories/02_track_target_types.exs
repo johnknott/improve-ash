@@ -79,4 +79,43 @@ Story.show_plan_summary!(story, plan)
 
 today = App.project_today!(plan, actor: actor, date: ~D[2026-06-23])
 Story.show_projection!(story, today)
+
+App.log_track!(today,
+  actor: actor,
+  track: "reading",
+  payload: %{amount: 25}
+)
+
+App.log_track!(today,
+  actor: actor,
+  track: "bodyweight",
+  payload: %{amount: 82.5}
+)
+
+App.log_track!(today,
+  actor: actor,
+  track: "evening_reset",
+  payload: %{checked_items: ["Tidy room", "Brush teeth"]}
+)
+
+App.log_track!(today,
+  actor: actor,
+  track: "weekly_pages",
+  payload: %{amount: 100}
+)
+
+App.log_track!(today,
+  actor: actor,
+  track: "daily_steps",
+  payload: %{amount: 1_000}
+)
+
+App.log_track!(today,
+  actor: actor,
+  track: "practice_item",
+  payload: %{sets: 3, reps: 10, load: 40, effort: "steady", notes: "Felt smooth"}
+)
+
+completed = App.project_today!(plan, actor: actor, date: ~D[2026-06-23])
+Story.show_projection!(story, completed)
 Story.show_ai_today_context!(story, plan, on: ~D[2026-06-23])

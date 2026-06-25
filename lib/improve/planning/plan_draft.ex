@@ -89,7 +89,14 @@ defmodule Improve.Planning.PlanDraft do
           owner_key: [:session_templates, :tracks]
         },
         supported_owner_types: [:session_template, :track],
-        supported_kinds: [:every_day, :selected_weekdays, :every_n_days, :times_per_week]
+        supported_kinds: [
+          :every_day,
+          :selected_weekdays,
+          :every_n_days,
+          :every_n_weeks,
+          :times_per_week,
+          :monthly
+        ]
       },
       sample_events: %{
         required: [:key, :event_type_key, :effective_at],

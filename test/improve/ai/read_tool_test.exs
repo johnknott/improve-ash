@@ -158,6 +158,10 @@ defmodule Improve.Ai.ReadToolTest do
                  "title" => "Read 20 pages",
                  "track" => %{
                    "id" => track_id,
+                   "target_progress" => %{
+                     "completed_event_count" => 1,
+                     "completed_event_ids" => [completed_event_id]
+                   },
                    "completed_event_ids" => [completed_event_id]
                  }
                }

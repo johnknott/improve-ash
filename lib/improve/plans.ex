@@ -21,6 +21,7 @@ defmodule Improve.Plans do
       define :get_plan, action: :read, get_by: [:id]
       define :list_plans, action: :read
       define :archive_plan, action: :archive
+      define :extend_plan, action: :extend_plan
     end
 
     resource Improve.Plans.ItemType do
@@ -61,6 +62,7 @@ defmodule Improve.Plans do
 
     resource Improve.Plans.Schedule do
       define :create_schedule, action: :create
+      define :update_schedule, action: :update
       define :get_schedule, action: :read, get_by: [:id]
       define :list_schedules, action: :read
     end

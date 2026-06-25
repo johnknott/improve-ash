@@ -4,7 +4,7 @@ defmodule Improve.Planning.Diagnostics do
   """
 
   @known_schedule_kinds ~w(every_day selected_weekdays times_per_week every_n_days every_n_weeks monthly after_completion custom)
-  @supported_schedule_kinds ~w(every_day selected_weekdays times_per_week)
+  @supported_schedule_kinds ~w(every_day selected_weekdays times_per_week every_n_days every_n_weeks monthly)
   @keyed_collections ~w(item_types items pools environments event_types session_templates tracks schedules sample_events)
   @quantity_effect_types ~w(add_quantity subtract_quantity set_quantity correction)
 
@@ -537,7 +537,7 @@ defmodule Improve.Planning.Diagnostics do
           [
             diagnostic(
               :unsupported_schedule_rule,
-              "This schedule kind is recognized, but the POC planner does not support it yet.",
+              "This schedule kind is recognized, but the planner does not support it yet.",
               %{kind: kind},
               path: schedule_path(schedule) ++ ["kind"],
               ref: kind

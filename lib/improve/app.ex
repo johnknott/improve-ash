@@ -13,6 +13,7 @@ defmodule Improve.App do
   alias Improve.App.Customize
   alias Improve.App.Effects
   alias Improve.App.Logging
+  alias Improve.App.Proposal
   alias Improve.App.Review
   alias Improve.App.Schedule
   alias Improve.App.Session
@@ -69,6 +70,8 @@ defmodule Improve.App do
   defdelegate correct_event!(original_log_or_event, opts), to: Logging
   defdelegate build_offline_event(plan, opts), to: Logging
   defdelegate submit_offline_events!(entries, opts), to: Logging
+  defdelegate apply_proposal(plan_or_id, proposal, opts), to: Proposal
+  defdelegate apply_proposal!(plan_or_id, proposal, opts), to: Proposal
 
   def offline_event(plan, opts), do: build_offline_event(plan, opts)
 

@@ -35,6 +35,7 @@ defmodule Improve.Planning.ProjectedWorkTest do
           planned_for: ~D[2026-06-22],
           status: :completed,
           completed_event_ids: ["event-1"],
+          target_progress: %{completed_event_count: 1},
           explanation: "Read pages was completed by one journal event."
         )
 
@@ -48,6 +49,7 @@ defmodule Improve.Planning.ProjectedWorkTest do
       assert work.payload.event_type_id == "event-type-1"
       assert work.payload.target == %{"quantity" => 20, "unit" => "pages"}
       assert work.payload.completed_event_ids == ["event-1"]
+      assert work.payload.target_progress == %{completed_event_count: 1}
       assert work.explanation == "Read pages was completed by one journal event."
     end
 

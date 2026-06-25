@@ -7,7 +7,7 @@ export type PlanSummary = {
   event_types?: number
   session_templates?: number
   session_slots?: number
-  direct_goals?: number
+  tracks?: number
   schedules?: number
 }
 

@@ -876,6 +876,7 @@ defmodule Improve.App.UiApi do
       planName: plan.name,
       explanation: work.explanation,
       target: target_json(target),
+      targetProgress: Map.get(payload, :target_progress, %{}),
       eventTypeId: event_type_id,
       eventTypeName: event_type && event_type.name,
       trackId: Map.get(payload, :track_id),

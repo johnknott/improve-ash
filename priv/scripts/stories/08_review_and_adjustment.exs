@@ -1,5 +1,6 @@
 alias Improve.App
 alias Improve.Stories, as: Story
+alias Improve.Stories.Print
 
 story =
   Story.begin!("review_and_adjustment", reset?: true)
@@ -82,5 +83,28 @@ review_day = App.project_today!(plan, actor: actor, date: ~D[2026-06-25])
 
 Story.show_projection!(story, review_day)
 Story.show_review!(story, plan, on: ~D[2026-06-25])
+
+applied =
+  App.apply_proposal!(
+    plan,
+    %{
+      kind: :extend_plan,
+      requires_approval: true,
+      effect: :committed,
+      proposed_edit: %{action: :extend_plan, weeks: 1}
+    },
+    actor: actor
+  )
+
+Print.section("Applied Proposal")
+
+Print.key_values([
+  {"Action", applied.action},
+  {"Plan ends on", applied.plan.ends_on}
+])
+
+extended_day = App.project_today!(applied.plan, actor: actor, date: applied.plan.ends_on)
+Story.show_projection!(story, extended_day)
+
 Story.show_ai_today_context!(story, plan, on: ~D[2026-06-25])
 Story.show_ai_recent_journal!(story, plan, limit: 10)

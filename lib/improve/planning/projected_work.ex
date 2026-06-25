@@ -71,6 +71,7 @@ defmodule Improve.Planning.ProjectedWork do
         missed_policy: track.missed_policy,
         completed_event_ids: Keyword.get(opts, :completed_event_ids, [])
       }
+      |> maybe_put(:target_progress, Keyword.get(opts, :target_progress))
       |> maybe_put(:time_off_window, Keyword.get(opts, :time_off_window))
 
     %{

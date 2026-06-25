@@ -114,14 +114,93 @@ defmodule Improve.StoriesTest do
         records: Story.amount("kg")
       )
 
+      Story.add_track!(story, plan, "Evening reset",
+        key: "evening_reset",
+        schedule: Story.every_day(),
+        target: Story.checklist(["Tidy room", "Brush teeth"])
+      )
+
+      Story.add_track!(story, plan, "Weekly pages",
+        key: "weekly_pages",
+        schedule: Story.every_day(),
+        target: Story.period_total(100, "pages", per: :week),
+        records: Story.number("pages")
+      )
+
+      Story.add_track!(story, plan, "Daily steps",
+        key: "daily_steps",
+        schedule: Story.every_day(),
+        target: Story.progression(1_000, 10_000, unit: "steps", shape: :linear),
+        records: Story.number("steps")
+      )
+
+      Story.add_track!(story, plan, "Practice item",
+        key: "practice_item",
+        schedule: Story.every_day(),
+        target: Story.adaptive(fields: [:sets, :reps, :load], effort: :effort),
+        records: Story.fields([:sets, :reps, :load, :effort])
+      )
+
       today = Story.project_today!(story, plan, on: ~D[2026-06-23])
 
       assert today.projected_work |> Enum.map(& &1.title) |> Enum.sort() == [
                "Bodyweight",
-               "Reading"
+               "Daily steps",
+               "Evening reset",
+               "Practice item",
+               "Reading",
+               "Weekly pages"
              ]
 
-      assert Enum.any?(today.diagnostics, &(&1.code == :unsupported_track_target_type))
+      assert today.diagnostics == []
+
+      assert Enum.find(today.projected_work, &(&1.title == "Bodyweight")).payload.target_progress ==
+               %{
+                 completed_event_count: 0,
+                 completed_event_ids: [],
+                 recorded_value: nil,
+                 unit: "kg",
+                 label: "No value recorded"
+               }
+
+      assert Enum.find(today.projected_work, &(&1.title == "Evening reset")).payload.target_progress ==
+               %{
+                 completed_event_count: 0,
+                 completed_event_ids: [],
+                 completed_count: 0,
+                 required_count: 2,
+                 completed_items: [],
+                 required_items: ["Tidy room", "Brush teeth"],
+                 label: "0 of 2 complete"
+               }
+
+      Story.log_track!(story, today, track: "reading", payload: %{amount: 25})
+      Story.log_track!(story, today, track: "bodyweight", payload: %{amount: 82.5})
+
+      Story.log_track!(story, today,
+        track: "evening_reset",
+        payload: %{checked_items: ["Tidy room", "Brush teeth"]}
+      )
+
+      Story.log_track!(story, today, track: "weekly_pages", payload: %{amount: 100})
+      Story.log_track!(story, today, track: "daily_steps", payload: %{amount: 1_000})
+
+      Story.log_track!(story, today,
+        track: "practice_item",
+        payload: %{sets: 3, reps: 10, load: 40, effort: "steady"}
+      )
+
+      completed = Story.project_today!(story, plan, on: ~D[2026-06-23])
+
+      assert completed.projected_work |> Enum.map(& &1.status) |> Enum.uniq() == [:completed]
+
+      assert track_work(completed, "Weekly pages").payload.target_progress.label ==
+               "100 of 100 pages this week"
+
+      assert track_work(completed, "Daily steps").payload.target_progress.label ==
+               "1000 of 1000 steps expected today"
+
+      assert track_work(completed, "Practice item").payload.target_progress.missing_fields == []
     end
 
     test "express plan-scoped time off through story helpers" do
@@ -1331,5 +1410,9 @@ defmodule Improve.StoriesTest do
     projection.projected_work
     |> Enum.find(&(&1.title == title))
     |> Map.fetch!(:status)
+  end
+
+  defp track_work(projection, title) do
+    Enum.find(projection.projected_work, &(&1.title == title))
   end
 end
