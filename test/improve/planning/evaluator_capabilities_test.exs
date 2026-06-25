@@ -1,11 +1,12 @@
 defmodule Improve.Planning.EvaluatorCapabilitiesTest do
   use ExUnit.Case, async: true
 
+  alias Improve.Bundles.Marathon
   alias Improve.Planning.EvaluatorCapabilities
 
-  describe "marathon_descriptors/0" do
+  describe "marathon evaluator descriptors" do
     test "declares the concrete recent-load producer and adaptation consumer" do
-      descriptors = EvaluatorCapabilities.marathon_descriptors()
+      descriptors = Marathon.evaluator_descriptors()
 
       assert Enum.map(descriptors, & &1.evaluator) == [
                :recent_load_metric,
@@ -52,7 +53,7 @@ defmodule Improve.Planning.EvaluatorCapabilitiesTest do
   describe "providers_by_capability/1" do
     test "indexes producer descriptors by named output capability" do
       providers =
-        EvaluatorCapabilities.marathon_descriptors()
+        Marathon.evaluator_descriptors()
         |> EvaluatorCapabilities.providers_by_capability()
 
       assert %{recent_load_km: [%{evaluator: :recent_load_metric}]} = providers
@@ -69,13 +70,13 @@ defmodule Improve.Planning.EvaluatorCapabilitiesTest do
                  capability: :recent_load_km
                }
              ] =
-               EvaluatorCapabilities.marathon_descriptors()
+               Marathon.evaluator_descriptors()
                |> EvaluatorCapabilities.dependency_edges()
     end
   end
 
   defp descriptor(evaluator) do
-    EvaluatorCapabilities.marathon_descriptors()
+    Marathon.evaluator_descriptors()
     |> Enum.find(&(&1.evaluator == evaluator))
   end
 end

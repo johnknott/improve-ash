@@ -1,8 +1,8 @@
-defmodule Improve.Planning.Adaptation.CommittedPlanEditsTest do
+defmodule Improve.Bundles.Marathon.CommittedPlanEditsTest do
   use ExUnit.Case, async: true
 
-  alias Improve.Planning.Adaptation.CommittedPlanEdits
-  alias Improve.Planning.Adaptation.Marathon
+  alias Improve.Bundles.Marathon.Adaptation
+  alias Improve.Bundles.Marathon.CommittedPlanEdits
 
   test "proposes an approval-required extension after fever illness" do
     assert [
@@ -79,7 +79,7 @@ defmodule Improve.Planning.Adaptation.CommittedPlanEditsTest do
 
   test "marathon evaluator keeps committed proposals separate from derived proposals" do
     assert {:ok, %{marathon_adaptation: adaptation}, []} =
-             Marathon.evaluate(
+             Adaptation.evaluate(
                input(
                  life_events: [
                    %{type: :illness, from: ~D[2026-07-06], to: ~D[2026-07-08], symptoms: :fever}

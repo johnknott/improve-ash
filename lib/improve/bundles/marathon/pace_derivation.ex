@@ -1,14 +1,13 @@
-defmodule Improve.Planning.Customization do
+defmodule Improve.Bundles.Marathon.PaceDerivation do
   @moduledoc """
-  Pure derivation of named values from a plan baseline.
+  Pure derivation of marathon pace guidance from a plan baseline.
 
   This is the hermetic core of Layer 2 customization: it takes an explicit
   baseline payload and a recipe, and returns named derived outputs. It does not
   read from the database, the clock, AI, or HTTP. Callers pass the baseline in
   and receive the derived values out.
 
-  The marathon pace recipe is the first derivation kind. A recipe maps each
-  output name to an entry of the form:
+  A recipe maps each output name to an entry of the form:
 
       {:secs_per_km, baseline_field, plus: seconds | minus: seconds}
 

@@ -1,4 +1,5 @@
 alias Improve.App
+alias Improve.Bundles.Marathon.PaceDerivation
 alias Improve.Stories, as: Story
 
 # =============================================================================
@@ -221,6 +222,7 @@ Story.show_projection!(story, mid_holiday)
 
 customization =
   Story.customize_plan!(story, plan,
+    deriver: PaceDerivation,
     from_baseline: "time_trial",
     derive: %{
       easy_pace: {:secs_per_km, :five_k, plus: 75},

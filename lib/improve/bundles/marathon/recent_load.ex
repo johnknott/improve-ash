@@ -1,4 +1,4 @@
-defmodule Improve.Planning.DerivedMetrics.RecentLoad do
+defmodule Improve.Bundles.Marathon.RecentLoad do
   @moduledoc """
   Derived metric evaluator for recent running load.
 

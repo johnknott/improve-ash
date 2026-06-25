@@ -1,13 +1,13 @@
 defmodule Improve.Planning.EvaluatorGraphTest do
   use ExUnit.Case, async: true
 
-  alias Improve.Planning.EvaluatorCapabilities
+  alias Improve.Bundles.Marathon
   alias Improve.Planning.EvaluatorGraph
 
   describe "order/1" do
     test "orders the recent-load producer before marathon adaptation" do
       descriptors =
-        EvaluatorCapabilities.marathon_descriptors()
+        Marathon.evaluator_descriptors()
         |> Enum.reverse()
 
       assert {:ok, ordered} = EvaluatorGraph.order(descriptors)
@@ -54,7 +54,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
 
       assert {:ok, result} =
                EvaluatorGraph.run(
-                 Enum.reverse(EvaluatorCapabilities.marathon_descriptors()),
+                 Enum.reverse(Marathon.evaluator_descriptors()),
                  host_input,
                  evaluators
                )
@@ -95,7 +95,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
                 details: %{evaluator: :recent_load_metric, missing: [:tracks]}
               }} =
                EvaluatorGraph.run(
-                 EvaluatorCapabilities.marathon_descriptors(),
+                 Marathon.evaluator_descriptors(),
                  host_input,
                  %{
                    recent_load_metric: fn _input -> flunk("should not run") end,
@@ -111,7 +111,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
                 details: %{missing: [:marathon_adaptation]}
               }} =
                EvaluatorGraph.run(
-                 EvaluatorCapabilities.marathon_descriptors(),
+                 Marathon.evaluator_descriptors(),
                  host_input(),
                  %{recent_load_metric: fn _input -> {:ok, %{recent_load_km: %{}}, []} end}
                )
@@ -129,7 +129,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
                 details: %{evaluator: :recent_load_metric, missing: [:recent_load_km]}
               }} =
                EvaluatorGraph.run(
-                 EvaluatorCapabilities.marathon_descriptors(),
+                 Marathon.evaluator_descriptors(),
                  host_input(),
                  evaluators
                )
@@ -147,7 +147,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
                 details: %{evaluator: :recent_load_metric}
               }} =
                EvaluatorGraph.run(
-                 EvaluatorCapabilities.marathon_descriptors(),
+                 Marathon.evaluator_descriptors(),
                  host_input(),
                  evaluators
                )

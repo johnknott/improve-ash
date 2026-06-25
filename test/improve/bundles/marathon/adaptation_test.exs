@@ -1,14 +1,14 @@
-defmodule Improve.Planning.Adaptation.MarathonTest do
+defmodule Improve.Bundles.Marathon.AdaptationTest do
   use ExUnit.Case, async: true
 
-  alias Improve.Planning.Adaptation.Marathon
-  alias Improve.Planning.DerivedMetrics.RecentLoad
-  alias Improve.Planning.EvaluatorCapabilities
+  alias Improve.Bundles.Marathon
+  alias Improve.Bundles.Marathon.Adaptation
+  alias Improve.Bundles.Marathon.RecentLoad
   alias Improve.Planning.EvaluatorGraph
 
   test "keeps today's tempo and drops missed quality instead of stacking it" do
     assert {:ok, %{marathon_adaptation: adaptation}, []} =
-             Marathon.evaluate(
+             Adaptation.evaluate(
                input(
                  recent_missed_work: [
                    %{owner_key: "intervals", title: "Intervals", planned_for: ~D[2026-07-07]}
@@ -25,7 +25,7 @@ defmodule Improve.Planning.Adaptation.MarathonTest do
 
   test "turns first day back after fever into rest and derived deload proposals" do
     assert {:ok, %{marathon_adaptation: adaptation}, []} =
-             Marathon.evaluate(
+             Adaptation.evaluate(
                input(
                  life_events: [
                    %{type: :illness, from: ~D[2026-07-06], to: ~D[2026-07-08], symptoms: :fever}
@@ -43,7 +43,7 @@ defmodule Improve.Planning.Adaptation.MarathonTest do
 
   test "turns an active injury into cross-training and a derived deload proposal" do
     assert {:ok, %{marathon_adaptation: adaptation}, []} =
-             Marathon.evaluate(
+             Adaptation.evaluate(
                input(
                  date: ~D[2026-07-16],
                  life_events: [
@@ -61,7 +61,7 @@ defmodule Improve.Planning.Adaptation.MarathonTest do
 
   test "reduces the first run back after a fully-off holiday when recent load is low" do
     assert {:ok, %{marathon_adaptation: adaptation}, []} =
-             Marathon.evaluate(
+             Adaptation.evaluate(
                input(
                  date: ~D[2026-08-24],
                  projected_work: [],
@@ -102,12 +102,12 @@ defmodule Improve.Planning.Adaptation.MarathonTest do
 
     evaluators = %{
       recent_load_metric: &RecentLoad.evaluate/1,
-      marathon_adaptation: &Marathon.evaluate/1
+      marathon_adaptation: &Adaptation.evaluate/1
     }
 
     assert {:ok, result} =
              EvaluatorGraph.run(
-               EvaluatorCapabilities.marathon_descriptors(),
+               Marathon.evaluator_descriptors(),
                host_input,
                evaluators
              )

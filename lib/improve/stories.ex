@@ -12,7 +12,7 @@ defmodule Improve.Stories do
   alias Improve.App
   alias Improve.App.Value
   alias Improve.Journal
-  alias Improve.Planning.Adaptation.MarathonPipeline
+  alias Improve.Bundles.Marathon.Pipeline, as: MarathonPipeline
   alias Improve.Plans
   alias Improve.Repo
   alias Improve.Stories.Print

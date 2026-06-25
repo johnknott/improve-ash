@@ -3,6 +3,7 @@ defmodule Improve.StoriesTest do
 
   import ExUnit.CaptureIO
 
+  alias Improve.Bundles.Marathon.PaceDerivation
   alias Improve.Journal
   alias Improve.Plans
   alias Improve.Sessions
@@ -217,6 +218,7 @@ defmodule Improve.StoriesTest do
 
       result =
         Story.customize_plan!(story, plan,
+          deriver: PaceDerivation,
           from_baseline: "time_trial",
           derive: %{
             easy_pace: {:secs_per_km, :five_k, plus: 75},

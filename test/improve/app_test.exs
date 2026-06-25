@@ -3,6 +3,7 @@ defmodule Improve.AppTest do
 
   alias Improve.Accounts
   alias Improve.App
+  alias Improve.Bundles.Marathon.PaceDerivation
   alias Improve.Journal
   alias Improve.Plans
 
@@ -684,6 +685,7 @@ defmodule Improve.AppTest do
       result =
         App.customize_plan!(plan,
           actor: user,
+          deriver: PaceDerivation,
           from_baseline: "time_trial",
           derive: %{
             easy_pace: {:secs_per_km, :five_k, plus: 75},
@@ -763,6 +765,7 @@ defmodule Improve.AppTest do
 
       App.customize_plan!(plan,
         actor: user,
+        deriver: PaceDerivation,
         from_baseline: "time_trial",
         derive: %{easy_pace: {:secs_per_km, :five_k, plus: 75}},
         apply_to: %{"easy_run" => :easy_pace}
@@ -770,6 +773,7 @@ defmodule Improve.AppTest do
 
       App.customize_plan!(plan,
         actor: user,
+        deriver: PaceDerivation,
         from_baseline: "time_trial",
         derive: %{easy_pace: {:secs_per_km, :five_k, plus: 90}},
         apply_to: %{"easy_run" => :easy_pace}
@@ -828,6 +832,7 @@ defmodule Improve.AppTest do
       assert_raise ArgumentError, ~r/No track "missing_track" exists in this plan/, fn ->
         App.customize_plan!(plan,
           actor: user,
+          deriver: PaceDerivation,
           from_baseline: "time_trial",
           derive: %{
             easy_pace: {:secs_per_km, :five_k, plus: 75},
@@ -862,6 +867,7 @@ defmodule Improve.AppTest do
       assert_raise ArgumentError, ~r/No active baseline event of type "time_trial"/, fn ->
         App.customize_plan!(plan,
           actor: user,
+          deriver: PaceDerivation,
           from_baseline: "time_trial",
           derive: %{easy_pace: {:secs_per_km, :five_k, plus: 75}},
           apply_to: %{}

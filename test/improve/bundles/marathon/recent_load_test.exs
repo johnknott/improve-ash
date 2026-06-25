@@ -1,8 +1,8 @@
-defmodule Improve.Planning.DerivedMetrics.RecentLoadTest do
+defmodule Improve.Bundles.Marathon.RecentLoadTest do
   use ExUnit.Case, async: true
 
-  alias Improve.Planning.DerivedMetrics.RecentLoad
-  alias Improve.Planning.EvaluatorCapabilities
+  alias Improve.Bundles.Marathon
+  alias Improve.Bundles.Marathon.RecentLoad
   alias Improve.Planning.EvaluatorGraph
 
   describe "evaluate/1" do
@@ -56,7 +56,7 @@ defmodule Improve.Planning.DerivedMetrics.RecentLoadTest do
     test "can feed the concrete evaluator graph dependency" do
       parent = self()
 
-      descriptors = EvaluatorCapabilities.marathon_descriptors()
+      descriptors = Marathon.evaluator_descriptors()
 
       host_input = %{
         as_of_date: ~D[2026-07-09],

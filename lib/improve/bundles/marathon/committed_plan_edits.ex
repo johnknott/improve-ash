@@ -1,4 +1,4 @@
-defmodule Improve.Planning.Adaptation.CommittedPlanEdits do
+defmodule Improve.Bundles.Marathon.CommittedPlanEdits do
   @moduledoc """
   Approval-required adaptation proposals for durable plan edits.
 

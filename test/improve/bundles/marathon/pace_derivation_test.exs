@@ -1,14 +1,14 @@
-defmodule Improve.Planning.CustomizationTest do
+defmodule Improve.Bundles.Marathon.PaceDerivationTest do
   use ExUnit.Case, async: true
 
-  alias Improve.Planning.Customization
+  alias Improve.Bundles.Marathon.PaceDerivation
 
   describe "derive/2" do
     test "derives named paces from a 5k baseline with plus offsets" do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:ok, outputs} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :five_k, plus: 75},
                  marathon_pace: {:secs_per_km, :five_k, plus: 40}
                })
@@ -22,7 +22,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:ok, outputs} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  interval_pace: {:secs_per_km, :five_k, minus: 5}
                })
 
@@ -33,7 +33,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:ok, outputs} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :five_k, plus: 75},
                  marathon_pace: {:secs_per_km, :five_k, plus: 40},
                  tempo_pace: {:secs_per_km, :five_k, plus: 25},
@@ -50,7 +50,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{"distance_km" => 5, "minutes" => 25, "seconds" => 30}
 
       assert {:ok, outputs} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :five_k, plus: 75}
                })
 
@@ -62,7 +62,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{"distance_km" => 10, "minutes" => 52}
 
       assert {:ok, outputs} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :ten_k, plus: 70}
                })
 
@@ -73,7 +73,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5}
 
       assert {:error, [diagnostic]} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :five_k, plus: 75}
                })
 
@@ -86,7 +86,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:error, [diagnostic]} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :ten_k, plus: 75}
                })
 
@@ -100,7 +100,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:error, [diagnostic]} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :half_marathon, plus: 75}
                })
 
@@ -113,7 +113,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:error, [diagnostic]} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  good_pace: {:secs_per_km, :five_k, plus: 40},
                  bad_pace: {:laps_per_session, :five_k, plus: 1}
                })
@@ -126,7 +126,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:error, [diagnostic]} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :five_k, plus: "soon"}
                })
 
@@ -139,7 +139,7 @@ defmodule Improve.Planning.CustomizationTest do
       baseline = %{distance_km: 5, minutes: 25}
 
       assert {:error, [diagnostic]} =
-               Customization.derive(baseline, %{
+               PaceDerivation.derive(baseline, %{
                  easy_pace: {:secs_per_km, :five_k, plus: 75, minus: 5}
                })
 

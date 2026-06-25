@@ -1,4 +1,4 @@
-defmodule Improve.Planning.Adaptation.Marathon do
+defmodule Improve.Bundles.Marathon.Adaptation do
   @moduledoc """
   Projection-time marathon adaptation evaluator.
 
@@ -7,7 +7,7 @@ defmodule Improve.Planning.Adaptation.Marathon do
   proposal layer.
   """
 
-  alias Improve.Planning.Adaptation.CommittedPlanEdits
+  alias Improve.Bundles.Marathon.CommittedPlanEdits
 
   @low_reentry_load_km 5
 

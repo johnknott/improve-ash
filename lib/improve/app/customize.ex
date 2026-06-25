@@ -7,7 +7,7 @@ defmodule Improve.App.Customize do
   (track `guidance`), and records a durable customization run so the origin of
   derived static structure is auditable.
 
-  The pure derivation lives in `Improve.Planning.Customization`. This module only
+  The pure derivation is supplied by a bundle module. This module only
   orchestrates: it resolves the baseline event, derives the outputs, applies them
   to tracks through the normal Ash actions, and persists a customization record.
   """
@@ -15,7 +15,6 @@ defmodule Improve.App.Customize do
   alias Improve.App.Lookup
   alias Improve.App.Value
   alias Improve.Journal
-  alias Improve.Planning.Customization, as: Derivation
   alias Improve.Plans
   alias Improve.Repo
 
@@ -28,11 +27,12 @@ defmodule Improve.App.Customize do
     recipe = Keyword.fetch!(opts, :derive)
     apply_to = Keyword.fetch!(opts, :apply_to)
     key = Keyword.get(opts, :key, "baseline")
+    deriver = Keyword.fetch!(opts, :deriver)
 
     event_type = Lookup.event_type!(plan, event_type_key, actor)
     baseline_event = latest_active_event!(plan_id, event_type, actor)
 
-    case Derivation.derive(baseline_event.payload, recipe) do
+    case deriver.derive(baseline_event.payload, recipe) do
       {:ok, outputs} ->
         Repo.transaction(fn ->
           reset_notifications!()
