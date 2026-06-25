@@ -1,3 +1,10 @@
+# Story: the calendar shapes Improve can project.
+#
+# This shows how scheduled tracks appear on the right days: daily, selected
+# weekdays, every few days, every few weeks, and monthly. It also keeps the two
+# harder V1-deferred schedule ideas visible, so unsupported shapes fail loudly
+# with useful diagnostics instead of pretending to work.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 import Improve.App, only: [fixed: 2, number: 1]

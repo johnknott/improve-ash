@@ -1,3 +1,9 @@
+# Story: recommendations get better from recent history.
+#
+# This shows the early adaptive loop for item-based work. A previous practice
+# event gives the recommender something real to learn from, so today's projected
+# session can suggest useful starting values instead of only cold-start defaults.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 

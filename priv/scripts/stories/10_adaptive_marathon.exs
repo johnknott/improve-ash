@@ -3,21 +3,22 @@ alias Improve.Bundles.Marathon.PaceDerivation
 alias Improve.Stories, as: Story
 
 # =============================================================================
-# Adaptive Marathon Plan — product story (DRAFT)
+# Story: an adaptive marathon plan as a forcing example.
 #
-# This is the forcing example for the evaluator contract described in
-# notes/extension-points-plan.md. It is written product-first.
+# This is not trying to be a perfect marathon coach. It is a deliberately rich
+# example that forces the backend to handle structure, one-time customization,
+# stateful items, derived metrics, adaptation, and approval-required proposals.
 #
-# The runnable sections prove the declarative core can hold a marathon plan
-# today. The clearly-fenced INTENDED sections specify what the adaptation
-# evaluator must produce before this plan is genuinely adaptive — so this
-# story doubles as the spec for the downstream marathon beans.
+# In layman's terms: Alex has a race plan, logs runs, wears out shoes, derives
+# training paces from a 5k baseline, then reacts to missed work, illness,
+# injury, and holiday time off. The story proves the extension-point design can
+# support that without hard-coding marathon logic into the core product model.
 #
 # Layers:
-#   Layer 1 - Structure ............ declarative weekly template. RUNS today.
-#   Layer 2 - Customization ........ one-time pace derivation.   INTENDED.
+#   Layer 1 - Structure ............ declarative weekly template.
+#   Layer 2 - Customization ........ one-time pace derivation.
 #   Layer 3 - Adaptation ........... responds to misses / illness / injury /
-#                                   holiday.                      INTENDED.
+#                                   holiday.
 #
 # Runner: Alex. Baseline: 25:00 5k. Race: Berlin Marathon, 2026-10-04.
 # Goal: sub-4:00.

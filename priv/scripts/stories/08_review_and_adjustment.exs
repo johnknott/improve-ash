@@ -1,3 +1,9 @@
+# Story: review can suggest a change and the backend can apply it.
+#
+# This shows the end of the feedback loop: project work, log history, review the
+# plan, approve a concrete proposal, apply it through a real plan action, and
+# re-project to prove the durable plan changed.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 alias Improve.Stories.Print
@@ -55,7 +61,8 @@ App.add_session!(plan, "Focused practice",
   slots: [
     App.choose(2,
       from: "technique",
-      suggest: App.adaptive(fields: [:rounds, :duration_minutes], effort: :effort, review: :weekly),
+      suggest:
+        App.adaptive(fields: [:rounds, :duration_minutes], effort: :effort, review: :weekly),
       start_with: %{rounds: 2, duration_minutes: 10, effort: "easy"}
     )
   ]

@@ -1,3 +1,9 @@
+# Story: a rough whole-life plan translated into Improve's generic model.
+#
+# This is intentionally broad. It shows that fitness, habits, reading, metrics,
+# and sessions can all live in one plan using the same generic building blocks:
+# tracks, schedules, items, pools, sessions, and journal events.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 

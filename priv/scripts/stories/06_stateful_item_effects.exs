@@ -1,3 +1,9 @@
+# Story: item state is derived from journal effects.
+#
+# This demonstrates a stateful item such as a supply bin. The item starts with a
+# known quantity, events subtract from it, and current state is derived from the
+# active effects rather than stored as a manually edited total.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 

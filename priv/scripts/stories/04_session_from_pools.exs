@@ -1,3 +1,10 @@
+# Story: a session built from pools of possible items.
+#
+# This demonstrates grouped work: a focused practice session is made from slots,
+# each slot chooses from a pool, and the backend recommends what to do before
+# the user logs the actual result. It proves Improve can preserve the difference
+# between "what we suggested" and "what really happened."
+
 alias Improve.App
 alias Improve.Stories, as: Story
 

@@ -1,3 +1,10 @@
+# Story: the journal stays trustworthy when reality is messy.
+#
+# This demonstrates two important safety flows. First, a mistaken event is
+# corrected without deleting history. Then offline submissions are accepted,
+# deduplicated, or rejected in a way that protects the plan from stale client
+# data.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 

@@ -1,3 +1,10 @@
+# Story: the different ways a track can know whether it is done.
+#
+# This demonstrates the target vocabulary a normal user might expect: fixed
+# amounts, metrics, checklists, weekly totals, gradual progressions, and
+# adaptive practice fields. The point is to show that projection can now say
+# what is planned, what is complete, and what progress means for each shape.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 

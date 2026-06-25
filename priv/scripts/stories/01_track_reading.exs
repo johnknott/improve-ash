@@ -1,3 +1,10 @@
+# Story: a simple daily reading track.
+#
+# This is the smallest Improve loop in plain English: create a plan, add one
+# daily track, project today's work, log that it happened, then show the journal
+# and AI-readable context. It proves the backend can support the basic
+# "plan -> today -> log -> review the record" flow without any special-case UI.
+
 alias Improve.App
 alias Improve.Stories, as: Story
 import Improve.App, only: [fixed: 2, number: 1]
