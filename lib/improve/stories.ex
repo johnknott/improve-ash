@@ -12,6 +12,7 @@ defmodule Improve.Stories do
   alias Improve.App
   alias Improve.App.Value
   alias Improve.Journal
+  alias Improve.Planning.Adaptation.MarathonPipeline
   alias Improve.Plans
   alias Improve.Repo
   alias Improve.Stories.Print
@@ -277,6 +278,52 @@ defmodule Improve.Stories do
     record
   end
 
+  def marathon_adaptation!(%Story{} = story, plan, projection, opts \\ []) do
+    input = marathon_adaptation_input!(story, plan, projection, opts)
+
+    case MarathonPipeline.evaluate(input) do
+      {:ok, result} -> result
+      {:error, error} -> raise inspect(error)
+    end
+  end
+
+  def show_marathon_adaptation!(%Story{} = _story, result) do
+    adaptation = result.outputs.marathon_adaptation
+    recent_load = result.outputs.recent_load_km
+
+    Print.section("Marathon Adaptation")
+
+    Print.key_values([
+      {"Evaluator order", Enum.map_join(result.order, " -> ", &to_string/1)},
+      {"Recent load", "#{recent_load.value} #{recent_load.unit}"},
+      {"Load window", "#{recent_load.window_start} to #{recent_load.as_of}"}
+    ])
+
+    Print.rows(adaptation.today, fn work ->
+      action =
+        case Map.get(work, :replacement) do
+          nil -> to_string(work.action)
+          replacement -> "#{work.action} #{replacement}"
+        end
+
+      "#{work.owner_key}: #{action} - #{work.reason}"
+    end)
+
+    Print.section("Derived Proposals")
+
+    Print.rows(adaptation.proposals, fn proposal ->
+      "#{proposal.kind}: #{proposal.text}"
+    end)
+
+    Print.section("Committed Proposals")
+
+    Print.rows(adaptation.committed_proposals, fn proposal ->
+      "#{proposal.kind}: #{proposal.text}"
+    end)
+
+    result
+  end
+
   def show_item_state!(%Story{} = story, plan, item_key) do
     state = App.get_item_state!(plan, item_key, actor: actor!(story))
 
@@ -291,6 +338,32 @@ defmodule Improve.Stories do
     ])
 
     state
+  end
+
+  defp marathon_adaptation_input!(%Story{} = story, plan, projection, opts) do
+    tracks = Plans.list_tracks!(actor: actor!(story), query: [filter: [plan_id: plan.id]])
+    journal_events = Journal.read_journal!(plan, actor: actor!(story))
+
+    time_off_windows =
+      Plans.list_time_off_windows!(actor: actor!(story), query: [filter: [plan_id: plan.id]])
+
+    %{
+      date: projection.date,
+      as_of_date: Keyword.get(opts, :as_of, projection.date),
+      projected_work: projection.projected_work,
+      recent_missed_work: Keyword.get(opts, :recent_missed_work, []),
+      journal_events: journal_events,
+      life_events: Keyword.get(opts, :life_events, []),
+      time_off_windows: time_off_windows,
+      plan_skeleton: %{
+        id: plan.id,
+        starts_on: plan.starts_on,
+        ends_on: plan.ends_on,
+        deadline: %{movable?: Keyword.get(opts, :deadline_movable?, false)}
+      },
+      track_guidance: Map.new(tracks, &{&1.key, &1.guidance}),
+      tracks: tracks
+    }
   end
 
   def show_ai_plan_summary!(%Story{} = story, plan) do

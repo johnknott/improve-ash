@@ -245,7 +245,7 @@ mid_week = App.project_today!(plan, actor: actor, date: ~D[2026-07-09])
 Story.show_projection!(story, mid_week)
 
 # -----------------------------------------------------------------------------
-# LAYER 3 — Adaptation (INTENDED; not yet implemented)
+# LAYER 3 — Adaptation (RUNS through the internal evaluator contract)
 #
 # This is the layer that separates a great plan from a static schedule. It
 # needs a marathon adaptation evaluator that, on each projection, receives
@@ -270,50 +270,47 @@ Story.show_projection!(story, mid_week)
 # --- 3a. Missed session ------------------------------------------------------
 # Runner skips Tuesday intervals. Thursday should NOT stack the missed quality
 # onto the tempo; it resumes with the scheduled work and drops the miss.
-#
-#   thursday = App.project_today!(plan, actor: actor, date: ~D[2026-07-09])
-#   Story.show_projection!(story, thursday)
-#
-# Intended adaptation output for that projection:
-#   todays_work : tempo run (as scheduled)
-#   proposals   : shift_session :missed_quality   (derived, approval: false)
-#                 "Missed Tuesday intervals dropped, not stacked onto today."
+
+missed_quality =
+  Story.marathon_adaptation!(story, plan, mid_week,
+    recent_missed_work: [
+      %{owner_key: "intervals", title: "Intervals", planned_for: ~D[2026-07-07]}
+    ]
+  )
+
+Story.show_marathon_adaptation!(story, missed_quality)
 
 # --- 3b. Illness -------------------------------------------------------------
 # Runner logs a 3-day fever ending yesterday. First day back, the neck rule
 # says full rest; the week deloads; a plan extension is proposed.
-#
-#   App.log_life_event!(plan,
-#     type: :illness,
-#     from: ~D[2026-07-06], to: ~D[2026-07-08],
-#     symptoms: :fever,
-#     actor: actor
-#   )
-#
-#   first_day_back = App.project_today!(plan, actor: actor, date: ~D[2026-07-09])
-#   Story.show_projection!(story, first_day_back)
-#
-# Intended adaptation output:
-#   todays_work : rest
-#                 "1 day past a 3-day fever; full rest per the neck rule."
-#   proposals   : deload_week 50%                (derived, approval: false)
-#                 shift_session :missed_quality   (derived, approval: false)
-#                 extend_plan 1 week              (committed, approval: true)
-#                 "Illness may delay race readiness; consider extending."
+
+illness =
+  Story.marathon_adaptation!(story, plan, mid_week,
+    life_events: [
+      %{type: :illness, from: ~D[2026-07-06], to: ~D[2026-07-08], symptoms: :fever}
+    ],
+    recent_missed_work: [
+      %{owner_key: "intervals", title: "Intervals", planned_for: ~D[2026-07-07]}
+    ]
+  )
+
+Story.show_marathon_adaptation!(story, illness)
 
 # --- 3c. Injury --------------------------------------------------------------
 # Runner flags a calf strain. Today's tempo becomes rest / cross-train;
 # running pauses until the flag clears.
-#
-#   App.log_life_event!(plan, type: :injury, area: :calf, severity: 2, actor: actor)
-#
-#   today = App.project_today!(plan, actor: actor, date: ~D[2026-07-16])
-#   Story.show_projection!(story, today)
-#
-# Intended adaptation output:
-#   todays_work : cross_train (rest from running)
-#   proposals   : deload_week 50%            (derived)
-#                 extend_plan 1-2 weeks      (committed, approval: true)
+
+injury_day = App.project_today!(plan, actor: actor, date: ~D[2026-07-16])
+Story.show_projection!(story, injury_day)
+
+injury =
+  Story.marathon_adaptation!(story, plan, injury_day,
+    life_events: [
+      %{type: :injury, area: :calf, severity: 2, from: ~D[2026-07-16]}
+    ]
+  )
+
+Story.show_marathon_adaptation!(story, injury)
 
 # --- 3d. Holiday (a 2-week time-off window) ----------------------------------
 # A holiday is already declared above as a real plan-scoped time-off window
@@ -322,30 +319,23 @@ Story.show_projection!(story, mid_week)
 # keeps scheduled work on hold instead of missed; adaptation still needs to
 # reason about the gap.
 #
-# The first day back, adaptation proposes a reduced re-entry run (derived) and
-# a plan edit to absorb the two-week gap (committed):
-#
-#   first_day_back = App.project_today!(plan, actor: actor, date: ~D[2026-08-24])
-#   Story.show_projection!(story, first_day_back)
-#
-# Intended adaptation output:
-#   todays_work : easy run (short re-entry)
-#                 "First run back after 2 weeks off; keep it easy and short."
-#   proposals   : rebuild_week (derived, approval: false)
-#                 extend_plan (committed, approval: true)
-#                 "Absorb the 2-week gap by extending toward the race."
-#
-# Hard edge: Berlin (2026-10-04) is a fixed external event, so extend_plan may
-# be impossible. When the deadline cannot move, the evaluator shifts to
-# compress-the-taper or adjust-the-goal (sub-4:00 -> finish) instead. The race
-# date is just the plan's `until:`; whether it can move is the evaluator's call.
+# The first day back, adaptation proposes a reduced re-entry run (derived). The
+# Berlin race date is fixed, so the committed proposal is goal/taper adjustment
+# rather than extending the race plan.
+
+first_day_back = App.project_today!(plan, actor: actor, date: ~D[2026-08-24])
+Story.show_projection!(story, first_day_back)
+
+holiday_reentry =
+  Story.marathon_adaptation!(story, plan, first_day_back,
+    as_of: ~D[2026-08-24],
+    deadline_movable?: false
+  )
+
+Story.show_marathon_adaptation!(story, holiday_reentry)
 
 # --- Committed adaptation surfaces in review ---------------------------------
 # The extend_plan proposals are committed adaptations: they mutate plan
 # structure, so they go through a core action and need the user's approval.
-# Review is where they are presented plainly.
-#
-#   Story.show_review!(story, plan, on: ~D[2026-07-09])
-#   # => suggested change: "Extend your plan by 1 week to absorb the illness."
-#   # => user accepts:
-#   App.adjust_plan!(plan, extend_by_weeks: 1, actor: actor)
+# The story output above keeps them in a separate "Committed Proposals" section
+# so they can later be routed through review and explicit user approval.

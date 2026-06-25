@@ -31,7 +31,9 @@ defmodule Improve.Planning.EvaluatorCapabilitiesTest do
 
       assert Enum.sort(consumer.requires) ==
                Enum.sort([
+                 :date,
                  :projected_work,
+                 :recent_missed_work,
                  :journal_events,
                  :life_events,
                  :time_off_windows,

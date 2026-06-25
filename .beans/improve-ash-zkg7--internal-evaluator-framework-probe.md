@@ -1,11 +1,11 @@
 ---
 # improve-ash-zkg7
 title: Internal evaluator framework probe
-status: in-progress
+status: completed
 type: milestone
 priority: high
 created_at: 2026-06-24T20:37:19Z
-updated_at: 2026-06-24T20:57:28Z
+updated_at: 2026-06-25T03:55:00Z
 ---
 
 Build the first internal-only evaluator framework slice from notes/extension-points-plan.md.
@@ -22,22 +22,44 @@ Acceptance criteria:
 
 ## Current State
 
-The first internal evaluator probes are complete.
+The first internal evaluator probes and the first forced dependency graph are
+complete.
 
 Completed:
 - `improve-ash-8qr7`: schedule projection dispatch now goes through internal `Improve.Planning.Schedules` evaluators.
 - `improve-ash-z91i`: target projection diagnostics now go through internal `Improve.Planning.Targets` evaluators.
+- `improve-ash-h81d`: the real evaluator dependency is documented as marathon
+  adaptation consuming a recent-load derived metric.
+- `improve-ash-38rj`: minimal capability descriptors declare `provides` and
+  `requires` for that concrete dependency.
+- `improve-ash-44nx`: a tiny graph host orders the two-node chain, caches
+  derived outputs for a projection run, and injects them into the consumer.
 
 Current architectural decision:
 - Keep evaluator code boringly internal under planning-specific namespaces.
 - Do not introduce a public extension namespace or marketplace/plugin framing yet.
 - Use explicit typed inputs/results per evaluator kind rather than a generic shared result struct.
 
-Deferred until forced:
-- Capability descriptors, dependency graph ordering, and evaluator output caching remain draft. They should not be implemented until a real evaluator dependency appears.
+Capability graph status:
+- Capability descriptors, dependency ordering, and evaluator output caching were
+  added only after the marathon adaptation dependency forced them.
+- The graph host remains deliberately small: one concrete dependency chain, no
+  general registry, plugin loading, versioning, sandboxing, persistence, or UI.
 
-Next forcing example:
-- The adaptive marathon plan remains the product test for the contract. The next backend step should be product/story-first: draft the marathon story and model declarative plan structure before implementing graph machinery.
+Final forcing example:
+- The adaptive marathon plan now runs through the internal evaluator contract:
+  recent-load derivation, dependency ordering/caching, derived adaptation,
+  committed proposal separation, and story verification are complete.
+
+## Summary of Changes
+
+The internal evaluator framework probe is complete. Schedule dispatch and target
+diagnostics use small internal evaluator contracts; capability descriptors,
+dependency graph ordering, and output caching were added only after the
+marathon plan forced a real evaluator dependency. The marathon story then proved
+the contract with a real derived metric and adaptation consumer, while keeping
+all evaluator code hermetic: no database writes, clock reads, HTTP calls,
+randomness, AI, or journal mutation.
 
 UI policy:
 - UI authoring work is deferred until the backend/product model is substantially complete.

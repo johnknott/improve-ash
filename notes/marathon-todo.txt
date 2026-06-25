@@ -1,0 +1,23 @@
+What’s left:
+
+  1. [x] Bookkeeping
+     The milestone text is stale. zkg7 still says capability graph work is deferred, but we have now done the concrete
+     dependency note, descriptors, ordering, and caching. We should update that summary and probably close o1ro.
+
+  2. [x] Build the real recent-load evaluator
+     Right now the graph runner can run recent_load_metric, but tests use fake functions. We still need the actual evaluator
+     that reads bounded projection input and computes “running km in the last 7 days”.
+
+  3. [x] Build derived adaptation
+     This is q6p8: projection-time suggestions that do not write anything. Examples: missed intervals are not stacked onto
+     today, illness causes a deload/rest suggestion, holiday return starts easier, injury suggests cross-training/rest.
+
+  4. [x] Model committed adaptation proposals
+     This is syws: changes that would permanently alter the plan, like “extend the plan by 1 week”, should appear as explicit
+     proposed edits requiring approval. They must not happen as sneaky projection side effects.
+
+  5. [x] Wire the marathon story through the real evaluator contract
+     This is c2xh: make the adaptive marathon story prove all layers together: declarative plan, baseline customization,
+     derived adaptation, committed proposals, diagnostics, and review language.
+
+Completed 2026-06-25. Verification: `mise run verify:backend`.

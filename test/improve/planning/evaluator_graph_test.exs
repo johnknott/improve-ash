@@ -160,6 +160,8 @@ defmodule Improve.Planning.EvaluatorGraphTest do
       tracks: [%{key: "tempo_run"}, %{key: "long_run"}],
       journal_events: [%{status: :active, payload: %{"amount" => 18, "unit" => "km"}}],
       projected_work: [%{kind: :track, owner_key: "tempo_run"}],
+      date: ~D[2026-07-09],
+      recent_missed_work: [],
       life_events: [],
       time_off_windows: [],
       plan_skeleton: %{ends_on: ~D[2026-10-04], deadline: %{movable?: false}},

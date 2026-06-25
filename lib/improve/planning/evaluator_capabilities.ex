@@ -35,7 +35,9 @@ defmodule Improve.Planning.EvaluatorCapabilities do
       kind: :adaptation,
       provides: [:marathon_adaptation],
       requires: [
+        :date,
         :projected_work,
+        :recent_missed_work,
         :journal_events,
         :life_events,
         :time_off_windows,

@@ -248,6 +248,65 @@ defmodule Improve.StoriesTest do
     end
   end
 
+  describe "marathon adaptation story helpers" do
+    test "run the real evaluator graph from bounded story input" do
+      story =
+        Story.begin!("test_marathon_adaptation", reset?: true)
+        |> Story.user!("Story Marathon", email: "story+test-marathon-adaptation@example.test")
+
+      plan =
+        Story.create_plan!(story, "Adaptive running plan",
+          intention: "Adapt a running plan around life",
+          from: ~D[2026-06-22],
+          until: ~D[2026-10-04]
+        )
+
+      Story.add_event_type!(story, plan, "Run completed",
+        key: "run_completed",
+        payload: %{required: ["amount", "unit"]}
+      )
+
+      Story.add_track!(story, plan, "Tempo run",
+        key: "tempo_run",
+        event: "run_completed",
+        schedule: Story.every_week(times: 1, on: [:thursday]),
+        target: Story.fixed(8, "km"),
+        records: Story.amount("km")
+      )
+
+      Story.log_event!(story, plan,
+        event: "run_completed",
+        track: "tempo_run",
+        on: ~D[2026-07-05],
+        summary: "Tempo run 8 km",
+        payload: %{amount: 8, unit: "km"}
+      )
+
+      projection = Story.project_today!(story, plan, on: ~D[2026-07-09])
+
+      result =
+        Story.marathon_adaptation!(story, plan, projection,
+          life_events: [
+            %{type: :illness, from: ~D[2026-07-06], to: ~D[2026-07-08], symptoms: :fever}
+          ]
+        )
+
+      assert result.order == [:recent_load_metric, :marathon_adaptation]
+      assert result.outputs.recent_load_km.value == 8
+      assert [%{replacement: :rest}] = result.outputs.marathon_adaptation.today
+
+      assert [%{effect: :committed, requires_approval: true}] =
+               result.outputs.marathon_adaptation.committed_proposals
+
+      shown =
+        capture_return(fn ->
+          Story.show_marathon_adaptation!(story, result)
+        end)
+
+      assert shown == result
+    end
+  end
+
   describe "session-from-pools story helpers" do
     test "express a projected generic session with a completed slot and a swap" do
       story =
