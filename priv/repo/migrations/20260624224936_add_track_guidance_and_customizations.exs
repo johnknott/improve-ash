@@ -8,9 +8,12 @@ defmodule Improve.Repo.Migrations.AddTrackGuidanceAndCustomizations do
   use Ecto.Migration
 
   def up do
-    alter table(:tracks) do
-      add :guidance, :map, null: false, default: %{}
-    end
+    repair_direct_goal_rename()
+
+    execute("""
+    ALTER TABLE tracks
+    ADD COLUMN IF NOT EXISTS guidance jsonb NOT NULL DEFAULT '{}'::jsonb
+    """)
 
     create table(:customizations, primary_key: false) do
       add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true
@@ -56,5 +59,74 @@ defmodule Improve.Repo.Migrations.AddTrackGuidanceAndCustomizations do
     alter table(:tracks) do
       remove :guidance
     end
+  end
+
+  defp repair_direct_goal_rename do
+    execute("""
+    DO $$
+    BEGIN
+      IF to_regclass('public.tracks') IS NULL
+         AND to_regclass('public.direct_goals') IS NOT NULL THEN
+        ALTER TABLE direct_goals RENAME TO tracks;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'tracks'::regclass
+          AND conname = 'direct_goals_pkey'
+      ) THEN
+        ALTER TABLE tracks RENAME CONSTRAINT direct_goals_pkey TO tracks_pkey;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'tracks'::regclass
+          AND conname = 'direct_goals_plan_id_fkey'
+      ) THEN
+        ALTER TABLE tracks RENAME CONSTRAINT direct_goals_plan_id_fkey TO tracks_plan_id_fkey;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'tracks'::regclass
+          AND conname = 'direct_goals_event_type_id_fkey'
+      ) THEN
+        ALTER TABLE tracks RENAME CONSTRAINT direct_goals_event_type_id_fkey TO tracks_event_type_id_fkey;
+      END IF;
+
+      IF to_regclass('public.direct_goals_unique_key_per_plan_index') IS NOT NULL THEN
+        ALTER INDEX direct_goals_unique_key_per_plan_index RENAME TO tracks_unique_key_per_plan_index;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'event_instances'
+          AND column_name = 'direct_goal_id'
+      ) THEN
+        ALTER TABLE event_instances DROP CONSTRAINT IF EXISTS event_instances_direct_goal_id_fkey;
+        ALTER TABLE event_instances RENAME COLUMN direct_goal_id TO track_id;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'event_instances'::regclass
+          AND conname = 'event_instances_track_id_fkey'
+      ) THEN
+        ALTER TABLE event_instances
+          ADD CONSTRAINT event_instances_track_id_fkey
+          FOREIGN KEY (track_id) REFERENCES tracks(id);
+      END IF;
+
+      UPDATE schedules
+      SET owner_type = 'track'
+      WHERE owner_type = 'direct_goal';
+    END $$;
+    """)
   end
 end

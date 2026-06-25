@@ -142,7 +142,9 @@ defmodule Improve.Plans do
     date = Keyword.fetch!(opts, :date)
 
     with {:ok, plan} <- fetch_plan(plan_or_id, actor),
-         {:ok, input} <- projection_input(plan, actor, date, opts) do
+         {:ok, plan} <- load_projection_plan(plan, actor) do
+      input = projection_input(date, plan, opts)
+
       {:ok, Improve.Planning.Projector.project_today(input)}
     end
   end
@@ -154,30 +156,54 @@ defmodule Improve.Plans do
     end
   end
 
+  def project_dates(plan_or_id, dates, opts) when is_list(dates) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    with {:ok, plan} <- fetch_plan(plan_or_id, actor),
+         {:ok, plan} <- load_projection_plan(plan, actor) do
+      projections =
+        Enum.map(dates, fn date ->
+          date
+          |> projection_input(plan, opts)
+          |> Improve.Planning.Projector.project_today()
+        end)
+
+      {:ok, projections}
+    end
+  end
+
+  def project_dates!(plan_or_id, dates, opts) do
+    case project_dates(plan_or_id, dates, opts) do
+      {:ok, projections} -> projections
+      {:error, error} -> raise error
+    end
+  end
+
   defp fetch_plan(%{id: id}, actor), do: get_plan(id, actor: actor)
   defp fetch_plan(id, actor), do: get_plan(id, actor: actor)
 
-  defp projection_input(plan, actor, date, opts) do
-    with {:ok, plan} <- Ash.load(plan, projection_load(), actor: actor) do
-      {:ok,
-       %{
-         date: date,
-         plan: plan,
-         session_templates: plan.session_templates,
-         session_slots: plan.session_slots,
-         schedules: plan.schedules,
-         time_off_windows: plan.time_off_windows,
-         tracks: plan.tracks,
-         journal_events: plan.event_instances,
-         session_occurrences: plan.session_occurrences,
-         slot_results: plan.slot_results,
-         items: plan.items,
-         pool_memberships: plan.pool_memberships,
-         environments: plan.environments,
-         as_of_date: Keyword.get(opts, :as_of_date, date),
-         recent_item_ids: Keyword.get(opts, :recent_item_ids, [])
-       }}
-    end
+  defp load_projection_plan(plan, actor) do
+    Ash.load(plan, projection_load(), actor: actor)
+  end
+
+  defp projection_input(date, plan, opts) do
+    %{
+      date: date,
+      plan: plan,
+      session_templates: plan.session_templates,
+      session_slots: plan.session_slots,
+      schedules: plan.schedules,
+      time_off_windows: plan.time_off_windows,
+      tracks: plan.tracks,
+      journal_events: plan.event_instances,
+      session_occurrences: plan.session_occurrences,
+      slot_results: plan.slot_results,
+      items: plan.items,
+      pool_memberships: plan.pool_memberships,
+      environments: plan.environments,
+      as_of_date: Keyword.get(opts, :as_of_date, date),
+      recent_item_ids: Keyword.get(opts, :recent_item_ids, [])
+    }
   end
 
   defp summary_aggregates do

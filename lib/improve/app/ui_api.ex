@@ -187,7 +187,9 @@ defmodule Improve.App.UiApi do
     date = parse_date(Map.get(params, "date")) || Date.utc_today()
 
     with {:ok, summary} <- Plans.summarize_plan(plan, actor: actor),
-         {:ok, projection} <- Plans.project_today(plan, actor: actor, date: date),
+         {:ok, projections} <-
+           Plans.project_dates(plan, [date | next_days(date, 3)], actor: actor, as_of_date: date),
+         [projection | upcoming_projections] = projections,
          {:ok, journal_events} <- Journal.read_journal(plan, actor: actor),
          {:ok, items} <- Plans.list_items(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, item_types} <-
@@ -210,8 +212,7 @@ defmodule Improve.App.UiApi do
          {:ok, event_item_links} <-
            Journal.list_event_item_links(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, item_effects} <-
-           Journal.list_item_effects(actor: actor, query: [filter: [plan_id: plan.id]]),
-         {:ok, upcoming} <- upcoming_work(plan, actor, date) do
+           Journal.list_item_effects(actor: actor, query: [filter: [plan_id: plan.id]]) do
       event_types_by_id = Map.new(event_types, &{&1.id, &1})
       item_types_by_id = Map.new(item_types, &{&1.id, &1})
       pools_by_id = Map.new(pools, &{&1.id, &1})
@@ -237,7 +238,7 @@ defmodule Improve.App.UiApi do
              projection,
              plan,
              event_types_by_id,
-             upcoming,
+             upcoming_work(upcoming_projections),
              slot_results_by_occurrence,
              session_slots_by_id,
              items_by_id
@@ -787,16 +788,7 @@ defmodule Improve.App.UiApi do
     _error -> {:error, :install_failed}
   end
 
-  defp upcoming_work(plan, actor, date) do
-    date
-    |> next_days(3)
-    |> Enum.reduce_while({:ok, []}, fn upcoming_date, {:ok, acc} ->
-      case Plans.project_today(plan, actor: actor, date: upcoming_date, as_of_date: date) do
-        {:ok, projection} -> {:cont, {:ok, acc ++ projection.projected_work}}
-        {:error, error} -> {:halt, {:error, error}}
-      end
-    end)
-  end
+  defp upcoming_work(projections), do: Enum.flat_map(projections, & &1.projected_work)
 
   defp next_days(date, count) do
     Enum.map(1..count, &Date.add(date, &1))

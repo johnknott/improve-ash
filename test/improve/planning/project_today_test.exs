@@ -91,6 +91,29 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
+    test "projects multiple dates from one loaded plan snapshot" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-many-dates@example.com",
+          full_name: "Project Many Dates"
+        })
+
+      %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+      dates = [~D[2026-06-22], ~D[2026-06-23], ~D[2026-06-24]]
+
+      assert {:ok, batch} =
+               Plans.project_dates(plan, dates, actor: user, as_of_date: ~D[2026-06-22])
+
+      individual =
+        Enum.map(dates, fn date ->
+          Plans.project_today!(plan, actor: user, date: date, as_of_date: ~D[2026-06-22])
+        end)
+
+      assert Enum.map(batch, & &1.date) == dates
+      assert Enum.map(batch, & &1.projected_work) == Enum.map(individual, & &1.projected_work)
+      assert Enum.map(batch, & &1.diagnostics) == Enum.map(individual, & &1.diagnostics)
+    end
+
     test "places times-per-week session quotas instead of projecting every allowed weekday" do
       user =
         Accounts.create_user!(%{
