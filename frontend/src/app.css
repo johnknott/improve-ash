@@ -150,6 +150,30 @@ body {
     color 160ms ease;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(page-content) {
+    animation: page-out 140ms ease both;
+  }
+
+  ::view-transition-new(page-content) {
+    animation: page-in 180ms ease both;
+  }
+}
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 button,
 input,
 select,
@@ -675,9 +699,11 @@ form > button:not(:disabled):active,
   background: transparent;
   padding: 0.55rem 0.65rem;
   text-align: left;
-  color: var(--text);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: background-color 100ms ease;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease;
 }
 
 .dropdown-item small {
@@ -688,6 +714,7 @@ form > button:not(:disabled):active,
 .dropdown-item:hover,
 .dropdown-item[data-highlighted] {
   background: var(--surface-3);
+  color: var(--text);
 }
 
 .dropdown-item[data-highlighted] {
@@ -698,7 +725,6 @@ form > button:not(:disabled):active,
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text);
   font-weight: 650;
 }
 
@@ -877,6 +903,7 @@ form > button:not(:disabled):active,
   align-items: center;
   gap: 0;
   height: var(--control-h);
+  box-sizing: border-box;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface-2);
@@ -885,6 +912,7 @@ form > button:not(:disabled):active,
 
 .date-controls .icon-button {
   width: var(--control-h);
+  height: 100%;
   min-height: var(--control-h);
   border: 0;
   border-radius: 0;
@@ -899,6 +927,7 @@ form > button:not(:disabled):active,
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  height: 100%;
   min-height: var(--control-h);
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
@@ -1017,6 +1046,7 @@ form > button:not(:disabled):active,
  * ------------------------------------------------------------------ */
 
 .page-stack {
+  view-transition-name: page-content;
   display: grid;
   gap: 1rem;
   width: 100%;

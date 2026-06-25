@@ -53,7 +53,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    color: var(--text);
+    color: inherit;
     font-weight: 600;
   }
 
