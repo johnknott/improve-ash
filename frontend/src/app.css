@@ -51,7 +51,7 @@
   --text-subtle: #8a93a3;
 
   --brand: #f2c94c;
-  --brand-strong: #e0ad2a;
+  --brand-strong: #b88305;
   --brand-soft: #fbf2d6;
   --brand-ring: rgba(242, 201, 76, 0.45);
   --brand-contrast: #1a1402;
@@ -581,6 +581,7 @@ form > button:not(:disabled):active,
   width: 100%;
   align-items: center;
   gap: 0.65rem;
+  min-height: 3.7rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
@@ -591,7 +592,8 @@ form > button:not(:disabled):active,
     border-color 120ms ease;
 }
 
-.plan-switcher:hover {
+.plan-switcher:hover,
+.plan-switcher[data-state='open'] {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
@@ -610,8 +612,9 @@ form > button:not(:disabled):active,
 .plan-switcher-copy strong {
   display: block;
   color: var(--text);
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   font-weight: 650;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -619,9 +622,10 @@ form > button:not(:disabled):active,
 
 .plan-switcher-copy span {
   display: block;
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
   color: var(--text-muted);
   font-size: var(--fs-xs);
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -630,6 +634,15 @@ form > button:not(:disabled):active,
 .plan-switcher-icon {
   flex: 0 0 auto;
   color: var(--text-subtle);
+}
+
+.plan-switcher > .plan-switcher-icon:first-child {
+  width: 2rem;
+  height: 2rem;
+  padding: 0.35rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-muted);
 }
 
 /* ------------------------------------------------------------------ *
@@ -685,7 +698,7 @@ form > button:not(:disabled):active,
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--brand-strong);
+  color: var(--text);
   font-weight: 650;
 }
 
@@ -720,16 +733,22 @@ form > button:not(:disabled):active,
   width: 100%;
   align-items: center;
   gap: 0.65rem;
+  min-height: 3.7rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: transparent;
-  padding: 0.5rem 0.55rem;
+  background: var(--surface-2);
+  padding: 0.55rem 0.6rem;
   text-align: left;
-  transition: background-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 
 .user-chip:hover,
+.user-chip[data-state='open'],
 .user-chip[datastate='open'] {
   background: var(--surface-3);
+  border-color: var(--border-strong);
 }
 
 .user-chip span.avatar {
@@ -762,11 +781,14 @@ form > button:not(:disabled):active,
   color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 650;
+  line-height: 1.25;
 }
 
 .user-chip small {
+  margin-top: 0.15rem;
   color: var(--text-muted);
   font-size: var(--fs-xs);
+  line-height: 1.25;
 }
 
 .user-menu-icon {
