@@ -98,6 +98,42 @@ defmodule ImproveWeb.AppControllerTest do
     assert %{"items" => [], "eventTypes" => []} = response["planDetail"]
   end
 
+  test "signed-in users can update their plan container from the app API", %{conn: conn} do
+    conn =
+      conn
+      |> sign_in!("app-plan-update@example.test")
+      |> post(~p"/api/app/plans", %{
+        name: "Reading",
+        intention: "Read a little every day",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
+
+    conn =
+      patch(conn, ~p"/api/app/plans/#{plan_id}", %{
+        name: "Summer strength block",
+        intention: "Build a consistent gym rhythm",
+        starts_on: "2026-06-25",
+        ends_on: "2026-08-19",
+        date: "2026-06-25"
+      })
+
+    assert %{
+             "currentPlan" => %{
+               "id" => ^plan_id,
+               "name" => "Summer strength block",
+               "intention" => "Build a consistent gym rhythm",
+               "startsOn" => "2026-06-25",
+               "endsOn" => "2026-08-19",
+               "dayLabel" => "Day 1 of 56"
+             },
+             "today" => %{"date" => "2026-06-25", "planId" => ^plan_id}
+           } = json_response(conn, 200)
+  end
+
   test "signed-in users can create a daily track from the app API", %{conn: conn} do
     conn = sign_in!(conn, "app-track-create@example.test")
 

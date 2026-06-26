@@ -45,3 +45,7 @@ export type CreatePlanInput = {
   endsOn: string
   date?: string | null
 }
+
+export type UpdatePlanInput = CreatePlanInput & {
+  id: string
+}

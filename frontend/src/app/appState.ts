@@ -3,12 +3,15 @@ import {
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
   createPlan as createPlanRequest,
+  updatePlan as updatePlanRequest,
   todayIso,
 } from '../api/improveClient'
 import type {
   DashboardData,
   CreatePlanInput,
   DemoPlanKind,
+  Plan,
+  UpdatePlanInput,
 } from '../api/types'
 
 type DashboardState = {
@@ -37,6 +40,7 @@ export const logDialogState = writable<LogDialogState>({
 })
 
 export const newPlanDialogOpen = writable(false)
+export const planDialogPlan = writable<Plan | null>(null)
 export const checkInDialogOpen = writable(false)
 export const toastMessage = writable<string | null>(null)
 export const installingDemoPlan = writable<DemoPlanKind | null>(null)
@@ -72,6 +76,7 @@ export function resetDashboard(): void {
   dashboardState.set({ loading: false, refreshing: false, error: null, data: null })
   logDialogState.set({ open: false })
   newPlanDialogOpen.set(false)
+  planDialogPlan.set(null)
   checkInDialogOpen.set(false)
   toastMessage.set(null)
   installingDemoPlan.set(null)
@@ -86,11 +91,18 @@ export function closeLogDialog(): void {
 }
 
 export function openNewPlanDialog(): void {
+  planDialogPlan.set(null)
+  newPlanDialogOpen.set(true)
+}
+
+export function openEditPlanDialog(plan: Plan): void {
+  planDialogPlan.set(plan)
   newPlanDialogOpen.set(true)
 }
 
 export function closeNewPlanDialog(): void {
   newPlanDialogOpen.set(false)
+  planDialogPlan.set(null)
 }
 
 export async function changeSelectedDate(date: string): Promise<void> {
@@ -143,6 +155,23 @@ export async function submitNewPlan(input: CreatePlanInput): Promise<void> {
       error: 'We could not create that plan.',
     }))
     throw new Error('We could not create that plan.')
+  }
+}
+
+export async function submitPlanEdit(input: UpdatePlanInput): Promise<void> {
+  dashboardState.update((state) => ({ ...state, refreshing: true, error: null }))
+
+  try {
+    setDashboardData(await updatePlanRequest({ ...input, date: get(selectedDate) }))
+    closeNewPlanDialog()
+    showToast('Plan updated.')
+  } catch {
+    dashboardState.update((state) => ({
+      ...state,
+      refreshing: false,
+      error: 'We could not update that plan.',
+    }))
+    throw new Error('We could not update that plan.')
   }
 }
 

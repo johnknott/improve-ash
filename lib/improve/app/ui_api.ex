@@ -102,6 +102,22 @@ defmodule Improve.App.UiApi do
     end
   end
 
+  def update_plan(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- create_plan_attrs(params),
+         {:ok, plan} <- persist_updated_plan(plan, attrs, actor),
+         {:ok, plans} <- Plans.list_plans(actor: actor),
+         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
   def create_track(actor, params) do
     with {:ok, plan} <- get_owned_plan(params, actor),
          {:ok, attrs} <- create_track_attrs(params),
@@ -346,6 +362,16 @@ defmodule Improve.App.UiApi do
       )
 
     {:ok, plan}
+  rescue
+    error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, [Exception.message(error)]}
+
+    error ->
+      {:error, [Exception.message(error)]}
+  end
+
+  defp persist_updated_plan(plan, attrs, actor) do
+    Plans.update_plan(plan, attrs, actor: actor)
   rescue
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}

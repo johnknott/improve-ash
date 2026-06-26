@@ -2,6 +2,7 @@ import type {
   DashboardData,
   CreatePlanInput,
   DemoPlanKind,
+  UpdatePlanInput,
 } from './types'
 
 type ApiError = {
@@ -30,6 +31,19 @@ export async function installDemoPlan(kind: DemoPlanKind, date = todayIso()): Pr
 export async function createPlan(input: CreatePlanInput): Promise<DashboardData> {
   return apiFetch<DashboardData>('/api/app/plans', {
     method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      intention: input.intention,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+      date: input.date,
+    }),
+  })
+}
+
+export async function updatePlan(input: UpdatePlanInput): Promise<DashboardData> {
+  return apiFetch<DashboardData>(`/api/app/plans/${input.id}`, {
+    method: 'PATCH',
     body: JSON.stringify({
       name: input.name,
       intention: input.intention,

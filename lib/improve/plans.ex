@@ -18,6 +18,7 @@ defmodule Improve.Plans do
   resources do
     resource Improve.Plans.Plan do
       define :create_plan, action: :create
+      define :update_plan, action: :update
       define :get_plan, action: :read, get_by: [:id]
       define :list_plans, action: :read
       define :archive_plan, action: :archive

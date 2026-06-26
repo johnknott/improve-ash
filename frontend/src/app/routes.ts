@@ -88,15 +88,13 @@ export const routes: RouteInfo[] = [
 export const activeRoute = writable<AppRoute>(routeFromPath(window.location.pathname))
 
 window.addEventListener('popstate', () => {
-  transitionRoute(() => activeRoute.set(routeFromPath(window.location.pathname)))
+  activeRoute.set(routeFromPath(window.location.pathname))
 })
 
 export function navigate(route: AppRoute): void {
   const info = routeInfo(route)
-  transitionRoute(() => {
-    window.history.pushState({}, '', info.path)
-    activeRoute.set(route)
-  })
+  window.history.pushState({}, '', info.path)
+  activeRoute.set(route)
 }
 
 export function routeInfo(route: AppRoute): RouteInfo {
@@ -106,13 +104,4 @@ export function routeInfo(route: AppRoute): RouteInfo {
 function routeFromPath(pathname: string): AppRoute {
   const normalized = pathname === '/' || pathname === '/dashboard' ? '/today' : pathname
   return routes.find((route) => route.path === normalized)?.id ?? 'today'
-}
-
-function transitionRoute(update: () => void): void {
-  if (!('startViewTransition' in document)) {
-    update()
-    return
-  }
-
-  document.startViewTransition(update)
 }

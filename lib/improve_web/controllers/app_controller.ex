@@ -47,6 +47,14 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def update_plan(conn, params) do
+    call_app(conn, params, &UiApi.update_plan/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that plan."
+    )
+  end
+
   def create_track(conn, params) do
     call_app(conn, params, &UiApi.create_track/2,
       not_found_message: "That plan is not available.",
