@@ -27,6 +27,23 @@ if (typeof window !== 'undefined') {
   })
 }
 
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
+
 export function toggleTheme(): void {
-  theme.update((current) => (current === 'dark' ? 'light' : 'dark'))
+  if (typeof document === 'undefined' || prefersReducedMotion()) {
+    theme.update((current) => (current === 'dark' ? 'light' : 'dark'))
+    return
+  }
+
+  const root = document.documentElement
+  root.classList.add('theme-transitioning')
+  requestAnimationFrame(() => {
+    theme.update((current) => (current === 'dark' ? 'light' : 'dark'))
+    setTimeout(() => root.classList.remove('theme-transitioning'), 240)
+  })
 }

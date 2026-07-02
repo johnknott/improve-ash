@@ -158,6 +158,31 @@ body {
     color 160ms ease;
 }
 
+.theme-transitioning,
+.theme-transitioning * {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease,
+    box-shadow 200ms ease !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-transitioning .nav-item.active {
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease,
+      color 200ms ease !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-transitioning,
+  .theme-transitioning * {
+    transition: none !important;
+  }
+}
+
 button,
 input,
 select,
@@ -1209,6 +1234,26 @@ form > button:not(:disabled):active,
   backdrop-filter: blur(2px);
 }
 
+.dialog-overlay[data-state='open'] {
+  animation: overlay-in 140ms ease both;
+}
+
+.dialog-overlay[data-state='closed'] {
+  animation: overlay-out 120ms ease both;
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
 .dialog-content {
   position: fixed;
   top: 50%;
@@ -1217,12 +1262,34 @@ form > button:not(:disabled):active,
   width: min(calc(100vw - 2rem), 34rem);
   max-height: calc(100svh - 2rem);
   overflow: auto;
-  transform: translate(-50%, -50%);
+  translate: -50% -50%;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
   padding: 1.25rem;
   box-shadow: var(--shadow-xl);
+}
+
+.dialog-content[data-state='open'] {
+  animation: dialog-in 160ms ease both;
+}
+
+.dialog-content[data-state='closed'] {
+  animation: dialog-out 120ms ease both;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    scale: 0.96;
+  }
 }
 
 .small-dialog {

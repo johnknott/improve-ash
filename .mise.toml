@@ -11,6 +11,7 @@ watchexec = "2.5.1"
 
 [env]
 DATABASE_URL = "postgres://postgres:postgres@localhost:5433/improve_ash_dev"
+CLAUDE_CODE_OAUTH_TOKEN = "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"
 
 [tasks."tools:bootstrap"]
 description = "Install local Hex and Rebar for Elixir tooling"
