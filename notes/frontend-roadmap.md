@@ -202,12 +202,17 @@ needs the capture loop; the studio keeps growing on the web.
 | Phase | Delivers | Backend dependencies |
 |---|---|---|
 | 0 | Typed contract, store slices, router params, form kit | fable-todo #7, #8 |
-| 1 | Today read view | none new |
-| 2 | Logging, sessions, check-in, corrections | #1, #3, #9 |
+| 1 | Today read view | coaching-foundations 1, 2, 7 (effective targets + provenance) |
+| 2 | Logging, sessions, check-in, corrections | fable-todo #1, #3, #9 |
 | 3 | Journal, calendar, inventory read | #13, ranged projection endpoint |
 | 4 | Full plan authoring | #12 (authoring APIs) |
-| 5 | Progress, review, proposals (+ light AI) | #4, #16, history endpoint |
+| 5 | Progress, review, proposals (+ light AI) | coaching-foundations 3, 4, 6; history endpoint |
 | 6 | Onboarding, hardening, smoke tests, mobile gate | #2, #6 |
 
 The mobile gate sits after Phase 2 plus the auth/offline backend items —
 Phases 3–5 are web-studio depth, not mobile blockers.
+
+Note: `notes/coaching-foundations-todo.md` sits between fable-todo and this
+roadmap. Phase 0 can run in parallel with all of it, but Phase 1 should not
+start until coaching items 1, 2, and 7 land — Today should render effective
+targets with provenance from day one, not have them retrofitted.
