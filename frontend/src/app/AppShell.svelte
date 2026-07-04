@@ -39,7 +39,7 @@
   <Sidebar {data} {user} open={sidebarOpen} onNavigate={closeSidebar} />
 
   <main class="app-main">
-    <TopBar route={$activeRoute} onMenu={() => (sidebarOpen = true)} />
+    <TopBar route={$activeRoute.route} onMenu={() => (sidebarOpen = true)} />
 
     <div class="app-content">
       {#if error}
@@ -52,7 +52,7 @@
         </section>
       {/if}
 
-      <PlaceholderPage route={$activeRoute} {data} />
+      <PlaceholderPage route={$activeRoute.route} {data} />
     </div>
   </main>
 </div>

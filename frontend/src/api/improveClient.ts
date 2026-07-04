@@ -1,6 +1,5 @@
+import { request } from './http'
 import type {
-  ApiErrorDetail,
-  ApiErrorPayload,
   DashboardData,
   DashboardPatch,
   CreatePlanInput,
@@ -8,23 +7,7 @@ import type {
   UpdatePlanInput,
 } from './types'
 
-export class ApiRequestError extends Error {
-  readonly code: string
-  readonly status: number
-  readonly details: ApiErrorDetail[]
-
-  constructor(status: number, code: string, message: string, details: ApiErrorDetail[]) {
-    super(message)
-    this.name = 'ApiRequestError'
-    this.status = status
-    this.code = code
-    this.details = details
-  }
-
-  fieldMessage(field: string): string | null {
-    return this.details.find((detail) => detail.field === field)?.message ?? null
-  }
-}
+export { ApiRequestError } from './http'
 
 export async function loadDashboard(planId?: string | null, date = todayIso()): Promise<DashboardData> {
   const search = new URLSearchParams({ date })
@@ -33,66 +16,38 @@ export async function loadDashboard(planId?: string | null, date = todayIso()): 
     search.set('plan_id', planId)
   }
 
-  return apiFetch<DashboardData>(`/api/app/dashboard?${search.toString()}`)
+  return request<DashboardData>(`/api/app/dashboard?${search.toString()}`)
 }
 
 export async function installDemoPlan(kind: DemoPlanKind, date = todayIso()): Promise<DashboardPatch> {
-  return apiFetch<DashboardPatch>('/api/app/demo-plans', {
+  return request<DashboardPatch>('/api/app/demo-plans', {
     method: 'POST',
-    body: JSON.stringify({ kind, date }),
+    body: { kind, date },
   })
 }
 
 export async function createPlan(input: CreatePlanInput): Promise<DashboardPatch> {
-  return apiFetch<DashboardPatch>('/api/app/plans', {
+  return request<DashboardPatch>('/api/app/plans', {
     method: 'POST',
-    body: JSON.stringify({
-      name: input.name,
-      intention: input.intention,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-      date: input.date,
-    }),
+    body: planBody(input),
   })
 }
 
 export async function updatePlan(input: UpdatePlanInput): Promise<DashboardPatch> {
-  return apiFetch<DashboardPatch>(`/api/app/plans/${input.id}`, {
+  return request<DashboardPatch>(`/api/app/plans/${input.id}`, {
     method: 'PATCH',
-    body: JSON.stringify({
-      name: input.name,
-      intention: input.intention,
-      starts_on: input.startsOn,
-      ends_on: input.endsOn,
-      date: input.date,
-    }),
+    body: planBody(input),
   })
 }
 
-async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-
-  if (init.body && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json')
+function planBody(input: CreatePlanInput) {
+  return {
+    name: input.name,
+    intention: input.intention,
+    starts_on: input.startsOn,
+    ends_on: input.endsOn,
+    date: input.date,
   }
-
-  const response = await fetch(path, {
-    ...init,
-    credentials: 'include',
-    headers,
-  })
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as ApiErrorPayload
-    throw new ApiRequestError(
-      response.status,
-      body.error?.code ?? 'request_failed',
-      body.error?.message ?? 'We could not reach Improve.',
-      body.error?.details ?? [],
-    )
-  }
-
-  return (await response.json()) as T
 }
 
 export function todayIso(): string {

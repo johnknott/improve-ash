@@ -51,7 +51,7 @@
 
     const setupNav: NavItem[] = [
         { id: "event-types", label: "Event Types", icon: Tags },
-        { id: "resource-types", label: "Resource Types", icon: Layers },
+        { id: "item-types", label: "Item Types", icon: Layers },
     ];
 
     let isDark = $derived($theme === "dark");
@@ -105,7 +105,7 @@
                 {@const Icon = item.icon}
                 <button
                     class="nav-item"
-                    class:active={$activeRoute === item.id}
+                    class:active={$activeRoute.route === item.id}
                     type="button"
                     onclick={() => go(item.id)}
                 >
@@ -121,7 +121,7 @@
                 {@const Icon = item.icon}
                 <button
                     class="nav-item"
-                    class:active={$activeRoute === item.id}
+                    class:active={$activeRoute.route === item.id}
                     type="button"
                     onclick={() => go(item.id)}
                 >
@@ -137,7 +137,7 @@
                 {@const Icon = item.icon}
                 <button
                     class="nav-item"
-                    class:active={$activeRoute === item.id}
+                    class:active={$activeRoute.route === item.id}
                     type="button"
                     onclick={() => go(item.id)}
                 >
@@ -175,7 +175,7 @@
                 >
                     <DropdownMenu.Item
                         class="dropdown-item dropdown-action"
-                        onclick={() => go("resource-types")}
+                        onclick={() => go("item-types")}
                     >
                         <Settings size={16} />
                         <span>Settings</span>

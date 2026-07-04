@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store'
+import { onUnauthorized } from '../../api/http'
 import { completeProfile, currentUser, logout, type CurrentUser } from './authClient'
 
 type AuthState = {
@@ -9,6 +10,12 @@ type AuthState = {
 export const authState = writable<AuthState>({
   loading: true,
   user: null,
+})
+
+// A 401 from any app endpoint means the session expired mid-use: clear the
+// user so App.svelte routes back to the login screen.
+onUnauthorized(() => {
+  authState.set({ loading: false, user: null })
 })
 
 export async function loadCurrentUser(): Promise<void> {
