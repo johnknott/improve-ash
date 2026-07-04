@@ -597,7 +597,8 @@ defmodule Improve.App.UiApi do
           Map.fetch!(params, "unit"),
           blank_to_nil(Map.get(params, "note"))
         ),
-      note: blank_to_nil(Map.get(params, "note"))
+      note: blank_to_nil(Map.get(params, "note")),
+      idempotency: idempotency_from_params(params)
     }
   end
 
@@ -697,6 +698,7 @@ defmodule Improve.App.UiApi do
       |> maybe_put_keyword(:unit, blank_to_nil(Map.get(params, "unit")))
       |> maybe_put_keyword(:note, blank_to_nil(Map.get(params, "note")))
       |> maybe_put_keyword(:summary, blank_to_nil(Map.get(params, "summary")))
+      |> maybe_put_keyword(:idempotency, idempotency_from_params(params))
 
     result = App.log_session_slot!(started_session, opts)
 
@@ -1231,10 +1233,26 @@ defmodule Improve.App.UiApi do
       unit: unit,
       note: note,
       payload: payload,
-      item_links: item_links(Map.get(params, "item_links", []))
+      item_links: item_links(Map.get(params, "item_links", [])),
+      idempotency: idempotency_from_params(params)
     }
 
     {:ok, attrs}
+  end
+
+  defp idempotency_from_params(params) do
+    attrs = %{
+      client_event_id: blank_to_nil(Map.get(params, "client_event_id")),
+      client_operation_id: blank_to_nil(Map.get(params, "client_operation_id")),
+      client_device_id: blank_to_nil(Map.get(params, "client_device_id")),
+      idempotency_key: blank_to_nil(Map.get(params, "idempotency_key"))
+    }
+
+    if attrs.client_operation_id || attrs.idempotency_key || attrs.client_device_id do
+      attrs
+    else
+      nil
+    end
   end
 
   defp item_links(item_links) when is_list(item_links) do

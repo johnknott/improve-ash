@@ -105,11 +105,11 @@ job is recording events.
 
 ## The Next 20 Things (importance /10)
 
-1. **Idempotent event logging over HTTP** — bug/feature, **9/10**. Plumb
-   `client_operation_id`/`idempotency_key`/`client_device_id` through
-   `/app/log-event`, `/app/log-linked-event`, `/app/log-session-slot`. The
-   machinery exists; only the API boundary is missing. Duplicate events on
-   retry is the worst possible failure for the primary mobile use case.
+1. **Idempotent event logging over HTTP** — bug/feature, **9/10**. Done
+   2026-07-04 (bean `fian`): all three log endpoints accept
+   `client_operation_id`/`idempotency_key`/`client_device_id`; replays
+   return the original event. Clients should always send an operation id
+   per submission.
 2. **Bearer-token auth for API clients** — architecture, **9/10**. Token
    issuance on OTP verify, `Authorization: Bearer` acceptance in the pipeline
    alongside cookies, refresh/revocation endpoints, per-device sessions.

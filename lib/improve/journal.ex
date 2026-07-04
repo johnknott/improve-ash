@@ -865,6 +865,7 @@ defmodule Improve.Journal do
       unit: unit,
       payload: linked_item_event_payload(attrs, quantity, unit),
       note: Map.get(attrs, :note) || Map.get(attrs, :notes),
+      idempotency: Map.get(attrs, :idempotency),
       replaces_event_instance_id: Keyword.get(opts, :replaces_event_instance_id),
       replaces_item_effect_id: Keyword.get(opts, :replaces_item_effect_id),
       item_links: [

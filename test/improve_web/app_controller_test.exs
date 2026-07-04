@@ -369,17 +369,20 @@ defmodule ImproveWeb.AppControllerTest do
                  &1["actualItemKey"] == swapped_item_key)
            )
 
-    conn =
-      post(conn, ~p"/api/app/log-session-slot", %{
-        session_occurrence_id: occurrence_id,
-        slot_key: slot_result["slotKey"],
-        actual_item_key: swapped_item_key,
-        recommended_item_key: slot_result["recommendedItemKey"],
-        event_key: "workout_exercise_performed",
-        role: "exercise",
-        date: "2026-06-22",
-        payload: %{"sets" => 3, "reps" => 10, "load" => 45, "load_unit" => "kg"}
-      })
+    log_slot_params = %{
+      session_occurrence_id: occurrence_id,
+      slot_key: slot_result["slotKey"],
+      actual_item_key: swapped_item_key,
+      recommended_item_key: slot_result["recommendedItemKey"],
+      event_key: "workout_exercise_performed",
+      role: "exercise",
+      date: "2026-06-22",
+      payload: %{"sets" => 3, "reps" => 10, "load" => 45, "load_unit" => "kg"},
+      client_device_id: "test-device",
+      client_operation_id: "slot-log-op-1"
+    }
+
+    conn = post(conn, ~p"/api/app/log-session-slot", log_slot_params)
 
     assert %{
              "today" => %{
@@ -393,6 +396,19 @@ defmodule ImproveWeb.AppControllerTest do
                ]
              }
            } = json_response(conn, 200)
+
+    # A retried submission with the same operation id must not double-log.
+    conn = post(conn, ~p"/api/app/log-session-slot", log_slot_params)
+
+    assert %{
+             "today" => %{
+               "work" => [
+                 %{"session" => %{"state" => %{"slot_results_logged" => 1}}}
+               ]
+             }
+           } = json_response(conn, 200)
+
+    assert [_only_journal_event] = get_in(json_response(conn, 200), ["journal"])
 
     assert Enum.any?(
              updated_slot_results,
@@ -417,6 +433,81 @@ defmodule ImproveWeb.AppControllerTest do
                "work" => [%{"status" => "completed"}]
              }
            } = json_response(conn, 200)
+  end
+
+  test "retried event logs with idempotency metadata do not duplicate", %{conn: conn} do
+    email = "app-idempotent-log@example.test"
+    conn = sign_in!(conn, email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
+
+    plan =
+      Plans.create_plan!(
+        %{
+          name: "Idempotency plan",
+          intention: "Prove retries are safe",
+          starts_on: ~D[2026-06-22],
+          ends_on: ~D[2026-07-20]
+        },
+        actor: user
+      )
+
+    event_type =
+      Plans.create_event_type!(
+        %{plan_id: plan.id, key: "water_break", name: "Water break"},
+        actor: user
+      )
+
+    log_params = %{
+      plan_id: plan.id,
+      event_type_id: event_type.id,
+      summary: "Drank water",
+      quantity: "1",
+      unit: "glass",
+      client_device_id: "phone-1",
+      client_operation_id: "op-123"
+    }
+
+    conn = post(conn, ~p"/api/app/log-event", log_params)
+    assert %{"event" => %{"id" => event_id}} = json_response(conn, 200)
+
+    conn = post(conn, ~p"/api/app/log-event", log_params)
+    assert %{"event" => %{"id" => ^event_id}} = json_response(conn, 200)
+
+    assert [_only_event] = Improve.Journal.read_journal!(plan, actor: user)
+  end
+
+  test "idempotency metadata without an operation id or key is rejected", %{conn: conn} do
+    email = "app-idempotent-invalid@example.test"
+    conn = sign_in!(conn, email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
+
+    plan =
+      Plans.create_plan!(
+        %{
+          name: "Idempotency plan",
+          intention: "Prove partial metadata fails",
+          starts_on: ~D[2026-06-22],
+          ends_on: ~D[2026-07-20]
+        },
+        actor: user
+      )
+
+    event_type =
+      Plans.create_event_type!(
+        %{plan_id: plan.id, key: "water_break", name: "Water break"},
+        actor: user
+      )
+
+    conn =
+      post(conn, ~p"/api/app/log-event", %{
+        plan_id: plan.id,
+        event_type_id: event_type.id,
+        summary: "Drank water",
+        client_device_id: "phone-1"
+      })
+
+    assert %{"error" => %{"message" => message}} = json_response(conn, 422)
+    assert message =~ "operation ID or idempotency key"
   end
 
   test "signed-in users can skip a started session", %{conn: conn} do

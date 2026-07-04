@@ -71,6 +71,7 @@ defmodule Improve.App.Logging do
             ),
           effective_at: effective_at,
           recorded_at: Keyword.get(opts, :recorded_at, effective_at),
+          idempotency: Keyword.get(opts, :idempotency),
           summary:
             Keyword.get(opts, :summary, session_slot_summary(actual_item, recommended_item)),
           quantity: Keyword.get(opts, :quantity, generic_quantity(payload)),
