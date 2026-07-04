@@ -48,13 +48,12 @@ defmodule Improve.Ai.ReadTool do
         limit = input.arguments.limit
 
         input.arguments.plan_id
-        |> Journal.read_journal(actor: actor)
+        |> Journal.read_journal(actor: actor, limit: limit)
         |> map_ok(fn events ->
           %{
             plan_id: input.arguments.plan_id,
             events:
               events
-              |> Enum.take(-limit)
               |> Enum.reverse()
               |> Enum.map(&event_json/1)
           }

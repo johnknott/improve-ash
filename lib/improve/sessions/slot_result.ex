@@ -40,7 +40,6 @@ defmodule Improve.Sessions.SlotResult do
     end
 
     update :complete do
-      require_atomic? false
       accept [:actual_item_id, :actual_payload, :event_instance_id, :notes]
 
       validate data_one_of(:status, [:planned, :swapped]) do
@@ -60,7 +59,6 @@ defmodule Improve.Sessions.SlotResult do
     end
 
     update :swap do
-      require_atomic? false
       accept [:actual_item_id, :actual_payload, :event_instance_id, :notes]
 
       validate data_one_of(:status, [:planned, :swapped]) do
@@ -80,7 +78,6 @@ defmodule Improve.Sessions.SlotResult do
     end
 
     update :skip do
-      require_atomic? false
       accept [:actual_payload, :notes]
 
       validate data_one_of(:status, [:planned, :swapped]) do

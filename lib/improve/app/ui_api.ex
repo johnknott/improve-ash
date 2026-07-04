@@ -448,7 +448,7 @@ defmodule Improve.App.UiApi do
            Plans.project_dates(plan, [date | next_days(date, 3)], actor: actor, as_of_date: date),
          [projection | upcoming_projections] = projections,
          {:ok, journal_events} <-
-           maybe_query(journal?, [], fn -> Journal.read_journal(plan, actor: actor) end),
+           maybe_query(journal?, [], fn -> Journal.read_journal(plan, actor: actor, limit: 5) end),
          {:ok, items} <- Plans.list_items(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, item_types} <-
            maybe_query(plan_detail?, [], fn ->
@@ -523,7 +523,6 @@ defmodule Improve.App.UiApi do
         end)
         |> put_slice(journal?, :journal, fn ->
           journal_events
-          |> Enum.take(-5)
           |> Enum.reverse()
           |> Enum.map(
             &event_json(

@@ -626,17 +626,28 @@ defmodule Improve.Journal do
 
   def read_journal(plan_or_id, opts) do
     actor = Keyword.fetch!(opts, :actor)
+    limit = Keyword.get(opts, :limit)
 
     with {:ok, plan} <- fetch_plan(plan_or_id, actor) do
-      list_events(
-        actor: actor,
-        query: [
+      query_opts =
+        [
           filter: [plan_id: plan.id],
-          sort: [effective_at: :asc, recorded_at: :asc, inserted_at: :asc]
+          sort: journal_sort(limit)
         ]
-      )
+        |> maybe_add_limit(limit)
+
+      case list_events(actor: actor, query: query_opts) do
+        {:ok, events} when is_integer(limit) -> {:ok, Enum.reverse(events)}
+        result -> result
+      end
     end
   end
+
+  defp journal_sort(nil), do: [effective_at: :asc, recorded_at: :asc, inserted_at: :asc]
+  defp journal_sort(_limit), do: [effective_at: :desc, recorded_at: :desc, inserted_at: :desc]
+
+  defp maybe_add_limit(query_opts, nil), do: query_opts
+  defp maybe_add_limit(query_opts, limit), do: Keyword.put(query_opts, :limit, limit)
 
   def read_journal!(plan_or_id, opts) do
     case read_journal(plan_or_id, opts) do

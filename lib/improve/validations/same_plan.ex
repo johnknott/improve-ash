@@ -15,6 +15,9 @@ defmodule Improve.Validations.SamePlan do
   end
 
   @impl true
+  def atomic(_changeset, _opts, _context), do: :ok
+
+  @impl true
   def validate(%Ash.Changeset{} = changeset, opts, _context) do
     plan_id = Ash.Changeset.get_attribute(changeset, opts[:plan_id_attribute])
 

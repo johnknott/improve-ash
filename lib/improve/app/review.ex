@@ -13,13 +13,14 @@ defmodule Improve.App.Review do
 
     summary = Plans.summarize_plan!(plan, actor: actor)
     projection = Plans.project_today!(plan, actor: actor, date: on)
-    journal_events = Journal.read_journal!(plan, actor: actor)
+    journal_limit = Keyword.get(opts, :journal_limit, 20)
+    journal_events = Journal.read_journal!(plan, actor: actor, limit: journal_limit * 3)
 
     recent_events =
       journal_events
       |> Enum.filter(&active_event?/1)
       |> Enum.filter(&event_on_or_before?(&1, on, timezone))
-      |> Enum.take(-Keyword.get(opts, :journal_limit, 20))
+      |> Enum.take(-journal_limit)
 
     completed = Enum.filter(projection.projected_work, &(&1.status == :completed))
 
