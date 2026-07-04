@@ -5,7 +5,7 @@
   import LogDialog from '../features/logging/LogDialog.svelte'
   import PlaceholderPage from '../features/placeholders/PlaceholderPage.svelte'
   import NewPlanDialog from '../features/plans/NewPlanDialog.svelte'
-  import { toastMessage } from './appState'
+  import { toastMessage } from './uiState'
   import Sidebar from './Sidebar.svelte'
   import TopBar from './TopBar.svelte'
   import { activeRoute } from './routes'

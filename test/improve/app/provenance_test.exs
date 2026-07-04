@@ -22,7 +22,10 @@ defmodule Improve.App.ProvenanceTest do
       et =
         authored
         |> EffectiveTarget.from_authored()
-        |> EffectiveTarget.adjust(adjusted, source: :marathon_target_adjustment, reason: "low recent load after illness")
+        |> EffectiveTarget.adjust(adjusted,
+          source: :marathon_target_adjustment,
+          reason: "low recent load after illness"
+        )
 
       payload = %{target: authored, effective_target: et}
       result = provenance(payload)

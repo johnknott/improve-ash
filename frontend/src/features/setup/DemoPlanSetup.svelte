@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Dumbbell, FlaskConical } from '@lucide/svelte'
-  import { installDemoPlan, installingDemoPlan } from '../../app/appState'
+  import { installDemoPlan, installingDemoPlan } from '../../app/dashboardState'
 
   let {
     title = 'Start with a demo plan',

@@ -99,7 +99,9 @@ defmodule ImproveWeb.BearerTokenTest do
     conn = sign_in!(conn, "session-still-works@example.test")
 
     conn = get(conn, ~p"/api/auth/me")
-    assert %{"user" => %{"email" => "session-still-works@example.test"}} = json_response(conn, 200)
+
+    assert %{"user" => %{"email" => "session-still-works@example.test"}} =
+             json_response(conn, 200)
   end
 
   defp sign_in!(conn, email) do

@@ -62,7 +62,8 @@ defmodule ImproveWeb.AuthoringApiTest do
           name: "Gym Session"
         })
 
-      template_id = get_in(json_response(conn, 200), ["planDetail", "sessionTemplates", Access.at(0), "id"])
+      template_id =
+        get_in(json_response(conn, 200), ["planDetail", "sessionTemplates", Access.at(0), "id"])
 
       pool_id = create_pool!(plan_id)
 
@@ -105,7 +106,8 @@ defmodule ImproveWeb.AuthoringApiTest do
           name: "Exercise"
         })
 
-      item_type_id = get_in(json_response(conn, 200), ["planDetail", "itemTypes", Access.at(0), "id"])
+      item_type_id =
+        get_in(json_response(conn, 200), ["planDetail", "itemTypes", Access.at(0), "id"])
 
       conn =
         post(conn, ~p"/api/app/items", %{
@@ -263,7 +265,10 @@ defmodule ImproveWeb.AuthoringApiTest do
 
   defp create_pool!(plan_id) do
     actor = Accounts.get_user_by_email!("session-slot@example.test", authorize?: false)
-    pool = Plans.create_pool!(%{plan_id: plan_id, key: "test_pool", name: "Test Pool"}, actor: actor)
+
+    pool =
+      Plans.create_pool!(%{plan_id: plan_id, key: "test_pool", name: "Test Pool"}, actor: actor)
+
     pool.id
   end
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import AppShell from './app/AppShell.svelte'
-  import { dashboardState, loadDashboard, resetDashboard } from './app/appState'
+  import { dashboardData, dashboardStatus, loadDashboard, resetDashboard } from './app/dashboardState'
   import CompleteProfilePage from './features/auth/CompleteProfilePage.svelte'
   import LoginPage from './features/auth/LoginPage.svelte'
   import { authState, loadCurrentUser } from './features/auth/authStore'
@@ -41,9 +41,9 @@
 {:else}
   <AppShell
     user={$authState.user}
-    data={$dashboardState.data}
-    loading={$dashboardState.loading}
-    error={$dashboardState.error}
+    data={$dashboardData}
+    loading={$dashboardStatus.loading}
+    error={$dashboardStatus.error}
     onRetry={() => loadDashboard()}
   />
 {/if}

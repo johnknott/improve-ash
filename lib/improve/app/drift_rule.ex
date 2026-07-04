@@ -70,7 +70,10 @@ defmodule Improve.App.DriftRule do
     Enum.map(adjustments, fn {track_id, adjustment} ->
       authored = Map.get(adjustment, :authored) || Map.get(adjustment, "authored")
       effective = Map.get(adjustment, :effective) || Map.get(adjustment, "effective")
-      source = to_string(Map.get(adjustment, :source) || Map.get(adjustment, "source") || "unknown")
+
+      source =
+        to_string(Map.get(adjustment, :source) || Map.get(adjustment, "source") || "unknown")
+
       reason = Map.get(adjustment, :reason) || Map.get(adjustment, "reason") || ""
 
       %{

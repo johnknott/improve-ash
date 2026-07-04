@@ -76,6 +76,9 @@ defmodule Improve.Planning.EffectiveTarget do
   end
 
   defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value) when is_atom(value), do: Map.put(map, key, Atom.to_string(value))
+
+  defp maybe_put(map, key, value) when is_atom(value),
+    do: Map.put(map, key, Atom.to_string(value))
+
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

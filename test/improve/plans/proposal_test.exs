@@ -9,7 +9,6 @@ defmodule Improve.Plans.ProposalTest do
       user = user!()
       plan = plan!(user)
 
-
       {:ok, proposal} =
         Plans.create_proposal(
           %{

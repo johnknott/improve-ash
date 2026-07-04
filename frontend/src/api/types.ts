@@ -58,13 +58,81 @@ export type Target = {
   summaryTemplate: string | null
 }
 
-// Shape varies by target type (fixed/metric/checklist/period_total/
-// progression/adaptive); these are the common keys.
-export type TargetProgress = {
-  completedEventCount?: number
-  completedEventIds?: string[]
-  label?: string | null
-} & Record<string, unknown>
+// Every target evaluator emits these keys; the variants below add their
+// per-type fields. Quantities are decimal strings rendered by the backend.
+type TargetProgressBase = {
+  completedEventCount: number
+  completedEventIds: string[]
+  label: string
+}
+
+export type FixedTargetProgress = TargetProgressBase
+
+export type MetricTargetProgress = TargetProgressBase & {
+  recordedValue: string | number | null
+  unit: string | null
+}
+
+export type ChecklistTargetProgress = TargetProgressBase & {
+  completedCount: number
+  requiredCount: number
+  completedItems: string[]
+  requiredItems: string[]
+}
+
+export type AdaptiveTargetProgress = TargetProgressBase & {
+  requiredFields: string[]
+  recordedFields: string[]
+  missingFields: string[]
+  recordedCount: number
+  requiredCount: number
+}
+
+export type PeriodTotalTargetProgress = TargetProgressBase & {
+  totalQuantity: string | null
+  targetQuantity: string | null
+  unit: string | null
+  period: string | null
+  startsOn: string | null
+  endsOn: string | null
+}
+
+export type ProgressionTargetProgress = TargetProgressBase & {
+  totalQuantity: string | null
+  expectedQuantity: string | null
+  unit: string | null
+  startsOn: string | null
+  endsOn: string | null
+  from: string | null
+  to: string | null
+  shape: string | null
+}
+
+export type ResponsiveProgressionTargetProgress = TargetProgressBase & {
+  totalQuantity: string | null
+  expectedQuantity: string | null
+  unit: string | null
+  position: number
+  totalSteps: number
+  deloadAfter: number | null
+  mode: 'responsive'
+}
+
+export type TargetProgress =
+  | FixedTargetProgress
+  | MetricTargetProgress
+  | ChecklistTargetProgress
+  | AdaptiveTargetProgress
+  | PeriodTotalTargetProgress
+  | ProgressionTargetProgress
+  | ResponsiveProgressionTargetProgress
+
+export type RecommendationPreviousEvent = {
+  id: string
+  summary: string
+  effectiveAt: string
+  payload: JsonMap
+}
 
 export type Recommendation = {
   id: string
@@ -74,7 +142,7 @@ export type Recommendation = {
   source: string | null
   suggestedPayload: JsonMap
   previousEventIds: string[]
-  previousEvents: unknown[]
+  previousEvents: RecommendationPreviousEvent[]
 }
 
 export type TimeOffWindow = {
@@ -125,6 +193,9 @@ export type SessionWork = {
   slotResults: SlotResult[]
 }
 
+// Session work items carry no target progress, so the payload is {}.
+export type WorkItemTargetProgress = TargetProgress | Record<string, never>
+
 export type WorkItem = {
   id: string
   kind: 'track' | 'session'
@@ -137,7 +208,7 @@ export type WorkItem = {
   planName: string
   explanation: string | null
   target: Target | JsonMap
-  targetProgress: TargetProgress
+  targetProgress: WorkItemTargetProgress
   eventTypeId: string | null
   eventTypeName: string | null
   trackId: string | null
@@ -161,7 +232,7 @@ export type Today = {
   work: WorkItem[]
   upcoming: WorkItem[]
   diagnostics: Diagnostic[]
-  explanations: unknown[]
+  explanations: string[]
 }
 
 export type EventItemLink = {

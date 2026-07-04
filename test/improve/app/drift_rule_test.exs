@@ -50,11 +50,51 @@ defmodule Improve.App.DriftRuleTest do
 
     test "does not fire when directions are mixed" do
       records = [
-        %{track_id: "t1", date: ~D[2026-07-01], direction: :down, authored_value: 25, effective_value: 20, source: "s", reason: "r"},
-        %{track_id: "t1", date: ~D[2026-07-02], direction: :down, authored_value: 25, effective_value: 20, source: "s", reason: "r"},
-        %{track_id: "t1", date: ~D[2026-07-03], direction: :up, authored_value: 20, effective_value: 25, source: "s", reason: "r"},
-        %{track_id: "t1", date: ~D[2026-07-04], direction: :down, authored_value: 25, effective_value: 20, source: "s", reason: "r"},
-        %{track_id: "t1", date: ~D[2026-07-05], direction: :down, authored_value: 25, effective_value: 20, source: "s", reason: "r"}
+        %{
+          track_id: "t1",
+          date: ~D[2026-07-01],
+          direction: :down,
+          authored_value: 25,
+          effective_value: 20,
+          source: "s",
+          reason: "r"
+        },
+        %{
+          track_id: "t1",
+          date: ~D[2026-07-02],
+          direction: :down,
+          authored_value: 25,
+          effective_value: 20,
+          source: "s",
+          reason: "r"
+        },
+        %{
+          track_id: "t1",
+          date: ~D[2026-07-03],
+          direction: :up,
+          authored_value: 20,
+          effective_value: 25,
+          source: "s",
+          reason: "r"
+        },
+        %{
+          track_id: "t1",
+          date: ~D[2026-07-04],
+          direction: :down,
+          authored_value: 25,
+          effective_value: 20,
+          source: "s",
+          reason: "r"
+        },
+        %{
+          track_id: "t1",
+          date: ~D[2026-07-05],
+          direction: :down,
+          authored_value: 25,
+          effective_value: 20,
+          source: "s",
+          reason: "r"
+        }
       ]
 
       assert DriftRule.detect(records, threshold: 5) == []
@@ -64,8 +104,24 @@ defmodule Improve.App.DriftRuleTest do
       records =
         Enum.flat_map(1..5, fn i ->
           [
-            %{track_id: "t1", date: Date.add(~D[2026-07-01], i - 1), direction: :down, authored_value: 25, effective_value: 20, source: "s", reason: "r"},
-            %{track_id: "t2", date: Date.add(~D[2026-07-01], i - 1), direction: :up, authored_value: 10, effective_value: 15, source: "s", reason: "r"}
+            %{
+              track_id: "t1",
+              date: Date.add(~D[2026-07-01], i - 1),
+              direction: :down,
+              authored_value: 25,
+              effective_value: 20,
+              source: "s",
+              reason: "r"
+            },
+            %{
+              track_id: "t2",
+              date: Date.add(~D[2026-07-01], i - 1),
+              direction: :up,
+              authored_value: 10,
+              effective_value: 15,
+              source: "s",
+              reason: "r"
+            }
           ]
         end)
 

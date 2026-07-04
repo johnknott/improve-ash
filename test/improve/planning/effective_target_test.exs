@@ -28,7 +28,14 @@ defmodule Improve.Planning.EffectiveTargetTest do
         )
 
       assert adjusted.authored == target
-      assert adjusted.effective == %{"type" => "period_total", "quantity" => 80, "unit" => "km", "per" => "week"}
+
+      assert adjusted.effective == %{
+               "type" => "period_total",
+               "quantity" => 80,
+               "unit" => "km",
+               "per" => "week"
+             }
+
       assert adjusted.adjusted? == true
       assert adjusted.source == :marathon_adaptation
       assert adjusted.reason == "Recent load is low after illness"

@@ -8,12 +8,8 @@
     } from "@lucide/svelte";
     import { DropdownMenu } from "bits-ui";
     import type { Plan } from "../api/types";
-    import {
-        selectedPlanId,
-        loadDashboard,
-        openEditPlanDialog,
-        openNewPlanDialog,
-    } from "./appState";
+    import { loadDashboard, selectedPlanId } from "./dashboardState";
+    import { openEditPlanDialog, openNewPlanDialog } from "./uiState";
 
     let { plans, currentPlan }: { plans: Plan[]; currentPlan: Plan | null } =
         $props();

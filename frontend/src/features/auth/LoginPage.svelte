@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte'
   import { PinInput, REGEXP_ONLY_DIGITS } from 'bits-ui'
+  import Button from '../../components/ui/Button.svelte'
   import { requestLoginCode, verifyLoginCode } from './authClient'
   import { setCurrentUser } from './authStore'
 
@@ -148,9 +149,9 @@
           required
         />
 
-        <button type="submit" disabled={!canSubmitEmail}>
+        <Button type="submit" disabled={!canSubmitEmail}>
           {loading ? 'Sending code' : 'Continue'}
-        </button>
+        </Button>
       </form>
     {:else}
       <form
@@ -191,9 +192,9 @@
           {/snippet}
         </PinInput.Root>
 
-        <button type="submit" disabled={!canSubmitCode}>
+        <Button type="submit" disabled={!canSubmitCode}>
           {loading ? 'Checking code' : 'Enter Improve'}
-        </button>
+        </Button>
 
         {#if resendCooldown > 0}
           <p class="hint">Resend code in {resendCooldown}s</p>

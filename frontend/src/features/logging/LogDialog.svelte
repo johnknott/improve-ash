@@ -1,12 +1,12 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui'
   import type { DashboardData } from '../../api/types'
-  import { closeLogDialog, logDialogState } from '../../app/appState'
+  import { closeLogDialog, logDialogOpen } from '../../app/uiState'
 
   let { data }: { data: DashboardData | null } = $props()
 </script>
 
-<Dialog.Root open={$logDialogState.open} onOpenChange={(open) => !open && closeLogDialog()}>
+<Dialog.Root open={$logDialogOpen} onOpenChange={(open) => !open && closeLogDialog()}>
   <Dialog.Portal>
     <Dialog.Overlay class="dialog-overlay" />
     <Dialog.Content class="dialog-content small-dialog">

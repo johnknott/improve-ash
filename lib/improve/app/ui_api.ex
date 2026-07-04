@@ -714,7 +714,11 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+      |> maybe_add(
+        blank?(Map.get(attrs, :name, Map.get(params, "name"))),
+        "name",
+        "Name is required."
+      )
 
     case diagnostics do
       [] -> {:ok, attrs}
@@ -736,7 +740,11 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+      |> maybe_add(
+        blank?(Map.get(attrs, :name, Map.get(params, "name"))),
+        "name",
+        "Name is required."
+      )
 
     case diagnostics do
       [] -> {:ok, attrs}
@@ -755,7 +763,11 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+      |> maybe_add(
+        blank?(Map.get(attrs, :name, Map.get(params, "name"))),
+        "name",
+        "Name is required."
+      )
 
     case diagnostics do
       [] -> {:ok, attrs}
@@ -774,7 +786,11 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+      |> maybe_add(
+        blank?(Map.get(attrs, :name, Map.get(params, "name"))),
+        "name",
+        "Name is required."
+      )
 
     case diagnostics do
       [] -> {:ok, attrs}
@@ -794,7 +810,11 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+      |> maybe_add(
+        blank?(Map.get(attrs, :name, Map.get(params, "name"))),
+        "name",
+        "Name is required."
+      )
 
     case diagnostics do
       [] -> {:ok, attrs}

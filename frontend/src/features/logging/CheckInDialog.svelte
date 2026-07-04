@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui'
   import type { DashboardData } from '../../api/types'
-  import { checkInDialogOpen } from '../../app/appState'
+  import { checkInDialogOpen } from '../../app/uiState'
 
   let { data }: { data: DashboardData | null } = $props()
 </script>

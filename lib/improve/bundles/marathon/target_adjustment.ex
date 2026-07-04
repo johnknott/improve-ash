@@ -130,7 +130,10 @@ defmodule Improve.Bundles.Marathon.TargetAdjustment do
     target_quantity = track_quantity(track)
 
     target_quantity && recent_load > 0 &&
-      Decimal.compare(Decimal.new(recent_load), Decimal.mult(target_quantity, @low_load_threshold_fraction)) == :lt
+      Decimal.compare(
+        Decimal.new(recent_load),
+        Decimal.mult(target_quantity, @low_load_threshold_fraction)
+      ) == :lt
   end
 
   defp event_type(event), do: map_value(event, :type) || map_value(event, :event_type_key)

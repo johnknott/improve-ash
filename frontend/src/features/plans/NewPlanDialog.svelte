@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { Dialog } from 'bits-ui'
-  import {
-    closeNewPlanDialog,
-    newPlanDialogOpen,
-    planDialogPlan,
-    selectedDate,
-    submitNewPlan,
-    submitPlanEdit,
-  } from '../../app/appState'
+  import { ApiRequestError } from '../../api/improveClient'
+  import { selectedDate, submitNewPlan, submitPlanEdit } from '../../app/dashboardState'
+  import { closeNewPlanDialog, newPlanDialogOpen, planDialogPlan } from '../../app/uiState'
+  import DateInput from '../../components/ui/DateInput.svelte'
+  import Field from '../../components/ui/Field.svelte'
+  import FormDialog from '../../components/ui/FormDialog.svelte'
+  import NumberInput from '../../components/ui/NumberInput.svelte'
+  import Select from '../../components/ui/Select.svelte'
+  import TextInput from '../../components/ui/TextInput.svelte'
+  import { addDays, addMonths, daysBetweenInclusive } from '../../lib/dates'
+
+  type FieldName = 'name' | 'intention' | 'startsOn' | 'endsOn'
 
   let name = $state('')
   let intention = $state('')
@@ -18,6 +21,7 @@
   let durationUnit = $state<'days' | 'weeks' | 'months'>('weeks')
   let saving = $state(false)
   let error = $state<string | null>(null)
+  let fieldErrors = $state<Partial<Record<FieldName, string>>>({})
   let seededFor = $state('')
   const editingPlan = $derived($planDialogPlan)
   const isEditing = $derived(Boolean(editingPlan))
@@ -40,6 +44,7 @@
       endsOn = editingPlan?.endsOn ?? addDuration(start, durationValue, durationUnit)
       saving = false
       error = null
+      fieldErrors = {}
       seededFor = seedKey
     }
 
@@ -54,24 +59,39 @@
     }
   })
 
+  function validate(): Partial<Record<FieldName, string>> {
+    const problems: Partial<Record<FieldName, string>> = {}
+
+    if (!name.trim()) {
+      problems.name = 'Add a plan name.'
+    }
+
+    if (!intention.trim()) {
+      problems.intention = 'Add a short intention.'
+    }
+
+    if (!startsOn) {
+      problems.startsOn = 'Add a start date.'
+    }
+
+    if (!endsOn) {
+      problems.endsOn = 'Add a plan length.'
+    } else if (startsOn && endsOn < startsOn) {
+      problems.endsOn = 'End date must be after the start date.'
+    }
+
+    return problems
+  }
+
   async function handleSubmit() {
-    if (!name.trim() || !intention.trim()) {
-      error = 'Add a name and a short intention.'
-      return
-    }
+    fieldErrors = validate()
+    error = null
 
-    if (!startsOn || !endsOn) {
-      error = 'Add a start date and plan length.'
-      return
-    }
-
-    if (endsOn < startsOn) {
-      error = 'End date must be after the start date.'
+    if (Object.keys(fieldErrors).length > 0) {
       return
     }
 
     saving = true
-    error = null
 
     try {
       const input = {
@@ -86,11 +106,36 @@
       } else {
         await submitNewPlan(input)
       }
-    } catch {
-      error = isEditing ? 'We could not update that plan.' : 'We could not create that plan.'
+    } catch (caught) {
+      if (caught instanceof ApiRequestError) {
+        fieldErrors = apiFieldErrors(caught)
+        error = Object.keys(fieldErrors).length > 0 ? null : caught.message
+      } else {
+        error = isEditing ? 'We could not update that plan.' : 'We could not create that plan.'
+      }
     } finally {
       saving = false
     }
+  }
+
+  function apiFieldErrors(caught: ApiRequestError): Partial<Record<FieldName, string>> {
+    const fieldNames: Record<string, FieldName> = {
+      name: 'name',
+      intention: 'intention',
+      starts_on: 'startsOn',
+      ends_on: 'endsOn',
+    }
+    const problems: Partial<Record<FieldName, string>> = {}
+
+    for (const detail of caught.details) {
+      const field = detail.field ? fieldNames[detail.field] : undefined
+
+      if (field && !problems[field]) {
+        problems[field] = detail.message
+      }
+    }
+
+    return problems
   }
 
   function setLengthMode(mode: 'duration' | 'endDate') {
@@ -130,147 +175,80 @@
 
     return { value: days, unit: 'days' }
   }
-
-  function daysBetweenInclusive(startsOn: string, endsOn: string): number {
-    const start = utcDate(startsOn).getTime()
-    const end = utcDate(endsOn).getTime()
-
-    return Math.floor((end - start) / 86_400_000) + 1
-  }
-
-  function addDays(date: string, days: number): string {
-    const next = utcDate(date)
-    next.setUTCDate(next.getUTCDate() + days)
-    return isoDate(next)
-  }
-
-  function addMonths(date: string, months: number): string {
-    const next = utcDate(date)
-    const day = next.getUTCDate()
-
-    next.setUTCMonth(next.getUTCMonth() + months)
-
-    if (next.getUTCDate() !== day) {
-      next.setUTCDate(0)
-    }
-
-    return isoDate(next)
-  }
-
-  function utcDate(date: string): Date {
-    const [year, month, day] = date.split('-').map(Number)
-    return new Date(Date.UTC(year, month - 1, day, 12))
-  }
-
-  function isoDate(date: Date): string {
-    return [
-      date.getUTCFullYear(),
-      String(date.getUTCMonth() + 1).padStart(2, '0'),
-      String(date.getUTCDate()).padStart(2, '0'),
-    ].join('-')
-  }
 </script>
 
-<Dialog.Root open={$newPlanDialogOpen} onOpenChange={(open) => !open && closeNewPlanDialog()}>
-  <Dialog.Portal>
-    <Dialog.Overlay class="dialog-overlay" />
-    <Dialog.Content class="dialog-content plan-dialog">
-      <div class="dialog-header">
-        <div>
-          <Dialog.Title>{isEditing ? 'Edit plan' : 'Define a plan'}</Dialog.Title>
-        </div>
-        <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+<FormDialog
+  open={$newPlanDialogOpen}
+  title={isEditing ? 'Edit plan' : 'Define a plan'}
+  submitLabel={isEditing ? 'Save changes' : 'Create plan'}
+  busyLabel={isEditing ? 'Saving' : 'Creating'}
+  busy={saving}
+  {error}
+  class="plan-dialog"
+  onClose={closeNewPlanDialog}
+  onSubmit={handleSubmit}
+>
+  <Field label="Plan name" error={fieldErrors.name}>
+    <TextInput bind:value={name} disabled={saving} placeholder="Summer strength block" />
+  </Field>
+
+  <Field label="Intention" error={fieldErrors.intention}>
+    <TextInput
+      bind:value={intention}
+      disabled={saving}
+      placeholder="What should this plan help with?"
+    />
+  </Field>
+
+  <div class="timeline-grid">
+    <Field label="Starts" error={fieldErrors.startsOn}>
+      <DateInput bind:value={startsOn} disabled={saving} />
+    </Field>
+
+    <div class="plan-length-fields">
+      <span class="field-label">Plan length</span>
+      <div class="segmented-control" aria-label="Plan length mode">
+        <button
+          class:active={lengthMode === 'duration'}
+          type="button"
+          disabled={saving}
+          onclick={() => setLengthMode('duration')}
+        >
+          Duration
+        </button>
+        <button
+          class:active={lengthMode === 'endDate'}
+          type="button"
+          disabled={saving}
+          onclick={() => setLengthMode('endDate')}
+        >
+          End date
+        </button>
       </div>
+    </div>
+  </div>
 
-      <form class="dialog-form" onsubmit={(event) => { event.preventDefault(); handleSubmit() }}>
-        <label>
-          Plan name
-          <input bind:value={name} disabled={saving} placeholder="Summer strength block" />
-        </label>
-
-        <label>
-          Intention
-          <input
-            bind:value={intention}
-            disabled={saving}
-            placeholder="What should this plan help with?"
-          />
-        </label>
-
-        <div class="timeline-grid">
-          <label>
-            Starts
-            <input bind:value={startsOn} disabled={saving} type="date" />
-          </label>
-
-          <div class="plan-length-fields">
-            <span class="field-label">Plan length</span>
-            <div class="segmented-control" aria-label="Plan length mode">
-              <button
-                class:active={lengthMode === 'duration'}
-                type="button"
-                disabled={saving}
-                onclick={() => setLengthMode('duration')}
-              >
-                Duration
-              </button>
-              <button
-                class:active={lengthMode === 'endDate'}
-                type="button"
-                disabled={saving}
-                onclick={() => setLengthMode('endDate')}
-              >
-                End date
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {#if lengthMode === 'duration'}
-          <div class="form-grid duration-grid">
-            <label>
-              For
-              <input
-                value={durationValue}
-                disabled={saving}
-                min="1"
-                type="number"
-                oninput={(event) => handleDurationInput(event.currentTarget.value)}
-              />
-            </label>
-            <label>
-              Unit
-              <select bind:value={durationUnit} disabled={saving}>
-                <option value="days">days</option>
-                <option value="weeks">weeks</option>
-                <option value="months">months</option>
-              </select>
-            </label>
-          </div>
-        {:else}
-          <label>
-            Ends
-            <input bind:value={endsOn} disabled={saving} type="date" />
-          </label>
-        {/if}
-
-        {#if error}
-          <p class="error inline-error">{error}</p>
-        {/if}
-
-        <div class="dialog-actions">
-          <button class="secondary-button" type="button" disabled={saving} onclick={closeNewPlanDialog}>
-            Cancel
-          </button>
-          <button class="primary-button" type="submit" disabled={saving}>
-            {#if saving}
-              {isEditing ? 'Saving' : 'Creating'}
-            {:else}
-              {isEditing ? 'Save changes' : 'Create plan'}
-            {/if}
-          </button>
-        </div>
-      </form>
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>
+  {#if lengthMode === 'duration'}
+    <div class="form-grid duration-grid">
+      <Field label="For" error={fieldErrors.endsOn}>
+        <NumberInput
+          value={durationValue}
+          disabled={saving}
+          min="1"
+          oninput={(event) => handleDurationInput(event.currentTarget.value)}
+        />
+      </Field>
+      <Field label="Unit">
+        <Select bind:value={durationUnit} disabled={saving}>
+          <option value="days">days</option>
+          <option value="weeks">weeks</option>
+          <option value="months">months</option>
+        </Select>
+      </Field>
+    </div>
+  {:else}
+    <Field label="Ends" error={fieldErrors.endsOn}>
+      <DateInput bind:value={endsOn} disabled={saving} />
+    </Field>
+  {/if}
+</FormDialog>

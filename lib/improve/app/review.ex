@@ -57,10 +57,23 @@ defmodule Improve.App.Review do
       plan_id: projection.plan_id,
       reviewed_on: on,
       observations:
-        daily_observations(projection, recent_events, completed, still_to_do, missed_or_skipped, adaptations),
+        daily_observations(
+          projection,
+          recent_events,
+          completed,
+          still_to_do,
+          missed_or_skipped,
+          adaptations
+        ),
       adaptations: adaptations,
       suggested_changes:
-        daily_suggested_changes(projection, recent_events, completed, still_to_do, missed_or_skipped),
+        daily_suggested_changes(
+          projection,
+          recent_events,
+          completed,
+          still_to_do,
+          missed_or_skipped
+        ),
       reasons: reasons(projection, recent_events, still_to_do, missed_or_skipped)
     }
   end
@@ -175,7 +188,14 @@ defmodule Improve.App.Review do
 
   # --- Daily Observations ---
 
-  defp daily_observations(projection, recent_events, completed, still_to_do, missed_or_skipped, adaptations) do
+  defp daily_observations(
+         projection,
+         recent_events,
+         completed,
+         still_to_do,
+         missed_or_skipped,
+         adaptations
+       ) do
     base = [
       %{
         topic: :today,
@@ -199,12 +219,12 @@ defmodule Improve.App.Review do
         [
           %{
             topic: :adaptations,
-            text:
-              "#{length(adaptations)} track(s) have derived adjustments active today.",
+            text: "#{length(adaptations)} track(s) have derived adjustments active today.",
             data: %{
-              adaptations: Enum.map(adaptations, fn a ->
-                %{track_id: a.track_id, source: a.source, reason: a.reason}
-              end)
+              adaptations:
+                Enum.map(adaptations, fn a ->
+                  %{track_id: a.track_id, source: a.source, reason: a.reason}
+                end)
             }
           }
         ]
@@ -273,12 +293,12 @@ defmodule Improve.App.Review do
         [
           %{
             topic: :adaptations,
-            text:
-              "#{length(adaptations)} track(s) have derived adjustments active today.",
+            text: "#{length(adaptations)} track(s) have derived adjustments active today.",
             data: %{
-              adaptations: Enum.map(adaptations, fn a ->
-                %{track_id: a.track_id, source: a.source, reason: a.reason}
-              end)
+              adaptations:
+                Enum.map(adaptations, fn a ->
+                  %{track_id: a.track_id, source: a.source, reason: a.reason}
+                end)
             }
           }
         ]
@@ -291,7 +311,13 @@ defmodule Improve.App.Review do
 
   # --- Daily Suggested Changes ---
 
-  defp daily_suggested_changes(projection, recent_events, completed, still_to_do, missed_or_skipped) do
+  defp daily_suggested_changes(
+         projection,
+         recent_events,
+         completed,
+         still_to_do,
+         missed_or_skipped
+       ) do
     []
     |> maybe_add(projection.diagnostics != [], %{
       change: :fix_authored_content,

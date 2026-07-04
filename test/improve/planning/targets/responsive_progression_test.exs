@@ -126,7 +126,14 @@ defmodule Improve.Planning.Targets.ResponsiveProgressionTest do
 
       assert {:ok, completion, []} =
                ResponsiveProgression.completion(%Evaluation{
-                 track: track(%{target: %{"type" => "responsive_progression", "steps" => steps, "unit" => "km"}}),
+                 track:
+                   track(%{
+                     target: %{
+                       "type" => "responsive_progression",
+                       "steps" => steps,
+                       "unit" => "km"
+                     }
+                   }),
                  date: ~D[2026-07-04],
                  journal_events: events
                })
@@ -138,7 +145,9 @@ defmodule Improve.Planning.Targets.ResponsiveProgressionTest do
 
   describe "diagnostics/1" do
     test "returns warning for empty steps" do
-      track = track(%{target: %{"type" => "responsive_progression", "steps" => [], "unit" => "km"}})
+      track =
+        track(%{target: %{"type" => "responsive_progression", "steps" => [], "unit" => "km"}})
+
       diagnostics = ResponsiveProgression.diagnostics(%{track: track})
       assert [%{code: :empty_progression_steps}] = diagnostics
     end

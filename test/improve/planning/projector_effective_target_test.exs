@@ -42,12 +42,13 @@ defmodule Improve.Planning.ProjectorEffectiveTargetTest do
     test "completion evaluates against effective target, not authored" do
       track = weekly_km_track()
 
-      event = event(%{
-        id: "e1",
-        track_id: track.id,
-        quantity: Decimal.new(75),
-        effective_at: ~U[2026-06-23 08:00:00Z]
-      })
+      event =
+        event(%{
+          id: "e1",
+          track_id: track.id,
+          quantity: Decimal.new(75),
+          effective_at: ~U[2026-06-23 08:00:00Z]
+        })
 
       adjustments = %{
         track.id => %{
@@ -66,12 +67,13 @@ defmodule Improve.Planning.ProjectorEffectiveTargetTest do
     test "without adjustment, same quantity is incomplete against authored target" do
       track = weekly_km_track()
 
-      event = event(%{
-        id: "e1",
-        track_id: track.id,
-        quantity: Decimal.new(75),
-        effective_at: ~U[2026-06-23 08:00:00Z]
-      })
+      event =
+        event(%{
+          id: "e1",
+          track_id: track.id,
+          quantity: Decimal.new(75),
+          effective_at: ~U[2026-06-23 08:00:00Z]
+        })
 
       projection = project_track(track, [event])
       work = hd(projection.projected_work)

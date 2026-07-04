@@ -69,8 +69,7 @@ defmodule Improve.Planning.Targets.ResponsiveProgression do
      %{
        status: status,
        completed_events: Enum.map(today_entries, & &1.event),
-       progress:
-         progress(today_entries, total, expected, track, position, steps, deload_after)
+       progress: progress(today_entries, total, expected, track, position, steps, deload_after)
      }, []}
   end
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from '../../components/ui/Button.svelte'
   import { completeCurrentUserProfile } from './authStore'
 
   let fullName = $state('')
@@ -41,9 +42,9 @@
         placeholder="John Knott"
       />
 
-      <button type="submit" disabled={!canSubmit}>
+      <Button type="submit" disabled={!canSubmit}>
         {saving ? 'Saving' : 'Continue'}
-      </button>
+      </Button>
     </form>
 
     {#if error}
