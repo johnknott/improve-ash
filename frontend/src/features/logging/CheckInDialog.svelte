@@ -28,7 +28,9 @@
   $effect(() => {
     if ($checkInDialogOpen && !seeded) {
       choices = {}
-      skipNotes = {}
+      // Seed every row's note with '' — binding an undefined property into
+      // an input with a $bindable fallback is a Svelte runtime error.
+      skipNotes = Object.fromEntries(rows.map((item) => [item.id, '']))
       rowErrors = {}
       saving = false
       seeded = true

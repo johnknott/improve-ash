@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { HTMLInputAttributes } from 'svelte/elements'
 
+  // No fallback default so callers may bind an initially-undefined value.
   let {
-    value = $bindable(''),
+    value = $bindable(),
     ...rest
   }: {
     value?: string

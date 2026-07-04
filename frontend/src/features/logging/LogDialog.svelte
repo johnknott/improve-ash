@@ -48,11 +48,12 @@
     }
   })
 
-  // Changing event type resets the dynamic parts of the form.
+  // Changing event type resets the dynamic parts of the form. Every key is
+  // seeded with '' — binding an undefined property into an input with a
+  // $bindable fallback is a Svelte runtime error.
   $effect(() => {
-    void eventTypeId
-    fieldValues = {}
-    roleSelections = {}
+    fieldValues = Object.fromEntries(schemaFields.map((field) => [field.name, '']))
+    roleSelections = Object.fromEntries(linkRoles.map((role) => [role.role, '']))
   })
 
   function schemaFieldsFor(type: EventType | null): { name: string; required: boolean }[] {
