@@ -41,17 +41,19 @@
   <main class="app-main">
     <TopBar route={$activeRoute} onMenu={() => (sidebarOpen = true)} />
 
-    {#if error}
-      <section class="error-banner">
-        <div>
-          <strong>Could not load Improve.</strong>
-          <p>{error}</p>
-        </div>
-        <button class="secondary-button" type="button" onclick={onRetry}>Try again</button>
-      </section>
-    {/if}
+    <div class="app-content">
+      {#if error}
+        <section class="error-banner">
+          <div>
+            <strong>Could not load Improve.</strong>
+            <p>{error}</p>
+          </div>
+          <button class="secondary-button" type="button" onclick={onRetry}>Try again</button>
+        </section>
+      {/if}
 
-    <PlaceholderPage route={$activeRoute} {data} />
+      <PlaceholderPage route={$activeRoute} {data} />
+    </div>
   </main>
 </div>
 

@@ -29,6 +29,14 @@
 
   let info = $derived(routeInfo(route))
   let isSelectedToday = $derived($selectedDate === todayIso())
+
+  function openDatePicker(event: MouseEvent & { currentTarget: HTMLInputElement }) {
+    try {
+      event.currentTarget.showPicker()
+    } catch {
+      // browsers without showPicker fall back to native focus behaviour
+    }
+  }
 </script>
 
 <header class="topbar">
@@ -59,6 +67,7 @@
           <input
             type="date"
             value={$selectedDate}
+            onclick={openDatePicker}
             onchange={(event) => changeSelectedDate(event.currentTarget.value)}
           />
         </label>

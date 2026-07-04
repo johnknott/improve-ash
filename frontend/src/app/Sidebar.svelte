@@ -78,10 +78,19 @@
 <aside class:open class="sidebar">
     <div class="sidebar-header">
         <img class="brand-mark" src="/logo.svg" alt="" />
-        <span class="brand-name">
-            <strong>Improve</strong>
-            <small>Daily planner</small>
-        </span>
+        <span class="brand-name">Improve</span>
+        <button
+            class="theme-toggle"
+            type="button"
+            aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+            onclick={toggleTheme}
+        >
+            {#if isDark}
+                <Sun size={16} />
+            {:else}
+                <Moon size={16} />
+            {/if}
+        </button>
     </div>
 
     <PlanSwitcher
@@ -100,7 +109,7 @@
                     type="button"
                     onclick={() => go(item.id)}
                 >
-                    <Icon size={17} />
+                    <span class="nav-icon"><Icon size={16} /></span>
                     <span>{item.label}</span>
                 </button>
             {/each}
@@ -116,7 +125,7 @@
                     type="button"
                     onclick={() => go(item.id)}
                 >
-                    <Icon size={17} />
+                    <span class="nav-icon"><Icon size={16} /></span>
                     <span>{item.label}</span>
                 </button>
             {/each}
@@ -132,7 +141,7 @@
                     type="button"
                     onclick={() => go(item.id)}
                 >
-                    <Icon size={17} />
+                    <span class="nav-icon"><Icon size={16} /></span>
                     <span>{item.label}</span>
                 </button>
             {/each}
@@ -170,18 +179,6 @@
                     >
                         <Settings size={16} />
                         <span>Settings</span>
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                        class="dropdown-item dropdown-action"
-                        onclick={toggleTheme}
-                    >
-                        {#if isDark}
-                            <Sun size={16} />
-                            <span>Switch to light</span>
-                        {:else}
-                            <Moon size={16} />
-                            <span>Switch to dark</span>
-                        {/if}
                     </DropdownMenu.Item>
                     <div class="dropdown-separator"></div>
                     <DropdownMenu.Item
