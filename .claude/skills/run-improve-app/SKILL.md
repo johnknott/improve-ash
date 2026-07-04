@@ -1,6 +1,6 @@
 ---
 name: run-improve-app
-description: Launch the Improve app (Phoenix backend + Svelte frontend) and drive it in a real browser with agent-browser, including logging in as the demo user by minting an OTP from a second backend node. Use when asked to run the app, take screenshots, or visually verify a frontend change end-to-end.
+description: Launch the Improve app (Phoenix backend + Svelte frontend) and drive it in a real browser with agent-browser, including logging in by reading the OTP from the dev mailbox route. Use when asked to run the app, take screenshots, or visually verify a frontend change end-to-end.
 ---
 
 # Run and drive the Improve app
@@ -49,37 +49,75 @@ mise x -- agent-browser close                        # when done
 - `wait` takes a CSS selector or milliseconds — NOT Playwright `text=...`
   syntax (that silently times out).
 - `eval` rejects top-level `await`; return a promise instead
-  (`fetch(...).then(r => r.status)`).
+  (`fetch(...).then(r => r.status)`). It also runs each snippet in a shared
+  scope, so `const x = ...` collides across calls with "already declared" —
+  wrap multi-statement evals in an IIFE: `(()=>{ const x=...; return x; })()`.
+- **Refs (`@eN`) go stale whenever the DOM changes** — reopening a dialog,
+  submitting, navigating. Re-`snapshot -i` first, or drive by CSS selector /
+  `eval` when a ref might be stale.
+- **`console --errors` does NOT capture uncaught exceptions** (e.g. Svelte
+  runtime errors that wedge a component). To catch those, inject a listener
+  and read it back — see "Catching runtime errors" below.
 - Full command reference: `mise x -- agent-browser skills get core`.
 
-## Logging in as the demo user
+## Logging in
 
-OTP codes are delivered to `Improve.Emails.LocalMailbox` — an in-memory
-Agent inside whichever BEAM generated them. You cannot read the running dev
-server's mailbox, and driving the UI email step mints a code you will never
-see. Instead, mint a code from a second backend node sharing the dev DB —
-verification is DB-token based, so any node's code is valid everywhere:
+OTP codes go to `Improve.Emails.LocalMailbox` (in-memory, per-BEAM). The dev
+build exposes the running server's mailbox over HTTP
+(`dev_routes: true` in `config/dev.exs`), so read the code directly — no
+second node needed. Request a code, read it, verify from the page context:
 
 ```bash
-OTP=$(PORT=4010 mix run -e '
-:ok = Improve.Accounts.Auth.request_login_code("demo@improve.local")
-IO.puts("OTP=" <> Improve.Emails.LocalMailbox.latest_otp_for("demo@improve.local").code)
-' 2>&1 | grep '^OTP=' | cut -d= -f2)
-echo "minted: $OTP"
+EMAIL="demo@improve.local"
+curl -s -X POST http://localhost:4000/api/auth/request-code \
+  -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\"}" > /dev/null
+OTP=$(curl -s "http://localhost:4000/dev/mailbox/latest-otp?email=$EMAIL" \
+  | grep -o '"code":"[0-9]*"' | cut -d'"' -f4)
+echo "otp: $OTP"
+
+mise x -- agent-browser open http://localhost:5173
+mise x -- agent-browser eval "fetch('/api/auth/verify-code',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({email:'$EMAIL',otp:'$OTP'})}).then(r => r.status)"
+# expect: 200
+mise x -- agent-browser open http://localhost:5173   # reload as the logged-in user
 ```
 
-- `PORT=4010` avoids `eaddrinuse` with the running server.
-- `request_login_code` returns bare `:ok`, not `{:ok, _}`.
-- Codes live 10 minutes; requesting again invalidates earlier codes.
-- OTP rate limits are per-node ETS, so the fresh node never trips them.
+- `/dev/mailbox/latest-otp` returns `{"message":{"code":"...",...}}` (or
+  `{"message":null}` if none). Codes live 10 minutes; re-requesting
+  invalidates earlier ones.
+- Fallback if dev routes are off: mint from a second node sharing the dev DB
+  (`PORT=4010 mix run -e '...'` calling `Improve.Accounts.Auth.request_login_code/1`
+  — returns bare `:ok` — then `LocalMailbox.latest_otp_for/1`). Verification
+  is DB-token based, so any node's code works everywhere.
 
-Then set the session cookie from the page context and reload:
+### Testing as a fresh user (e.g. after a fixture change)
+
+Demo plans are installed once and reused, so a fixture change won't reach an
+existing user's plan. Create a throwaway user entirely over the API — any
+email works, the code is in the dev mailbox — then complete the profile and
+install a demo:
 
 ```bash
+EMAIL="scratch1@improve.local"   # vary per run
+curl -s -X POST http://localhost:4000/api/auth/request-code -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\"}" > /dev/null
+OTP=$(curl -s "http://localhost:4000/dev/mailbox/latest-otp?email=$EMAIL" | grep -o '"code":"[0-9]*"' | cut -d'"' -f4)
 mise x -- agent-browser open http://localhost:5173
-mise x -- agent-browser eval "fetch('/api/auth/verify-code',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({email:'demo@improve.local',otp:'$OTP'})}).then(r => r.status)"
-# expect: 200
+mise x -- agent-browser eval "fetch('/api/auth/verify-code',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({email:'$EMAIL',otp:'$OTP'})}).then(r=>r.status)"
+mise x -- agent-browser eval "fetch('/api/auth/profile',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({full_name:'Scratch'})}).then(r=>r.status)"
+mise x -- agent-browser eval "fetch('/api/app/demo-plans',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({kind:'gym',date:'2026-07-06'})}).then(r=>r.status)"
 mise x -- agent-browser open http://localhost:5173
+```
+
+## Catching runtime errors
+
+A Svelte error thrown during render wedges that component's subtree (a dialog
+stops closing, a form goes dead) but leaves the rest of the app working — and
+`console --errors` misses it. Install a `window.onerror` listener right after
+loading, exercise the flow, then read the collected messages:
+
+```bash
+mise x -- agent-browser eval "(()=>{window.__errs=[];addEventListener('error',e=>window.__errs.push(e.message));return 'listening';})()"
+# ...open the dialog / drive the flow...
+mise x -- agent-browser eval "JSON.stringify(window.__errs)"   # [] means clean
 ```
 
 ## Representative check
