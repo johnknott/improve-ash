@@ -1,10 +1,11 @@
 ---
 # improve-ash-eeou
 title: Provenance in the projection payload
-status: todo
+status: completed
 type: feature
+priority: normal
 created_at: 2026-07-04T19:43:23Z
-updated_at: 2026-07-04T19:43:23Z
+updated_at: 2026-07-04T21:29:36Z
 parent: improve-ash-xxkf
 ---
 

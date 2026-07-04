@@ -5,7 +5,9 @@ Draft date: 2026-07-04.
 ## Purpose
 
 The plan for building out the Svelte web app after the backend hardening pass
-(`notes/fable-todo.md`). The goal of this stage is the **main usage loop,
+(now archived at `notes/archive/fable-todo.md`; only four low-priority beans
+remain from it — `oim8`, `grxa`, `e0u0`, `ilos` — none of which block this
+roadmap). The goal of this stage is the **main usage loop,
 usable every day**: see today, log what happened, correct mistakes, browse
 history, author and adjust a plan. Light AI where it earns its place — no
 full coaching capability yet. The stage ends at the **mobile gate**: the
@@ -19,22 +21,25 @@ create/edit/switch, demo plan install, date navigation in the top bar,
 theme toggle, toasts, dialog animations. Nine routes exist (Today, Journal,
 Calendar, Plan, Progress, Sessions, Inventory, Event Types, Resource Types)
 — all rendering `PlaceholderPage`. `LogDialog` and `CheckInDialog` are
-stubs. State is a single dashboard-snapshot store (`appState.ts`) and the
-API types are lossy (`today` is `{date}`, `journal` is `unknown[]`,
-`planDetail` is `unknown`).
+stubs. State is a single dashboard-snapshot store (`appState.ts`). The API
+types are no longer lossy — bean `3faz` landed a fully typed dashboard
+payload in `types.ts` (only intentional `unknown` corners remain:
+`previousEvents`, `explanations`, and the variable parts of
+`TargetProgress`).
 
 So the work is: harden the data layer once, then fill the shell one
 vertical slice at a time, Today-first.
 
 ## Phase 0 — Contract And Data Layer (the enabler)
 
-Do this first and everything after gets cheaper. Depends on fable-todo #7
-(structured errors) and #8 (contract unification) landing server-side.
+Do this first and everything after gets cheaper. Its server-side
+prerequisites (structured errors, contract unification) landed 2026-07-04,
+so this phase is unblocked.
 
-- **Full payload types.** Replace the lossy hand-written `types.ts` with
-  complete types for the dashboard payload — generated from the backend if
-  contract unification went that way, otherwise hand-written but complete
-  and casing-consistent. No `unknown` anywhere a page needs to read.
+- **Full payload types.** Mostly done via bean `3faz`: `types.ts` is
+  hand-written but complete and casing-consistent. Remaining: tighten the
+  deliberate `unknown` corners a page will actually read (`explanations`,
+  `previousEvents`, per-target-type `TargetProgress` variants).
 - **API client upgrade** (`improveClient.ts`): structured error type with
   field-level errors surfaced to forms; 401 handling that routes to login
   (session expiry mid-use); a single request helper so idempotency keys can
@@ -42,7 +47,8 @@ Do this first and everything after gets cheaper. Depends on fable-todo #7
 - **Store slices.** Split the monolithic dashboard store into `today`,
   `journal`, `planDetail`, and `plans` slices with a shared refresh, so
   pages can refresh what they touched instead of always reloading the
-  world. Aligns with fable-todo #14 (slim mutation responses) when it lands.
+  world. Slim mutation responses already landed server-side (bean `f7jj`),
+  so the slices have a payload shape to align with.
 - **Router: parameterized routes.** The flat `AppRoute` union can't express
   `/items/:id` or `/sessions/:id`. Add param support now; detail pages
   arrive in Phases 3–4.
@@ -87,41 +93,43 @@ effectively designed.
 - **Log dialog (the real one).** Choose event type → dynamic form driven by
   `payload_schema` (quantity + unit first-class; generic fields after);
   link items by role where the event type requires it; note field;
-  effective time defaulting sensibly (respecting timezone work from
-  fable-todo #3).
+  effective time defaulting sensibly (timezone/local-day semantics are
+  already live backend-side, bean `pxze`).
 - **Session flow.** Start session → slot-by-slot: accept recommendation /
   swap (pick from pool, filtered by environment) / skip → complete or skip
   session. Status transitions mirror the backend state machine; the
-  swapped-slot fix (fable-todo #9) matters here.
+  slot-status vocabulary fix (bean `2hxc`) already landed.
 - **Check-in flow.** Define it properly: an end-of-day sweep of remaining
   work — mark done / skip with reason / leave. Currently a stub with no
   semantics; this is its product definition.
 - **Corrections.** From any logged event: "fix this" → edit → replacement
   event, original marked corrected. Surfaced both here and in Journal.
-- **Idempotency plumbed through** (fable-todo #1): the client generates
-  operation IDs per log submission — proving the exact contract mobile
-  will use.
+- **Idempotency plumbed through**: the log endpoints already accept
+  operation IDs (bean `fian`); the client generates one per log submission
+  — proving the exact contract mobile will use.
 
 ## Phase 3 — Journal And Calendar (trust and time)
 
-- **Journal page.** Newest-first event list with pagination (needs
-  fable-todo #13); filters by track/item/event type/status; corrected and
+- **Journal page.** Newest-first event list with pagination (backend
+  pagination landed, bean `33hn`); filters by track/item/event type/status;
+  corrected and
   voided badges with links between original and replacement; event detail
   view showing payload, linked items, and the item effects it produced.
 - **Calendar page.** Month/week grid of projected + actual: which days had
   work, what completed, streaks visible at a glance. Backend note:
   `Plans.project_dates` exists domain-side but has no HTTP endpoint — add
-  a ranged projection endpoint (fits naturally with fable-todo #14's
-  payload-slicing work).
+  a ranged projection endpoint (fits naturally with the payload-slicing
+  shape from bean `f7jj`).
 - **Inventory page (read side).** Stateful items with derived current
   quantity, low-quantity warnings, and per-item effect history — the vial
   demo made visible. (Authoring arrives in Phase 4.)
 
 ## Phase 4 — Plan Authoring (the studio earns its name)
 
-Backend halves come from fable-todo #12 (authoring CRUD APIs — beans
-`8jbf`, `iycz`, `nbg8`, `vlya`). Order within the phase follows the
-dependency chain: types → items/pools → sessions.
+The backend halves — authoring CRUD APIs for sessions, items, event types,
+and track edit — landed 2026-07-04 (bean `sqzg`), so this phase is pure
+frontend work. Order within the phase follows the dependency chain:
+types → items/pools → sessions.
 
 - **Plan page.** Overview of the whole plan: tracks, sessions, schedules,
   time-off windows, with edit entry points everywhere.
@@ -150,12 +158,13 @@ dependency chain: types → items/pools → sessions.
   day/week — decide alongside bean `elb2` read-model investigation).
 - **Review.** Run the deterministic `App.Review` on demand: what happened
   this week, what was missed, suggested changes with reasons.
-- **Proposal surface v1** (fable-todo #4 dependency). Proposals rendered
-  as cards — what would change, why, evidence — with approve/dismiss.
-  Approve applies through `App.apply_proposal!`. Start with `extend_plan`;
-  grow as the apply registry grows (fable-todo #16). This is the seed of
-  the whole coaching product and the mobile app's most important screen
-  after Today.
+- **Proposal surface v1.** The backend side is fully live: durable
+  proposals (bean `8cxq`) and the proposal-action registry with
+  `adjust_goal` and rebalancing (bean `xi85`). Proposals rendered as cards
+  — what would change, why, evidence — with approve/dismiss. Approve
+  applies through `App.apply_proposal!`. Start with `extend_plan`; grow as
+  the apply registry grows. This is the seed of the whole coaching product
+  and the mobile app's most important screen after Today.
 
 ### Light AI in this stage (optional, each independently shippable)
 
@@ -188,7 +197,9 @@ Small ash_ai features that fit "AI where needed" without building the coach:
 
 1. Today (Phase 1) and Logging (Phase 2) are complete and daily-usable.
 2. Bearer-token auth, idempotent logging, and the offline batch endpoint
-   (fable-todo #1, #2, #6) are live and exercised by the web app or tests.
+   are exercised by the web app or tests (all three are live backend-side
+   as of 2026-07-04 — beans `fian`, `9bkp`, `natd` — so this is now about
+   exercising them, not building them).
 3. The dashboard/today payload shape has survived a few weeks of real use
    without breaking changes — the contract is stable enough to build a
    second client against.
@@ -199,20 +210,25 @@ needs the capture loop; the studio keeps growing on the web.
 
 ## Sequencing Summary
 
+All backend dependencies this roadmap was written against have landed
+(the hardening pass and the coaching-foundations phase are both complete
+and archived under `notes/archive/`). Only two small backend items remain,
+and both are new work this roadmap itself proposes:
+
 | Phase | Delivers | Backend dependencies |
 |---|---|---|
-| 0 | Typed contract, store slices, router params, form kit | fable-todo #7, #8 |
-| 1 | Today read view | coaching-foundations 1, 2, 7 (effective targets + provenance) |
-| 2 | Logging, sessions, check-in, corrections | fable-todo #1, #3, #9 |
-| 3 | Journal, calendar, inventory read | #13, ranged projection endpoint |
-| 4 | Full plan authoring | #12 (authoring APIs) |
-| 5 | Progress, review, proposals (+ light AI) | coaching-foundations 3, 4, 6; history endpoint |
-| 6 | Onboarding, hardening, smoke tests, mobile gate | #2, #6 |
+| 0 | Typed contract, store slices, router params, form kit | none — landed |
+| 1 | Today read view | none — effective targets + provenance landed |
+| 2 | Logging, sessions, check-in, corrections | none — landed |
+| 3 | Journal, calendar, inventory read | ranged projection endpoint (new) |
+| 4 | Full plan authoring | none — authoring APIs landed |
+| 5 | Progress, review, proposals (+ light AI) | ranged-history endpoint (new) |
+| 6 | Onboarding, hardening, smoke tests, mobile gate | none — landed |
 
-The mobile gate sits after Phase 2 plus the auth/offline backend items —
-Phases 3–5 are web-studio depth, not mobile blockers.
+The mobile gate sits after Phase 2 plus exercising the auth/offline
+endpoints — Phases 3–5 are web-studio depth, not mobile blockers.
 
-Note: `notes/coaching-foundations-todo.md` sits between fable-todo and this
-roadmap. Phase 0 can run in parallel with all of it, but Phase 1 should not
-start until coaching items 1, 2, and 7 land — Today should render effective
-targets with provenance from day one, not have them retrofitted.
+Note: the coaching-foundations phase (effective targets, live proposal
+loop, provenance) landed before this roadmap starts, so Phase 1 can render
+effective targets with provenance from day one as intended — nothing needs
+retrofitting.

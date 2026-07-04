@@ -5,7 +5,8 @@ Draft date: 2026-07-04.
 ## Purpose
 
 This is the excited-but-honest version of where Improve goes after the V1
-hardening work (`notes/fable-todo.md`) and the Svelte web app. It describes
+hardening work (done — archived at `notes/archive/fable-todo.md`) and the
+Svelte web app. It describes
 the product a few years out, the pillars that get us there, and the order to
 build them in. The near-term discipline docs still win any conflict: the
 purity boundary, the product vocabulary, and the append-only journal are
@@ -170,11 +171,12 @@ Further out, but the architecture already points here:
 
 ## Sequencing
 
-1. **Now:** V1 hardening (`notes/fable-todo.md`) — idempotent logging, bearer
-   tokens, timezones, offline HTTP ingress, contract cleanup. Every item
-   there is load-bearing for this vision.
-2. **Web studio:** authoring, dashboards, review; proposal surface rendered
-   for the first time.
+1. **Done:** V1 hardening (archived at `notes/archive/fable-todo.md`) —
+   idempotent logging, bearer tokens, timezones, offline HTTP ingress,
+   contract cleanup — and the coaching foundations (effective targets, the
+   live proposal loop, provenance).
+2. **Now — web studio** (`notes/frontend-roadmap.md`): authoring,
+   dashboards, review; proposal surface rendered for the first time.
 3. **Mobile foundation:** Flutter shell, custom design language, auth, today
    view, logging + offline outbox. Ship to ourselves early; daily-drive it.
 4. **Coach v1 (text):** ash_ai tool loop over existing read tools + proposal

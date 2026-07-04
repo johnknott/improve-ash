@@ -1,6 +1,11 @@
 # Backend Review And Next-20 Todo
 
-Draft date: 2026-07-04.
+Draft date: 2026-07-04. **Archived 2026-07-04:** the hardening pass is done.
+Sixteen of the twenty items landed (see the per-item notes below); the four
+still open are tracked as beans, not here — `oim8` (#17, Lookup/SamePlan
+batching), `grxa` (#18, atomic state transitions), `e0u0` (#19, rate
+limiting), and `ilos` (#20, key-normalization helper). The audit findings
+are kept as history; do not work from this list.
 
 Findings from a full audit of the Ash data model, planning engine, API/web
 layer, and roadmap docs, scored for the planned sequence: Svelte frontend

@@ -1,11 +1,11 @@
 ---
 # improve-ash-m8ry
 title: 'Stretch: adaptive strength bundle as second forcing example'
-status: todo
+status: completed
 type: task
 priority: deferred
 created_at: 2026-07-04T19:43:23Z
-updated_at: 2026-07-04T19:47:44Z
+updated_at: 2026-07-04T21:29:42Z
 parent: improve-ash-xxkf
 ---
 

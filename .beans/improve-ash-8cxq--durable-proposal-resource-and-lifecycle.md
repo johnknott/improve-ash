@@ -1,11 +1,11 @@
 ---
 # improve-ash-8cxq
 title: Durable Proposal resource and lifecycle
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2026-07-04T19:43:23Z
-updated_at: 2026-07-04T19:48:23Z
+updated_at: 2026-07-04T21:29:36Z
 parent: improve-ash-xxkf
 blocking:
     - improve-ash-xi85

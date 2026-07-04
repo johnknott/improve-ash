@@ -1,6 +1,9 @@
 # Coaching Foundations — Effective Targets And The Live Proposal Loop
 
-Draft date: 2026-07-04.
+Draft date: 2026-07-04. **Archived 2026-07-04:** all eight work items landed
+(beans `xxkf`, `vpsn`, `mj8g`, `8cxq`, `xi85`, `zhwu`, `ja2l`, `eeou`,
+`m8ry` — all completed). Kept as design history; the frontend build-out in
+`notes/frontend-roadmap.md` is no longer blocked on anything here.
 
 ## Purpose
 
