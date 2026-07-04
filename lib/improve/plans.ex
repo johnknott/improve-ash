@@ -27,12 +27,14 @@ defmodule Improve.Plans do
 
     resource Improve.Plans.ItemType do
       define :create_item_type, action: :create
+      define :update_item_type, action: :update
       define :get_item_type, action: :read, get_by: [:id]
       define :list_item_types, action: :read
     end
 
     resource Improve.Plans.Item do
       define :create_item, action: :create
+      define :update_item, action: :update
       define :get_item, action: :read, get_by: [:id]
       define :list_items, action: :read
       define :archive_item, action: :archive
@@ -57,6 +59,7 @@ defmodule Improve.Plans do
 
     resource Improve.Plans.EventType do
       define :create_event_type, action: :create
+      define :update_event_type, action: :update
       define :get_event_type, action: :read, get_by: [:id]
       define :list_event_types, action: :read
     end
@@ -83,6 +86,7 @@ defmodule Improve.Plans do
 
     resource Improve.Plans.SessionTemplate do
       define :create_session_template, action: :create
+      define :update_session_template, action: :update
       define :get_session_template, action: :read, get_by: [:id]
       define :list_session_templates, action: :read
     end

@@ -187,6 +187,170 @@ defmodule Improve.App.UiApi do
     end
   end
 
+  def update_track(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, track} <- get_plan_resource(params, "track_id", plan.id, &Plans.get_track/2, actor),
+         {:ok, attrs} <- update_track_attrs(params),
+         {:ok, _track} <- Plans.update_track(track, attrs, actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def create_session_template(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- session_template_attrs(params),
+         {:ok, _template} <-
+           Plans.create_session_template(Map.put(attrs, :plan_id, plan.id), actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def update_session_template(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, template} <-
+           get_plan_resource(
+             params,
+             "session_template_id",
+             plan.id,
+             &Plans.get_session_template/2,
+             actor
+           ),
+         {:ok, attrs} <- session_template_attrs(params),
+         {:ok, _template} <- Plans.update_session_template(template, attrs, actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def create_session_slot(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- session_slot_attrs(params),
+         {:ok, _slot} <-
+           Plans.create_session_slot(Map.put(attrs, :plan_id, plan.id), actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def update_session_slot(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, slot} <-
+           get_plan_resource(params, "session_slot_id", plan.id, &Plans.get_session_slot/2, actor),
+         {:ok, attrs} <- session_slot_attrs(params),
+         {:ok, _slot} <- Plans.update_session_slot(slot, attrs, actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def create_item(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- item_attrs(params),
+         {:ok, _item} <- Plans.create_item(Map.put(attrs, :plan_id, plan.id), actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def update_item(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, item} <-
+           get_plan_resource(params, "item_id", plan.id, &Plans.get_item/2, actor),
+         {:ok, attrs} <- item_attrs(params),
+         {:ok, _item} <- Plans.update_item(item, attrs, actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def create_item_type(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- item_type_attrs(params),
+         {:ok, _item_type} <-
+           Plans.create_item_type(Map.put(attrs, :plan_id, plan.id), actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def update_item_type(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, item_type} <-
+           get_plan_resource(params, "item_type_id", plan.id, &Plans.get_item_type/2, actor),
+         {:ok, attrs} <- item_type_attrs(params),
+         {:ok, _item_type} <- Plans.update_item_type(item_type, attrs, actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def create_event_type(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, attrs} <- event_type_attrs(params),
+         {:ok, _event_type} <-
+           Plans.create_event_type(Map.put(attrs, :plan_id, plan.id), actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  def update_event_type(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, event_type} <-
+           get_plan_resource(params, "event_type_id", plan.id, &Plans.get_event_type/2, actor),
+         {:ok, attrs} <- event_type_attrs(params),
+         {:ok, _event_type} <- Plans.update_event_type(event_type, attrs, actor: actor),
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) -> {:error, diagnostics}
+      {:error, error} -> {:error, error}
+    end
+  end
+
   def install_demo_plan(actor, params) do
     with {:ok, plan} <- install_or_select_demo_plan(actor, Map.get(params, "kind")),
          {:ok, payload} <-
@@ -480,6 +644,134 @@ defmodule Improve.App.UiApi do
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
   end
+
+  defp get_plan_resource(params, id_key, plan_id, get_fn, actor) do
+    case Map.get(params, id_key) do
+      id when is_binary(id) and id != "" ->
+        case get_fn.(id, actor: actor) do
+          {:ok, %{plan_id: ^plan_id} = resource} -> {:ok, resource}
+          _other -> {:error, :not_found}
+        end
+
+      _missing ->
+        {:error, :not_found}
+    end
+  end
+
+  defp update_track_attrs(params) do
+    attrs =
+      %{}
+      |> maybe_put_attr(:name, Map.get(params, "name"))
+      |> maybe_put_attr(:description, Map.get(params, "description"))
+      |> maybe_put_attr(:event_type_id, Map.get(params, "event_type_id"))
+      |> maybe_put_attr(:target, Map.get(params, "target"))
+      |> maybe_put_attr(:guidance, Map.get(params, "guidance"))
+
+    {:ok, attrs}
+  end
+
+  defp session_template_attrs(params) do
+    attrs =
+      %{}
+      |> maybe_put_attr(:key, Map.get(params, "key"))
+      |> maybe_put_attr(:name, Map.get(params, "name"))
+      |> maybe_put_attr(:description, Map.get(params, "description"))
+      |> maybe_put_attr(:environment_id, Map.get(params, "environment_id"))
+      |> maybe_put_attr(:completion_policy, Map.get(params, "completion_policy"))
+      |> maybe_put_attr(:missed_policy, Map.get(params, "missed_policy"))
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+
+    case diagnostics do
+      [] -> {:ok, attrs}
+      diagnostics -> {:error, diagnostics}
+    end
+  end
+
+  defp session_slot_attrs(params) do
+    attrs =
+      %{}
+      |> maybe_put_attr(:session_template_id, Map.get(params, "session_template_id"))
+      |> maybe_put_attr(:key, Map.get(params, "key"))
+      |> maybe_put_attr(:name, Map.get(params, "name"))
+      |> maybe_put_attr(:pool_id, Map.get(params, "pool_id"))
+      |> maybe_put_attr(:count, Map.get(params, "count"))
+      |> maybe_put_attr(:optional, Map.get(params, "optional"))
+      |> maybe_put_attr(:rules, Map.get(params, "rules"))
+      |> maybe_put_attr(:position, Map.get(params, "position"))
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+
+    case diagnostics do
+      [] -> {:ok, attrs}
+      diagnostics -> {:error, diagnostics}
+    end
+  end
+
+  defp item_attrs(params) do
+    attrs =
+      %{}
+      |> maybe_put_attr(:item_type_id, Map.get(params, "item_type_id"))
+      |> maybe_put_attr(:key, Map.get(params, "key"))
+      |> maybe_put_attr(:name, Map.get(params, "name"))
+      |> maybe_put_attr(:facts, Map.get(params, "facts"))
+      |> maybe_put_attr(:stateful, Map.get(params, "stateful"))
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+
+    case diagnostics do
+      [] -> {:ok, attrs}
+      diagnostics -> {:error, diagnostics}
+    end
+  end
+
+  defp item_type_attrs(params) do
+    attrs =
+      %{}
+      |> maybe_put_attr(:key, Map.get(params, "key"))
+      |> maybe_put_attr(:name, Map.get(params, "name"))
+      |> maybe_put_attr(:description, Map.get(params, "description"))
+      |> maybe_put_attr(:facts_schema, Map.get(params, "facts_schema"))
+      |> maybe_put_attr(:display_hints, Map.get(params, "display_hints"))
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+
+    case diagnostics do
+      [] -> {:ok, attrs}
+      diagnostics -> {:error, diagnostics}
+    end
+  end
+
+  defp event_type_attrs(params) do
+    attrs =
+      %{}
+      |> maybe_put_attr(:key, Map.get(params, "key"))
+      |> maybe_put_attr(:name, Map.get(params, "name"))
+      |> maybe_put_attr(:description, Map.get(params, "description"))
+      |> maybe_put_attr(:payload_schema, Map.get(params, "payload_schema"))
+      |> maybe_put_attr(:item_link_roles, Map.get(params, "item_link_roles"))
+      |> maybe_put_attr(:effect_rules, Map.get(params, "effect_rules"))
+
+    diagnostics =
+      []
+      |> maybe_add(blank?(Map.get(attrs, :name, Map.get(params, "name"))), "name", "Name is required.")
+
+    case diagnostics do
+      [] -> {:ok, attrs}
+      diagnostics -> {:error, diagnostics}
+    end
+  end
+
+  defp maybe_put_attr(map, _key, nil), do: map
+  defp maybe_put_attr(map, key, value), do: Map.put(map, key, value)
 
   defp create_track_attrs(params) do
     quantity = blank_to_nil(Map.get(params, "quantity"))

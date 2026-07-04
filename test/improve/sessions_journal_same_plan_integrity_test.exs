@@ -99,7 +99,7 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
       user = user!("same-plan-runtime-slot-update@example.com")
       a = fixture!(user, "a")
       b = fixture!(user, "b")
-      slot_result_a = slot_result!(user, a)
+      slot_result_a = slot_result!(user, a, occurrence!(user, a))
       event_b = event!(user, b)
 
       assert_same_plan_error(fn ->
@@ -126,9 +126,9 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
       a = fixture!(user, "a")
       b = fixture!(user, "b")
       occurrence_a = occurrence!(user, a)
-      slot_result_a = slot_result!(user, a)
+      slot_result_a = slot_result!(user, a, occurrence_a)
       occurrence_b = occurrence!(user, b)
-      slot_result_b = slot_result!(user, b)
+      slot_result_b = slot_result!(user, b, occurrence_b)
       track_b = track!(user, b)
       event_b = event!(user, b)
 
@@ -361,9 +361,7 @@ defmodule Improve.SessionsJournalSamePlanIntegrityTest do
     )
   end
 
-  defp slot_result!(user, fixture) do
-    occurrence = occurrence!(user, fixture)
-
+  defp slot_result!(user, fixture, occurrence) do
     Sessions.create_slot_result!(
       %{
         plan_id: fixture.plan.id,

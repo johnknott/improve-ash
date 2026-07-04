@@ -110,4 +110,8 @@ defmodule Improve.Plans.Schedule do
       public? true
     end
   end
+
+  identities do
+    identity :unique_schedule_per_owner_start, [:plan_id, :owner_type, :owner_id, :starts_on]
+  end
 end

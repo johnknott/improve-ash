@@ -25,6 +25,17 @@ defmodule ImproveWeb.Router do
     post "/app/plans", AppController, :create_plan
     patch "/app/plans/:plan_id", AppController, :update_plan
     post "/app/tracks", AppController, :create_track
+    patch "/app/tracks/:track_id", AppController, :update_track
+    post "/app/session-templates", AppController, :create_session_template
+    patch "/app/session-templates/:session_template_id", AppController, :update_session_template
+    post "/app/session-slots", AppController, :create_session_slot
+    patch "/app/session-slots/:session_slot_id", AppController, :update_session_slot
+    post "/app/items", AppController, :create_item
+    patch "/app/items/:item_id", AppController, :update_item
+    post "/app/item-types", AppController, :create_item_type
+    patch "/app/item-types/:item_type_id", AppController, :update_item_type
+    post "/app/event-types", AppController, :create_event_type
+    patch "/app/event-types/:event_type_id", AppController, :update_event_type
     post "/app/demo-plans", AppController, :install_demo_plan
     post "/app/start-session", AppController, :start_session
     post "/app/log-session-slot", AppController, :log_session_slot

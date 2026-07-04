@@ -152,4 +152,8 @@ defmodule Improve.Sessions.SessionOccurrence do
     has_many :slot_results, Improve.Sessions.SlotResult
     has_many :event_instances, Improve.Journal.EventInstance
   end
+
+  identities do
+    identity :unique_occurrence_per_template_day, [:plan_id, :session_template_id, :planned_for]
+  end
 end

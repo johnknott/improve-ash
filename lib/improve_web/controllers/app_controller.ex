@@ -70,6 +70,94 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def update_track(conn, params) do
+    call_app(conn, params, &UiApi.update_track/2,
+      not_found_message: "That track is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that goal."
+    )
+  end
+
+  def create_session_template(conn, params) do
+    call_app(conn, params, &UiApi.create_session_template/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not create that session template."
+    )
+  end
+
+  def update_session_template(conn, params) do
+    call_app(conn, params, &UiApi.update_session_template/2,
+      not_found_message: "That session template is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that session template."
+    )
+  end
+
+  def create_session_slot(conn, params) do
+    call_app(conn, params, &UiApi.create_session_slot/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not create that session slot."
+    )
+  end
+
+  def update_session_slot(conn, params) do
+    call_app(conn, params, &UiApi.update_session_slot/2,
+      not_found_message: "That session slot is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that session slot."
+    )
+  end
+
+  def create_item(conn, params) do
+    call_app(conn, params, &UiApi.create_item/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not create that item."
+    )
+  end
+
+  def update_item(conn, params) do
+    call_app(conn, params, &UiApi.update_item/2,
+      not_found_message: "That item is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that item."
+    )
+  end
+
+  def create_item_type(conn, params) do
+    call_app(conn, params, &UiApi.create_item_type/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not create that item type."
+    )
+  end
+
+  def update_item_type(conn, params) do
+    call_app(conn, params, &UiApi.update_item_type/2,
+      not_found_message: "That item type is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that item type."
+    )
+  end
+
+  def create_event_type(conn, params) do
+    call_app(conn, params, &UiApi.create_event_type/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not create that event type."
+    )
+  end
+
+  def update_event_type(conn, params) do
+    call_app(conn, params, &UiApi.update_event_type/2,
+      not_found_message: "That event type is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not update that event type."
+    )
+  end
+
   def start_session(conn, params) do
     call_app(conn, params, &UiApi.start_session/2,
       not_found_message: "That projected session is not available.",
