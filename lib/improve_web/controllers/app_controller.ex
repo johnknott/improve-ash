@@ -116,25 +116,29 @@ defmodule ImproveWeb.AppController do
       json(conn, payload)
     else
       {:error, :unauthenticated} ->
-        app_error(conn, 401, "Please sign in to continue.")
+        app_error(conn, 401, "unauthenticated", "Please sign in to continue.")
 
       {:error, :unknown_demo_plan} ->
-        app_error(conn, 422, "Choose a demo plan to install.")
+        app_error(conn, 422, "invalid_request", "Choose a demo plan to install.")
 
       {:error, :not_found} ->
         app_error(
           conn,
           404,
+          "not_found",
           Keyword.get(opts, :not_found_message, "That resource is not available.")
         )
 
       {:error, diagnostics} when is_list(diagnostics) ->
-        app_error(conn, 422, Enum.join(diagnostics, " "))
+        conn
+        |> put_status(422)
+        |> json(ImproveWeb.ApiError.validation_payload(diagnostics))
 
       {:error, _error} ->
         app_error(
           conn,
           Keyword.fetch!(opts, :fallback_status),
+          "request_failed",
           Keyword.fetch!(opts, :fallback_message)
         )
     end
@@ -143,9 +147,9 @@ defmodule ImproveWeb.AppController do
   defp current_actor(%{assigns: %{current_user: actor}}) when not is_nil(actor), do: {:ok, actor}
   defp current_actor(_conn), do: {:error, :unauthenticated}
 
-  defp app_error(conn, status, message) do
+  defp app_error(conn, status, code, message) do
     conn
     |> put_status(status)
-    |> json(%{error: %{message: message}})
+    |> json(ImproveWeb.ApiError.payload(code, message))
   end
 end

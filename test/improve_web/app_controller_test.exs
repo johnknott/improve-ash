@@ -68,8 +68,17 @@ defmodule ImproveWeb.AppControllerTest do
 
     assert %{
              "error" => %{
+               "code" => "validation_failed",
                "message" =>
-                 "Plan name is required. Plan intention is required. Plan end date must be after the start date."
+                 "Plan name is required. Plan intention is required. Plan end date must be after the start date.",
+               "details" => [
+                 %{"field" => "name", "message" => "Plan name is required."},
+                 %{"field" => "intention", "message" => "Plan intention is required."},
+                 %{
+                   "field" => "ends_on",
+                   "message" => "Plan end date must be after the start date."
+                 }
+               ]
              }
            } = json_response(conn, 422)
   end

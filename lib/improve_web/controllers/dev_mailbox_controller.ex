@@ -10,6 +10,6 @@ defmodule ImproveWeb.DevMailboxController do
   def latest_otp(conn, _params) do
     conn
     |> put_status(:bad_request)
-    |> json(%{error: %{message: "email is required"}})
+    |> json(ImproveWeb.ApiError.payload("invalid_request", "email is required"))
   end
 end

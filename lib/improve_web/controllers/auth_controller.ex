@@ -12,15 +12,15 @@ defmodule ImproveWeb.AuthController do
 
       {:error, error} ->
         if rate_limited?(error) do
-          auth_error(conn, 429, "Please wait before trying again.")
+          auth_error(conn, 429, "rate_limited", "Please wait before trying again.")
         else
-          auth_error(conn, 400, "We could not send a code right now.")
+          auth_error(conn, 400, "invalid_request", "We could not send a code right now.")
         end
     end
   end
 
   def request_code(conn, _params) do
-    auth_error(conn, 400, "We could not send a code right now.")
+    auth_error(conn, 400, "invalid_request", "We could not send a code right now.")
   end
 
   def verify_code(conn, %{"email" => email, "otp" => otp}) do
@@ -32,15 +32,15 @@ defmodule ImproveWeb.AuthController do
 
       {:error, error} ->
         if rate_limited?(error) do
-          auth_error(conn, 429, "Please wait before trying again.")
+          auth_error(conn, 429, "rate_limited", "Please wait before trying again.")
         else
-          auth_error(conn, 401, "That code was invalid or expired.")
+          auth_error(conn, 401, "invalid_credentials", "That code was invalid or expired.")
         end
     end
   end
 
   def verify_code(conn, _params) do
-    auth_error(conn, 400, "That code was invalid or expired.")
+    auth_error(conn, 400, "invalid_request", "That code was invalid or expired.")
   end
 
   def me(conn, _params) do
@@ -48,7 +48,7 @@ defmodule ImproveWeb.AuthController do
   end
 
   def complete_profile(%{assigns: %{current_user: nil}} = conn, _params) do
-    auth_error(conn, 401, "Please sign in to continue.")
+    auth_error(conn, 401, "unauthenticated", "Please sign in to continue.")
   end
 
   def complete_profile(
@@ -69,12 +69,12 @@ defmodule ImproveWeb.AuthController do
         json(conn, %{user: user_json(user)})
 
       {:error, error} ->
-        auth_error(conn, 422, profile_error_message(error))
+        auth_error(conn, 422, "validation_failed", profile_error_message(error))
     end
   end
 
   def complete_profile(conn, _params) do
-    auth_error(conn, 422, "Please enter your name.")
+    auth_error(conn, 422, "validation_failed", "Please enter your name.")
   end
 
   def logout(conn, _params) do
@@ -84,10 +84,10 @@ defmodule ImproveWeb.AuthController do
     |> json(%{ok: true})
   end
 
-  defp auth_error(conn, status, message) do
+  defp auth_error(conn, status, code, message) do
     conn
     |> put_status(status)
-    |> json(%{error: %{message: message}})
+    |> json(ImproveWeb.ApiError.payload(code, message))
   end
 
   defp rate_limited?(%AshRateLimiter.LimitExceeded{}), do: true

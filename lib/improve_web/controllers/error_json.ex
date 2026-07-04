@@ -1,21 +1,20 @@
 defmodule ImproveWeb.ErrorJSON do
   @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
-
-  See config/config.exs.
+  Renders framework-level errors (unknown routes, crashes) in the same
+  envelope as controller errors. See `ImproveWeb.ApiError`.
   """
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
-  #
-  # def render("500.json", _assigns) do
-  #   %{errors: %{detail: "Internal Server Error"}}
-  # end
-
-  # By default, Phoenix returns the status message from
-  # the template name. For example, "404.json" becomes
-  # "Not Found".
   def render(template, _assigns) do
-    %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
+    ImproveWeb.ApiError.payload(
+      code_for(template),
+      Phoenix.Controller.status_message_from_template(template)
+    )
   end
+
+  defp code_for("404" <> _rest), do: "not_found"
+  defp code_for("401" <> _rest), do: "unauthenticated"
+  defp code_for("429" <> _rest), do: "rate_limited"
+  defp code_for("500" <> _rest), do: "internal_error"
+  defp code_for("4" <> _rest), do: "invalid_request"
+  defp code_for(_template), do: "internal_error"
 end

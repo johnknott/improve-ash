@@ -384,10 +384,15 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(params, "name")), "Plan name is required.")
-      |> maybe_add(blank?(Map.get(params, "intention")), "Plan intention is required.")
+      |> maybe_add(blank?(Map.get(params, "name")), "name", "Plan name is required.")
+      |> maybe_add(
+        blank?(Map.get(params, "intention")),
+        "intention",
+        "Plan intention is required."
+      )
       |> maybe_add(
         Date.compare(ends_on, starts_on) == :lt,
+        "ends_on",
         "Plan end date must be after the start date."
       )
 
@@ -439,12 +444,28 @@ defmodule Improve.App.UiApi do
 
     diagnostics =
       []
-      |> maybe_add(blank?(Map.get(params, "name")), "Track name is required.")
-      |> maybe_add(target_mode not in ["fixed", "metric"], "Choose a supported track type.")
-      |> maybe_add(target_mode == "fixed" and blank?(quantity), "Track amount is required.")
-      |> maybe_add(target_mode == "metric" and blank?(metric_name), "Metric name is required.")
-      |> maybe_add(blank?(unit), "Track unit is required.")
-      |> maybe_add(blank?(event_type_id) and blank?(event_name), "Choose what this track logs.")
+      |> maybe_add(blank?(Map.get(params, "name")), "name", "Track name is required.")
+      |> maybe_add(
+        target_mode not in ["fixed", "metric"],
+        "target_mode",
+        "Choose a supported track type."
+      )
+      |> maybe_add(
+        target_mode == "fixed" and blank?(quantity),
+        "quantity",
+        "Track amount is required."
+      )
+      |> maybe_add(
+        target_mode == "metric" and blank?(metric_name),
+        "metric_name",
+        "Metric name is required."
+      )
+      |> maybe_add(blank?(unit), "unit", "Track unit is required.")
+      |> maybe_add(
+        blank?(event_type_id) and blank?(event_name),
+        "event_type_id",
+        "Choose what this track logs."
+      )
 
     case diagnostics do
       [] ->
@@ -1389,8 +1410,10 @@ defmodule Improve.App.UiApi do
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""
   defp blank?(_value), do: false
 
-  defp maybe_add(diagnostics, true, message), do: diagnostics ++ [message]
-  defp maybe_add(diagnostics, false, _message), do: diagnostics
+  defp maybe_add(diagnostics, true, field, message),
+    do: diagnostics ++ [%{field: field, message: message}]
+
+  defp maybe_add(diagnostics, false, _field, _message), do: diagnostics
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
