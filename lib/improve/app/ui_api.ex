@@ -917,8 +917,8 @@ defmodule Improve.App.UiApi do
             items_by_id
           )
         ),
-      diagnostics: projection.diagnostics,
-      explanations: projection.explanations
+      diagnostics: camelize_keys(projection.diagnostics),
+      explanations: camelize_keys(projection.explanations)
     }
   end
 
@@ -947,7 +947,7 @@ defmodule Improve.App.UiApi do
       planName: plan.name,
       explanation: work.explanation,
       target: target_json(target),
-      targetProgress: Map.get(payload, :target_progress, %{}),
+      targetProgress: payload |> Map.get(:target_progress, %{}) |> camelize_keys(),
       eventTypeId: event_type_id,
       eventTypeName: event_type && event_type.name,
       trackId: Map.get(payload, :track_id),
@@ -993,7 +993,7 @@ defmodule Improve.App.UiApi do
             previousEvents: Map.get(item, :previous_events, [])
           }
         end),
-      state: Map.get(occurrence, :session_state, %{}),
+      state: occurrence |> Map.get(:session_state, %{}) |> camelize_keys(),
       slotResults:
         Enum.map(
           slot_results,
@@ -1062,7 +1062,7 @@ defmodule Improve.App.UiApi do
       sourceKind: Atom.to_string(plan.source_kind),
       sourceKey: plan.source_key,
       dayLabel: day_label(elapsed, duration),
-      summary: summary
+      summary: summary && camelize_keys(summary)
     }
   end
 
@@ -1096,7 +1096,7 @@ defmodule Improve.App.UiApi do
       startingFacts: stringify_values(state.starting_facts),
       calculatedState: stringify_values(state.calculated_state),
       activeEffects: Enum.map(state.active_effects, &item_effect_json(&1, %{})),
-      warnings: state.warnings
+      warnings: camelize_keys(state.warnings)
     }
   end
 
@@ -1283,6 +1283,25 @@ defmodule Improve.App.UiApi do
       replacesItemEffectId: effect.replaces_item_effect_id
     }
   end
+
+  # Engine-produced maps use snake_case keys internally; the API speaks
+  # camelCase. Never applied to user-authored JSONB (facts, payloads, rules,
+  # schemas) — those keys belong to the user.
+  defp camelize_keys(map) when is_map(map) and not is_struct(map) do
+    Map.new(map, fn {key, value} -> {camel_key(key), camelize_keys(value)} end)
+  end
+
+  defp camelize_keys(list) when is_list(list), do: Enum.map(list, &camelize_keys/1)
+  defp camelize_keys(value), do: value
+
+  defp camel_key(key) when is_atom(key), do: key |> Atom.to_string() |> camel_key()
+
+  defp camel_key(key) when is_binary(key) do
+    [head | rest] = String.split(key, "_")
+    head <> Enum.map_join(rest, "", &String.capitalize/1)
+  end
+
+  defp camel_key(key), do: key
 
   defp stringify_values(map) when is_map(map) do
     Map.new(map, fn {key, value} -> {key, stringify_value(value)} end)

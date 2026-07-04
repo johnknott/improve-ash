@@ -1,13 +1,27 @@
 import type {
+  ApiErrorDetail,
+  ApiErrorPayload,
   DashboardData,
   CreatePlanInput,
   DemoPlanKind,
   UpdatePlanInput,
 } from './types'
 
-type ApiError = {
-  error?: {
-    message?: string
+export class ApiRequestError extends Error {
+  readonly code: string
+  readonly status: number
+  readonly details: ApiErrorDetail[]
+
+  constructor(status: number, code: string, message: string, details: ApiErrorDetail[]) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    this.code = code
+    this.details = details
+  }
+
+  fieldMessage(field: string): string | null {
+    return this.details.find((detail) => detail.field === field)?.message ?? null
   }
 }
 
@@ -68,8 +82,13 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   })
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as ApiError
-    throw new Error(body.error?.message ?? 'We could not reach Improve.')
+    const body = (await response.json().catch(() => ({}))) as ApiErrorPayload
+    throw new ApiRequestError(
+      response.status,
+      body.error?.code ?? 'request_failed',
+      body.error?.message ?? 'We could not reach Improve.',
+      body.error?.details ?? [],
+    )
   }
 
   return (await response.json()) as T

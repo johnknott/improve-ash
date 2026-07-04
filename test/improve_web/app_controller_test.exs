@@ -185,8 +185,8 @@ defmodule ImproveWeb.AppControllerTest do
                "title" => "Read for 15 minutes",
                "target" => %{"quantity" => "15", "unit" => "minutes"},
                "targetProgress" => %{
-                 "completed_event_count" => 0,
-                 "completed_event_ids" => []
+                 "completedEventCount" => 0,
+                 "completedEventIds" => []
                },
                "canLog" => true
              }
@@ -309,9 +309,9 @@ defmodule ImproveWeb.AppControllerTest do
                  "unit" => "kg"
                },
                "targetProgress" => %{
-                 "completed_event_count" => 0,
-                 "completed_event_ids" => [],
-                 "recorded_value" => nil,
+                 "completedEventCount" => 0,
+                 "completedEventIds" => [],
+                 "recordedValue" => nil,
                  "unit" => "kg"
                },
                "canLog" => true
@@ -340,7 +340,7 @@ defmodule ImproveWeb.AppControllerTest do
                  %{
                    "status" => "started",
                    "session" => %{
-                     "state" => %{"session_occurrence_id" => occurrence_id},
+                     "state" => %{"sessionOccurrenceId" => occurrence_id},
                      "slotResults" => slot_results
                    }
                  }
@@ -399,7 +399,7 @@ defmodule ImproveWeb.AppControllerTest do
                  %{
                    "session" => %{
                      "slotResults" => updated_slot_results,
-                     "state" => %{"slot_results_logged" => 1}
+                     "state" => %{"slotResultsLogged" => 1}
                    }
                  }
                ]
@@ -412,7 +412,7 @@ defmodule ImproveWeb.AppControllerTest do
     assert %{
              "today" => %{
                "work" => [
-                 %{"session" => %{"state" => %{"slot_results_logged" => 1}}}
+                 %{"session" => %{"state" => %{"slotResultsLogged" => 1}}}
                ]
              }
            } = json_response(conn, 200)
@@ -599,7 +599,7 @@ defmodule ImproveWeb.AppControllerTest do
              "today" => %{
                "work" => [
                  %{
-                   "session" => %{"state" => %{"session_occurrence_id" => occurrence_id}}
+                   "session" => %{"state" => %{"sessionOccurrenceId" => occurrence_id}}
                  }
                ]
              }
