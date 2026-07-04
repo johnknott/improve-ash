@@ -6,14 +6,16 @@ defmodule Improve.Bundles.Marathon.Pipeline do
   alias Improve.Bundles.Marathon
   alias Improve.Bundles.Marathon.Adaptation
   alias Improve.Bundles.Marathon.RecentLoad
+  alias Improve.Bundles.Marathon.TargetAdjustment
   alias Improve.Planning.EvaluatorGraph
 
   @doc """
-  Runs recent-load derivation before marathon adaptation.
+  Runs recent-load derivation, target adjustment, then marathon adaptation.
   """
   def evaluate(input) when is_map(input) do
     EvaluatorGraph.run(Marathon.evaluator_descriptors(), input, %{
       recent_load_metric: &RecentLoad.evaluate/1,
+      marathon_target_adjustment: &TargetAdjustment.evaluate/1,
       marathon_adaptation: &Adaptation.evaluate/1
     })
   end

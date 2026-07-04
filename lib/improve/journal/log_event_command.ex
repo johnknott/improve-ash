@@ -29,6 +29,7 @@ defmodule Improve.Journal.LogEventCommand do
     :track_id,
     :replaces_event_instance_id,
     :replaces_item_effect_id,
+    :target_snapshot,
     payload: %{},
     origin: :manual,
     item_links: [],
@@ -62,6 +63,7 @@ defmodule Improve.Journal.LogEventCommand do
       track_id: value(attrs, :track_id),
       replaces_event_instance_id: value(attrs, :replaces_event_instance_id),
       replaces_item_effect_id: value(attrs, :replaces_item_effect_id),
+      target_snapshot: value(attrs, :target_snapshot),
       item_links: normalize_item_links(value(attrs, :item_links, [])),
       idempotency: normalize_idempotency(value(attrs, :idempotency))
     }

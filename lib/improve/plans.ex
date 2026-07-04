@@ -104,6 +104,17 @@ defmodule Improve.Plans do
       define :get_track, action: :read, get_by: [:id]
       define :list_tracks, action: :read
     end
+
+    resource Improve.Plans.Proposal do
+      define :create_proposal, action: :propose
+      define :get_proposal, action: :read, get_by: [:id]
+      define :list_proposals, action: :read
+      define :refresh_proposal, action: :refresh
+      define :approve_proposal, action: :approve
+      define :dismiss_proposal, action: :dismiss
+      define :mark_proposal_applied, action: :mark_applied
+      define :expire_proposal, action: :expire
+    end
   end
 
   def summarize_plan(plan_or_id, opts) do
@@ -149,8 +160,9 @@ defmodule Improve.Plans do
     with {:ok, plan} <- fetch_plan(plan_or_id, actor),
          {:ok, plan} <- load_projection_plan(plan, actor) do
       input = projection_input(date, plan, opts)
+      bundle_keys = Map.get(plan, :evaluator_bundles) || []
 
-      {:ok, Improve.Planning.Projector.project_today(input)}
+      {:ok, Improve.Planning.AdaptiveProjector.project(input, bundle_keys)}
     end
   end
 
@@ -166,11 +178,13 @@ defmodule Improve.Plans do
 
     with {:ok, plan} <- fetch_plan(plan_or_id, actor),
          {:ok, plan} <- load_projection_plan(plan, actor) do
+      bundle_keys = Map.get(plan, :evaluator_bundles) || []
+
       projections =
         Enum.map(dates, fn date ->
           date
           |> projection_input(plan, opts)
-          |> Improve.Planning.Projector.project_today()
+          |> Improve.Planning.AdaptiveProjector.project(bundle_keys)
         end)
 
       {:ok, projections}

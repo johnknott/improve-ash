@@ -47,6 +47,30 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def list_proposals(conn, params) do
+    call_app(conn, params, &UiApi.list_proposals/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not load proposals."
+    )
+  end
+
+  def approve_proposal(conn, params) do
+    call_app(conn, params, &UiApi.approve_proposal/2,
+      not_found_message: "That proposal is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not approve that proposal."
+    )
+  end
+
+  def dismiss_proposal(conn, params) do
+    call_app(conn, params, &UiApi.dismiss_proposal/2,
+      not_found_message: "That proposal is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not dismiss that proposal."
+    )
+  end
+
   def create_plan(conn, params) do
     call_app(conn, params, &UiApi.create_plan/2,
       fallback_status: 422,

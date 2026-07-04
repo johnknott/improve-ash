@@ -237,7 +237,8 @@ defmodule Improve.Stories do
   end
 
   def show_review!(%Story{} = story, plan, opts) do
-    review = App.review!(plan, actor: actor!(story), on: Keyword.fetch!(opts, :on))
+    shape = Keyword.get(opts, :shape, :weekly)
+    review = App.review!(plan, actor: actor!(story), on: Keyword.fetch!(opts, :on), shape: shape)
 
     Print.section("Review")
 

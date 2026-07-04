@@ -5,15 +5,20 @@ defmodule Improve.Planning.EvaluatorCapabilitiesTest do
   alias Improve.Planning.EvaluatorCapabilities
 
   describe "marathon evaluator descriptors" do
-    test "declares the concrete recent-load producer and adaptation consumer" do
+    test "declares the concrete recent-load producer, target adjustment, and adaptation consumer" do
       descriptors = Marathon.evaluator_descriptors()
 
       assert Enum.map(descriptors, & &1.evaluator) == [
                :recent_load_metric,
+               :marathon_target_adjustment,
                :marathon_adaptation
              ]
 
-      assert Enum.map(descriptors, & &1.kind) == [:derived_metric, :adaptation]
+      assert Enum.map(descriptors, & &1.kind) == [
+               :derived_metric,
+               :target_adjustment,
+               :adaptation
+             ]
     end
 
     test "bounds the recent-load producer input to projection history and date" do
@@ -62,16 +67,22 @@ defmodule Improve.Planning.EvaluatorCapabilitiesTest do
   end
 
   describe "dependency_edges/1" do
-    test "exposes the concrete dependency without running or ordering evaluators" do
-      assert [
-               %{
-                 provider: :recent_load_metric,
-                 consumer: :marathon_adaptation,
-                 capability: :recent_load_km
-               }
-             ] =
-               Marathon.evaluator_descriptors()
-               |> EvaluatorCapabilities.dependency_edges()
+    test "exposes the concrete dependencies without running or ordering evaluators" do
+      edges =
+        Marathon.evaluator_descriptors()
+        |> EvaluatorCapabilities.dependency_edges()
+
+      assert %{
+               provider: :recent_load_metric,
+               consumer: :marathon_adaptation,
+               capability: :recent_load_km
+             } in edges
+
+      assert %{
+               provider: :recent_load_metric,
+               consumer: :marathon_target_adjustment,
+               capability: :recent_load_km
+             } in edges
     end
   end
 

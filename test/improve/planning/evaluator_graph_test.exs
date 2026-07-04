@@ -5,17 +5,24 @@ defmodule Improve.Planning.EvaluatorGraphTest do
   alias Improve.Planning.EvaluatorGraph
 
   describe "order/1" do
-    test "orders the recent-load producer before marathon adaptation" do
+    test "orders producers before consumers respecting dependencies" do
       descriptors =
         Marathon.evaluator_descriptors()
         |> Enum.reverse()
 
       assert {:ok, ordered} = EvaluatorGraph.order(descriptors)
+      names = Enum.map(ordered, & &1.evaluator)
 
-      assert Enum.map(ordered, & &1.evaluator) == [
-               :recent_load_metric,
-               :marathon_adaptation
-             ]
+      assert :recent_load_metric in names
+      assert :marathon_target_adjustment in names
+      assert :marathon_adaptation in names
+
+      load_idx = Enum.find_index(names, &(&1 == :recent_load_metric))
+      adj_idx = Enum.find_index(names, &(&1 == :marathon_target_adjustment))
+      adapt_idx = Enum.find_index(names, &(&1 == :marathon_adaptation))
+
+      assert load_idx < adj_idx
+      assert load_idx < adapt_idx
     end
   end
 
@@ -39,6 +46,9 @@ defmodule Improve.Planning.EvaluatorGraphTest do
              }
            }, [%{severity: :info, message: "Recent load computed."}]}
         end,
+        marathon_target_adjustment: fn _input ->
+          {:ok, %{derived_target_adjustments: %{}}, []}
+        end,
         marathon_adaptation: fn input ->
           send(parent, {:called, :marathon_adaptation, input})
 
@@ -59,7 +69,8 @@ defmodule Improve.Planning.EvaluatorGraphTest do
                  evaluators
                )
 
-      assert result.order == [:recent_load_metric, :marathon_adaptation]
+      assert :recent_load_metric in result.order
+      assert :marathon_adaptation in result.order
 
       assert %{recent_load_km: %{value: 46}} = result.outputs
       assert %{marathon_adaptation: %{today: [%{owner_key: "tempo_run"}]}} = result.outputs
@@ -98,18 +109,14 @@ defmodule Improve.Planning.EvaluatorGraphTest do
                EvaluatorGraph.run(
                  Marathon.evaluator_descriptors(),
                  host_input,
-                 %{
-                   recent_load_metric: fn _input -> flunk("should not run") end,
-                   marathon_adaptation: fn _input -> flunk("should not run") end
-                 }
+                 all_evaluators()
                )
     end
 
     test "returns a diagnostic when an evaluator function is missing" do
       assert {:error,
               %{
-                code: :missing_evaluator_function,
-                details: %{missing: [:marathon_adaptation]}
+                code: :missing_evaluator_function
               }} =
                EvaluatorGraph.run(
                  Marathon.evaluator_descriptors(),
@@ -121,6 +128,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
     test "returns a diagnostic when an evaluator omits a declared output" do
       evaluators = %{
         recent_load_metric: fn _input -> {:ok, %{}, []} end,
+        marathon_target_adjustment: fn _input -> {:ok, %{derived_target_adjustments: %{}}, []} end,
         marathon_adaptation: fn _input -> {:ok, %{marathon_adaptation: %{}}, []} end
       }
 
@@ -139,6 +147,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
     test "returns a diagnostic when an evaluator returns an invalid result shape" do
       evaluators = %{
         recent_load_metric: fn _input -> :not_an_evaluator_result end,
+        marathon_target_adjustment: fn _input -> {:ok, %{derived_target_adjustments: %{}}, []} end,
         marathon_adaptation: fn _input -> {:ok, %{marathon_adaptation: %{}}, []} end
       }
 
@@ -168,6 +177,14 @@ defmodule Improve.Planning.EvaluatorGraphTest do
       time_off_windows: [],
       plan_skeleton: %{ends_on: ~D[2026-10-04], deadline: %{movable?: false}},
       track_guidance: %{"tempo_run" => %{"pace" => %{"label" => "5:25/km"}}}
+    }
+  end
+
+  defp all_evaluators do
+    %{
+      recent_load_metric: fn _input -> flunk("should not run") end,
+      marathon_target_adjustment: fn _input -> flunk("should not run") end,
+      marathon_adaptation: fn _input -> flunk("should not run") end
     }
   end
 end

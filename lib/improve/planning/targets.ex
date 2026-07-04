@@ -14,6 +14,7 @@ defmodule Improve.Planning.Targets do
     Improve.Planning.Targets.Checklist,
     Improve.Planning.Targets.PeriodTotal,
     Improve.Planning.Targets.Progression,
+    Improve.Planning.Targets.ResponsiveProgression,
     Improve.Planning.Targets.Adaptive
   ]
 
@@ -120,6 +121,9 @@ defmodule Improve.Planning.Targets do
 
       has_value?(target, "metric") or has_value?(target, "metric_name") ->
         "metric"
+
+      has_value?(target, "steps") ->
+        "responsive_progression"
 
       has_value?(target, "progression") ->
         "progression"

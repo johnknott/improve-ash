@@ -15,6 +15,12 @@ defmodule Improve.Bundles.Marathon do
       requires: [:as_of_date, :tracks, :journal_events, :timezone]
     },
     %{
+      evaluator: :marathon_target_adjustment,
+      kind: :target_adjustment,
+      provides: [:derived_target_adjustments],
+      requires: [:date, :tracks, :life_events, :recent_load_km]
+    },
+    %{
       evaluator: :marathon_adaptation,
       kind: :adaptation,
       provides: [:marathon_adaptation],

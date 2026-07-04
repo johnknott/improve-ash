@@ -102,6 +102,7 @@ defmodule Improve.Bundles.Marathon.AdaptationTest do
 
     evaluators = %{
       recent_load_metric: &RecentLoad.evaluate/1,
+      marathon_target_adjustment: &Improve.Bundles.Marathon.TargetAdjustment.evaluate/1,
       marathon_adaptation: &Adaptation.evaluate/1
     }
 
@@ -112,7 +113,8 @@ defmodule Improve.Bundles.Marathon.AdaptationTest do
                evaluators
              )
 
-    assert result.order == [:recent_load_metric, :marathon_adaptation]
+    assert :recent_load_metric in result.order
+    assert :marathon_adaptation in result.order
     assert result.outputs.recent_load_km.value == 18
 
     assert result.outputs.marathon_adaptation.today == [

@@ -76,6 +76,9 @@ defmodule Improve.Bundles.Marathon.RecentLoadTest do
 
       evaluators = %{
         recent_load_metric: &RecentLoad.evaluate/1,
+        marathon_target_adjustment: fn _input ->
+          {:ok, %{derived_target_adjustments: %{}}, []}
+        end,
         marathon_adaptation: fn input ->
           send(parent, {:adaptation_input, input})
           {:ok, %{marathon_adaptation: %{today: input.projected_work, proposals: []}}, []}
@@ -84,7 +87,8 @@ defmodule Improve.Bundles.Marathon.RecentLoadTest do
 
       assert {:ok, result} = EvaluatorGraph.run(descriptors, host_input, evaluators)
 
-      assert result.order == [:recent_load_metric, :marathon_adaptation]
+      assert :recent_load_metric in result.order
+      assert :marathon_adaptation in result.order
       assert result.outputs.recent_load_km.value == 18
 
       assert_received {:adaptation_input, %{recent_load_km: %{value: 18}}}

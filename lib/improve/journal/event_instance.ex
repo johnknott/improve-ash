@@ -47,7 +47,8 @@ defmodule Improve.Journal.EventInstance do
         :client_event_id,
         :client_operation_id,
         :client_device_id,
-        :idempotency_key
+        :idempotency_key,
+        :target_snapshot
       ]
 
       validate {Improve.Validations.SamePlan,
@@ -158,6 +159,10 @@ defmodule Improve.Journal.EventInstance do
     end
 
     attribute :idempotency_key, :string do
+      public? true
+    end
+
+    attribute :target_snapshot, :map do
       public? true
     end
 

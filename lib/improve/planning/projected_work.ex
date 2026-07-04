@@ -45,6 +45,7 @@ defmodule Improve.Planning.ProjectedWork do
       planned_for: occurrence.planned_for,
       owner_type: :session_template,
       owner_id: occurrence.session_template_id,
+      owner_key: Map.get(occurrence, :session_template_key, occurrence.session_template_id),
       title: occurrence.session_template_name,
       payload: payload,
       explanation:
@@ -71,6 +72,7 @@ defmodule Improve.Planning.ProjectedWork do
         completed_event_ids: Keyword.get(opts, :completed_event_ids, [])
       }
       |> maybe_put(:target_progress, Keyword.get(opts, :target_progress))
+      |> maybe_put(:effective_target, Keyword.get(opts, :effective_target))
       |> maybe_put(:time_off_window, Keyword.get(opts, :time_off_window))
 
     %{
@@ -80,6 +82,7 @@ defmodule Improve.Planning.ProjectedWork do
       planned_for: planned_for,
       owner_type: :track,
       owner_id: track.id,
+      owner_key: track.key,
       title: track.name,
       payload: payload,
       explanation:

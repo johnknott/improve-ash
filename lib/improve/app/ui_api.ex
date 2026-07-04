@@ -413,6 +413,38 @@ defmodule Improve.App.UiApi do
     update_session_status(actor, params, :skip)
   end
 
+  def list_proposals(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, proposals} <-
+           Plans.list_proposals(
+             actor: actor,
+             query: [filter: proposal_filters(plan.id, params)]
+           ) do
+      {:ok, %{proposals: Enum.map(proposals, &proposal_json/1)}}
+    end
+  end
+
+  def approve_proposal(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, proposal} <-
+           get_plan_resource(params, "proposal_id", plan.id, &Plans.get_proposal/2, actor),
+         {:ok, approved} <- Plans.approve_proposal(proposal, actor: actor) do
+      {:ok, %{proposal: proposal_json(approved)}}
+    end
+  end
+
+  def dismiss_proposal(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, proposal} <-
+           get_plan_resource(params, "proposal_id", plan.id, &Plans.get_proposal/2, actor),
+         {:ok, dismissed} <-
+           Plans.dismiss_proposal(proposal, %{dismiss_reason: Map.get(params, "reason")},
+             actor: actor
+           ) do
+      {:ok, %{proposal: proposal_json(dismissed)}}
+    end
+  end
+
   @dashboard_slices [:plans, :currentPlan, :today, :journal, :planDetail]
 
   defp dashboard_payload(plan, plans, actor, params) do
@@ -514,6 +546,7 @@ defmodule Improve.App.UiApi do
           today_json(
             projection,
             plan,
+            actor,
             event_types_by_id,
             upcoming_work(upcoming_projections),
             slot_results_by_occurrence,
@@ -1213,6 +1246,7 @@ defmodule Improve.App.UiApi do
   defp today_json(
          projection,
          plan,
+         actor,
          event_types_by_id,
          upcoming,
          slot_results_by_occurrence,
@@ -1254,6 +1288,7 @@ defmodule Improve.App.UiApi do
             items_by_id
           )
         ),
+      proposals: proposals_summary_json(plan, actor),
       diagnostics: camelize_keys(projection.diagnostics),
       explanations: camelize_keys(projection.explanations)
     }
@@ -1285,6 +1320,7 @@ defmodule Improve.App.UiApi do
       explanation: work.explanation,
       target: target_json(target),
       targetProgress: payload |> Map.get(:target_progress, %{}) |> camelize_keys(),
+      provenance: provenance_json(payload),
       eventTypeId: event_type_id,
       eventTypeName: event_type && event_type.name,
       trackId: Map.get(payload, :track_id),
@@ -1384,6 +1420,23 @@ defmodule Improve.App.UiApi do
   end
 
   defp target_json(_target), do: %{}
+
+  defp provenance_json(%{effective_target: %{adjusted?: true} = et}) do
+    %{
+      planned: target_json(et.authored),
+      effective: target_json(et.effective),
+      adjusted: true,
+      source: safe_to_string(et.source),
+      reason: et.reason
+    }
+  end
+
+  defp provenance_json(_payload), do: nil
+
+  defp safe_to_string(nil), do: nil
+  defp safe_to_string(v) when is_atom(v), do: Atom.to_string(v)
+  defp safe_to_string(v) when is_binary(v), do: v
+  defp safe_to_string(v), do: inspect(v)
 
   defp plan_json(plan, date, summary \\ nil) do
     duration = Date.diff(plan.ends_on, plan.starts_on) + 1
@@ -1782,4 +1835,60 @@ defmodule Improve.App.UiApi do
   defp decimal_string(nil), do: nil
   defp decimal_string(%Decimal{} = value), do: Decimal.to_string(value)
   defp decimal_string(value), do: to_string(value)
+
+  defp proposals_summary_json(plan, actor) do
+    case Plans.list_proposals(
+           actor: actor,
+           query: [filter: [plan_id: plan.id, status: :proposed]]
+         ) do
+      {:ok, proposals} when proposals != [] ->
+        %{
+          count: length(proposals),
+          cards:
+            Enum.map(proposals, fn p ->
+              %{
+                id: p.id,
+                kind: p.kind,
+                text: p.text,
+                sourceEvaluator: p.source_evaluator
+              }
+            end)
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  defp proposal_json(proposal) do
+    %{
+      id: proposal.id,
+      status: Atom.to_string(proposal.status),
+      kind: proposal.kind,
+      sourceEvaluator: proposal.source_evaluator,
+      proposedEdit: proposal.proposed_edit,
+      evidence: proposal.evidence,
+      affectedFields: proposal.affected_fields,
+      text: proposal.text,
+      divergenceKey: proposal.divergence_key,
+      dismissReason: proposal.dismiss_reason,
+      decidedAt: proposal.decided_at && DateTime.to_iso8601(proposal.decided_at),
+      appliedAt: proposal.applied_at && DateTime.to_iso8601(proposal.applied_at),
+      insertedAt: DateTime.to_iso8601(proposal.inserted_at)
+    }
+  end
+
+  defp proposal_filters(plan_id, params) do
+    [plan_id: plan_id]
+    |> maybe_put_keyword(:status, normalize_status(Map.get(params, "status")))
+  end
+
+  defp normalize_status(nil), do: nil
+  defp normalize_status(""), do: nil
+
+  defp normalize_status(status) when is_binary(status) do
+    String.to_existing_atom(status)
+  rescue
+    ArgumentError -> nil
+  end
 end

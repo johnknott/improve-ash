@@ -3,6 +3,7 @@ defmodule Improve.Planning.Projector do
   Pure projection of planned work for explicit dates and records.
   """
 
+  alias Improve.Planning.EffectiveTarget
   alias Improve.Planning.ProjectedWork
   alias Improve.Planning.Recommender
   alias Improve.Planning.Schedules
@@ -272,7 +273,10 @@ defmodule Improve.Planning.Projector do
   end
 
   defp track_work(track, input, time_off_window) do
-    {:ok, target_completion, diagnostics} = Targets.completion(track, input)
+    effective_target = effective_target_for(track, input)
+    eval_track = %{track | target: EffectiveTarget.target_for_completion(effective_target)}
+
+    {:ok, target_completion, diagnostics} = Targets.completion(eval_track, input)
     completed_events = Map.get(target_completion, :completed_events, [])
 
     status =
@@ -288,10 +292,38 @@ defmodule Improve.Planning.Projector do
       status: status,
       completed_event_ids: Enum.map(completed_events, & &1.id),
       target_progress: Map.get(target_completion, :progress),
+      effective_target: effective_target,
       time_off_window: time_off_payload(time_off_window),
       explanation: track_explanation(track, status, completed_events, time_off_window)
     )
     |> then(&{&1, diagnostics})
+  end
+
+  defp effective_target_for(track, input) do
+    base = EffectiveTarget.from_authored(track.target)
+
+    case Map.get(input, :derived_adjustments) do
+      nil ->
+        base
+
+      adjustments when is_map(adjustments) ->
+        case Map.get(adjustments, track.id) do
+          nil -> base
+          adjustment -> apply_derived_adjustment(base, adjustment)
+        end
+
+      _ ->
+        base
+    end
+  end
+
+  defp apply_derived_adjustment(effective_target, adjustment) do
+    EffectiveTarget.adjust(
+      effective_target,
+      Map.get(adjustment, :values, %{}),
+      source: Map.get(adjustment, :source),
+      reason: Map.get(adjustment, :reason)
+    )
   end
 
   defp track_status(_date, _as_of_date, :completed, _time_off_window), do: :completed

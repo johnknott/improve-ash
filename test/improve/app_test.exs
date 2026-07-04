@@ -697,7 +697,7 @@ defmodule Improve.AppTest do
           until: ~D[2026-10-04]
         )
 
-      assert {:error, ["Proposal action adjust_goal is not supported yet."]} =
+      assert {:error, ["adjust_goal requires a track_id."]} =
                App.apply_proposal(plan, %{proposed_edit: %{action: :adjust_goal}}, actor: user)
     end
 

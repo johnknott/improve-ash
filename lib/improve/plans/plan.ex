@@ -20,13 +20,34 @@ defmodule Improve.Plans.Plan do
 
     create :create do
       primary? true
-      accept [:name, :intention, :starts_on, :ends_on, :status, :source_kind, :source_key]
+
+      accept [
+        :name,
+        :intention,
+        :starts_on,
+        :ends_on,
+        :status,
+        :source_kind,
+        :source_key,
+        :evaluator_bundles
+      ]
+
       change relate_actor(:user)
     end
 
     update :update do
       primary? true
-      accept [:name, :intention, :starts_on, :ends_on, :status, :source_kind, :source_key]
+
+      accept [
+        :name,
+        :intention,
+        :starts_on,
+        :ends_on,
+        :status,
+        :source_kind,
+        :source_key,
+        :evaluator_bundles
+      ]
     end
 
     update :archive do
@@ -114,6 +135,11 @@ defmodule Improve.Plans.Plan do
       public? true
     end
 
+    attribute :evaluator_bundles, {:array, :string} do
+      public? true
+      default []
+    end
+
     create_timestamp :inserted_at, public?: true
     update_timestamp :updated_at, public?: true
   end
@@ -138,6 +164,7 @@ defmodule Improve.Plans.Plan do
     has_many :session_occurrences, Improve.Sessions.SessionOccurrence
     has_many :slot_results, Improve.Sessions.SlotResult
     has_many :event_instances, Improve.Journal.EventInstance
+    has_many :proposals, Improve.Plans.Proposal
   end
 
   aggregates do

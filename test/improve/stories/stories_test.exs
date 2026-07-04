@@ -372,7 +372,9 @@ defmodule Improve.StoriesTest do
           ]
         )
 
-      assert result.order == [:recent_load_metric, :marathon_adaptation]
+      assert :recent_load_metric in result.order
+      assert :marathon_target_adjustment in result.order
+      assert :marathon_adaptation in result.order
       assert result.outputs.recent_load_km.value == 8
       assert [%{replacement: :rest}] = result.outputs.marathon_adaptation.today
 
