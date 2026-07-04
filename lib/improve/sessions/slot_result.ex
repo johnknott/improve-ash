@@ -108,7 +108,7 @@ defmodule Improve.Sessions.SlotResult do
       allow_nil? false
       public? true
       default :planned
-      constraints one_of: [:planned, :completed, :skipped, :partially_completed, :swapped]
+      constraints one_of: [:planned, :completed, :skipped, :swapped]
     end
 
     attribute :notes, :string do

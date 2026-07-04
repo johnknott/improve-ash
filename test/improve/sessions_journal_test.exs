@@ -328,6 +328,126 @@ defmodule Improve.SessionsJournalTest do
     end
   end
 
+  describe "projection of swapped slots" do
+    test "a swapped slot with a logged event counts toward session completion" do
+      user = user!("session-swap-projection@example.com")
+      plan = plan!(user)
+
+      %{event_type: event_type, item: recommended, pool: pool} = authored_content!(user, plan)
+
+      alternate =
+        Plans.create_item!(
+          %{
+            plan_id: plan.id,
+            item_type_id: recommended.item_type_id,
+            key: "incline_press",
+            name: "Incline Press"
+          },
+          actor: user
+        )
+
+      Plans.create_pool_membership!(
+        %{plan_id: plan.id, pool_id: pool.id, item_id: alternate.id},
+        actor: user
+      )
+
+      session_template =
+        Plans.create_session_template!(
+          %{
+            plan_id: plan.id,
+            key: "swap_gym",
+            name: "Swap-friendly gym visit"
+          },
+          actor: user
+        )
+
+      session_slot =
+        Plans.create_session_slot!(
+          %{
+            plan_id: plan.id,
+            session_template_id: session_template.id,
+            key: "push",
+            name: "Push exercise",
+            pool_id: pool.id,
+            count: 1,
+            position: 1
+          },
+          actor: user
+        )
+
+      Plans.create_schedule!(
+        %{
+          plan_id: plan.id,
+          owner_type: :session_template,
+          owner_id: session_template.id,
+          kind: :every_n_days,
+          starts_on: ~D[2026-06-22],
+          ends_on: plan.ends_on,
+          rules: %{"interval_days" => 1}
+        },
+        actor: user
+      )
+
+      occurrence =
+        Sessions.create_session_occurrence!(
+          %{
+            plan_id: plan.id,
+            session_template_id: session_template.id,
+            planned_for: ~D[2026-06-22],
+            status: :started
+          },
+          actor: user
+        )
+
+      slot_result =
+        Sessions.create_slot_result!(
+          %{
+            plan_id: plan.id,
+            session_occurrence_id: occurrence.id,
+            session_slot_id: session_slot.id,
+            recommended_item_id: recommended.id
+          },
+          actor: user
+        )
+
+      event =
+        Journal.log_event!(
+          %{
+            plan_id: plan.id,
+            event_type_id: event_type.id,
+            session_occurrence_id: occurrence.id,
+            slot_result_id: slot_result.id,
+            effective_at: ~U[2026-06-22 12:00:00Z],
+            recorded_at: ~U[2026-06-22 12:05:00Z],
+            summary: "Incline Press instead of Chest Press"
+          },
+          actor: user
+        )
+
+      swapped_slot =
+        Sessions.swap_slot_result!(
+          slot_result,
+          %{
+            actual_item_id: alternate.id,
+            event_instance_id: event.id,
+            notes: "Machine was taken"
+          },
+          actor: user
+        )
+
+      assert swapped_slot.status == :swapped
+      assert swapped_slot.event_instance_id == event.id
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+
+      assert [%{kind: :session, status: :completed, payload: %{session_state: session_state}}] =
+               projection.projected_work
+
+      assert session_state.slot_results_total == 1
+      assert session_state.slot_results_logged == 1
+    end
+  end
+
   defp user!(email) do
     Accounts.create_user!(%{
       email: email,

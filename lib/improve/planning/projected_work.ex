@@ -10,7 +10,7 @@ defmodule Improve.Planning.ProjectedWork do
 
   - `:kind` is `:session` or `:track`.
   - `:status` is one of `:planned`, `:started`, `:partial`, `:completed`,
-    `:missed`, `:skipped`, `:partially_completed`, or `:on_hold`.
+    `:missed`, `:skipped`, or `:on_hold`.
   - `:planned_for` is the date the work belongs to.
   - `:owner_type` and `:owner_id` identify the authored definition.
   - `:title` is display-ready enough for diagnostics, AI tools, and tests.
@@ -24,7 +24,6 @@ defmodule Improve.Planning.ProjectedWork do
     :completed,
     :missed,
     :skipped,
-    :partially_completed,
     :on_hold
   ]
 

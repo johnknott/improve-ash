@@ -571,7 +571,7 @@ defmodule Improve.Journal do
           :stale_session_state
         )
 
-      {:ok, %{status: status}} when status in [:completed, :skipped, :partially_completed] ->
+      {:ok, %{status: status}} when status in [:completed, :skipped] ->
         needs_resolution("Slot result has already changed state.", :stale_session_state)
 
       {:ok, slot_result}

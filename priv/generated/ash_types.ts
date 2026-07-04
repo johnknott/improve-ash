@@ -192,7 +192,7 @@ export type SessionOccurrenceResourceSchema = {
   __primitiveFields: "id" | "plannedFor" | "status" | "recommendationSnapshot" | "startedAt" | "completedAt" | "feedback" | "notes" | "insertedAt" | "updatedAt" | "planId" | "sessionTemplateId";
   id: UUID;
   plannedFor: AshDate;
-  status: "completed" | "missed" | "partially_completed" | "planned" | "skipped" | "started";
+  status: "completed" | "missed" | "planned" | "skipped" | "started";
   recommendationSnapshot: Record<string, any>;
   startedAt: UtcDateTimeUsec | null;
   completedAt: UtcDateTimeUsec | null;
@@ -212,7 +212,7 @@ export type SessionOccurrenceAttributesOnlySchema = {
   __primitiveFields: "id" | "plannedFor" | "status" | "recommendationSnapshot" | "startedAt" | "completedAt" | "feedback" | "notes" | "insertedAt" | "updatedAt" | "planId" | "sessionTemplateId";
   id: UUID;
   plannedFor: AshDate;
-  status: "completed" | "missed" | "partially_completed" | "planned" | "skipped" | "started";
+  status: "completed" | "missed" | "planned" | "skipped" | "started";
   recommendationSnapshot: Record<string, any>;
   startedAt: UtcDateTimeUsec | null;
   completedAt: UtcDateTimeUsec | null;
@@ -719,9 +719,9 @@ export type SessionOccurrenceFilterInput = {
   };
 
   status?: {
-    eq?: "completed" | "missed" | "partially_completed" | "planned" | "skipped" | "started";
-    notEq?: "completed" | "missed" | "partially_completed" | "planned" | "skipped" | "started";
-    in?: Array<"completed" | "missed" | "partially_completed" | "planned" | "skipped" | "started">;
+    eq?: "completed" | "missed" | "planned" | "skipped" | "started";
+    notEq?: "completed" | "missed" | "planned" | "skipped" | "started";
+    in?: Array<"completed" | "missed" | "planned" | "skipped" | "started">;
   };
 
   recommendationSnapshot?: {

@@ -144,11 +144,12 @@ job is recording events.
    extend `ash_typescript` coverage to the app endpoints or generate types
    from the UiApi payloads. Add a codegen drift-check to `precommit`. Directly
    de-risks the entire frontend phase.
-9. **Fix the slot-status vocabulary** — bug, **7/10**. `slot_logged?` only
-   counts `:completed`/`:skipped`, so swapped or partially-completed slots
-   leave sessions permanently un-completable; `ProjectedWork` also declares
-   `:partially_completed` while the projector emits `:partial`. Reconcile the
-   status enum across slot_result, projector, and projected_work.
+9. **Fix the slot-status vocabulary** — bug, **7/10**. Done 2026-07-04 (bean
+   `2hxc`). Correction: swapped-and-logged slots *did* count as logged via
+   `event_instance_id`, so sessions could complete — now proven by a
+   regression test. The real defect was `:partially_completed` existing as an
+   unreachable enum value across four layers while the projector emits
+   `:partial`; removed everywhere and TS contracts regenerated.
 10. **Index migration for FKs and hot paths** — optimization, **7/10**. There
     is no non-unique index in the whole schema. At minimum:
     `event_instances(plan_id, effective_at)`,
