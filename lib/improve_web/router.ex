@@ -31,6 +31,7 @@ defmodule ImproveWeb.Router do
     post "/app/log-event", AppController, :log_event
     post "/app/log-linked-event", AppController, :log_linked_event
     post "/app/correct-linked-event", AppController, :correct_linked_event
+    post "/app/offline-events", AppController, :submit_offline_events
 
     post "/rpc/run", AshTypescriptRpcController, :run
     post "/rpc/validate", AshTypescriptRpcController, :validate

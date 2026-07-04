@@ -58,6 +58,61 @@ defmodule Improve.App.UiApi do
     end
   end
 
+  def submit_offline_events(actor, params) do
+    case Map.get(params, "events") do
+      entries when is_list(entries) and entries != [] ->
+        {:ok, result} =
+          Journal.submit_offline_event_batch(Enum.map(entries, &offline_entry_attrs/1),
+            actor: actor
+          )
+
+        {:ok, %{results: Enum.map(result.results, &offline_result_json/1)}}
+
+      _missing ->
+        {:error, ["Offline batch needs a non-empty events list."]}
+    end
+  end
+
+  defp offline_entry_attrs(entry) when is_map(entry) do
+    %{
+      plan_id: map_value(entry, "plan_id"),
+      event_type_id: map_value(entry, "event_type_id"),
+      track_id: blank_to_nil(map_value(entry, "track_id")),
+      session_occurrence_id: blank_to_nil(map_value(entry, "session_occurrence_id")),
+      slot_result_id: blank_to_nil(map_value(entry, "slot_result_id")),
+      effective_at: parse_datetime(map_value(entry, "effective_at")),
+      recorded_at:
+        parse_datetime(map_value(entry, "recorded_at")) ||
+          parse_datetime(map_value(entry, "effective_at")),
+      summary: blank_to_nil(map_value(entry, "summary")) || "Logged offline event",
+      quantity: blank_to_nil(map_value(entry, "quantity")),
+      unit: blank_to_nil(map_value(entry, "unit")),
+      note: blank_to_nil(map_value(entry, "note")),
+      payload: map_value(entry, "payload") || %{},
+      origin: :offline_sync,
+      item_links: item_links(map_value(entry, "item_links") || []),
+      idempotency: idempotency_from_params(entry)
+    }
+  end
+
+  defp offline_entry_attrs(entry), do: entry
+
+  defp offline_result_json(result) do
+    %{
+      index: result.index,
+      status: Atom.to_string(result.status),
+      clientOperationId: result.client_operation_id,
+      idempotencyKey: result.idempotency_key,
+      eventInstanceId: result.event_instance_id,
+      conflictCategory: result.conflict_category && Atom.to_string(result.conflict_category),
+      diagnostics: Enum.map(result.diagnostics, &offline_diagnostic_json/1)
+    }
+  end
+
+  defp offline_diagnostic_json(diagnostic) when is_binary(diagnostic), do: diagnostic
+  defp offline_diagnostic_json(%{message: message}), do: message
+  defp offline_diagnostic_json(diagnostic), do: inspect(diagnostic)
+
   def correct_linked_event(actor, params) do
     with {:ok, plan} <- get_owned_plan(params, actor),
          {:ok, original_event} <- get_event(params, actor),

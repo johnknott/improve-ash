@@ -40,6 +40,13 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def submit_offline_events(conn, params) do
+    call_app(conn, params, &UiApi.submit_offline_events/2,
+      fallback_status: 422,
+      fallback_message: "We could not submit your offline events."
+    )
+  end
+
   def create_plan(conn, params) do
     call_app(conn, params, &UiApi.create_plan/2,
       fallback_status: 422,

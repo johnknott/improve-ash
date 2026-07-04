@@ -476,6 +476,67 @@ defmodule ImproveWeb.AppControllerTest do
     assert [_only_event] = Improve.Journal.read_journal!(plan, actor: user)
   end
 
+  test "offline event batches return per-entry statuses", %{conn: conn} do
+    email = "app-offline-batch@example.test"
+    conn = sign_in!(conn, email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
+
+    plan =
+      Plans.create_plan!(
+        %{
+          name: "Offline plan",
+          intention: "Prove the offline outbox",
+          starts_on: ~D[2026-06-22],
+          ends_on: ~D[2026-07-20]
+        },
+        actor: user
+      )
+
+    event_type =
+      Plans.create_event_type!(
+        %{plan_id: plan.id, key: "water_break", name: "Water break"},
+        actor: user
+      )
+
+    entry = %{
+      plan_id: plan.id,
+      event_type_id: event_type.id,
+      effective_at: "2026-06-22T18:30:00Z",
+      summary: "Logged while offline",
+      client_device_id: "phone-1",
+      client_operation_id: "offline-op-1"
+    }
+
+    bad_entry = %{
+      plan_id: plan.id,
+      event_type_id: Ash.UUID.generate(),
+      effective_at: "2026-06-22T19:00:00Z",
+      summary: "Broken reference",
+      client_device_id: "phone-1",
+      client_operation_id: "offline-op-2"
+    }
+
+    conn = post(conn, ~p"/api/app/offline-events", %{events: [entry, entry, bad_entry]})
+
+    assert %{"results" => [first, second, third]} = json_response(conn, 200)
+
+    assert %{"status" => "accepted", "eventInstanceId" => event_id} = first
+    assert %{"status" => "duplicate", "eventInstanceId" => ^event_id} = second
+
+    assert %{
+             "status" => "needs_resolution",
+             "eventInstanceId" => nil,
+             "conflictCategory" => "missing_plan_record",
+             "diagnostics" => [_diagnostic]
+           } = third
+
+    assert [_only_event] = Improve.Journal.read_journal!(plan, actor: user)
+
+    conn = post(conn, ~p"/api/app/offline-events", %{events: []})
+    assert %{"error" => %{"message" => message}} = json_response(conn, 422)
+    assert message =~ "non-empty events list"
+  end
+
   test "idempotency metadata without an operation id or key is rejected", %{conn: conn} do
     email = "app-idempotent-invalid@example.test"
     conn = sign_in!(conn, email)

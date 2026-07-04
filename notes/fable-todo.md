@@ -131,9 +131,10 @@ job is recording events.
    2026-07-04 (bean `gghs`); the `full_name` half was a false positive — see
    the correction in weakness #4.
 6. **Expose offline batch ingress over HTTP** (bean `natd`) — feature,
-   **8/10**. The V1.1 bean. `POST /app/offline-events` in front of the
-   already-tested `submit_offline_event_batch`, returning per-entry statuses.
-   This plus #1 and #2 is essentially the mobile backend contract.
+   **8/10**. Done 2026-07-04: `POST /api/app/offline-events` returns
+   per-entry statuses (accepted/duplicate/rejected/needs_resolution) with
+   conflict categories. With #1 done, only #2 (bearer tokens) remains of the
+   mobile backend contract.
 7. **Consistent, structured API errors** — feature, **7/10**. One error
    envelope (controller and `ErrorJSON` currently disagree), field-level
    validation errors instead of space-joined strings, and stop rescuing all
