@@ -1,14 +1,21 @@
 <script lang="ts">
+  import type { Component } from 'svelte'
   import type { DashboardData } from '../api/types'
   import type { CurrentUser } from '../features/auth/authClient'
   import CheckInDialog from '../features/logging/CheckInDialog.svelte'
   import LogDialog from '../features/logging/LogDialog.svelte'
   import PlaceholderPage from '../features/placeholders/PlaceholderPage.svelte'
   import NewPlanDialog from '../features/plans/NewPlanDialog.svelte'
+  import TodayPage from '../features/today/TodayPage.svelte'
   import { toastMessage } from './uiState'
   import Sidebar from './Sidebar.svelte'
   import TopBar from './TopBar.svelte'
-  import { activeRoute } from './routes'
+  import { activeRoute, type AppRoute } from './routes'
+
+  // Routes without a real page yet fall back to PlaceholderPage.
+  const pages: Partial<Record<AppRoute, Component>> = {
+    today: TodayPage,
+  }
 
   let {
     user,
@@ -52,7 +59,12 @@
         </section>
       {/if}
 
-      <PlaceholderPage route={$activeRoute.route} {data} />
+      {#if pages[$activeRoute.route]}
+        {@const Page = pages[$activeRoute.route]!}
+        <Page />
+      {:else}
+        <PlaceholderPage route={$activeRoute.route} {data} />
+      {/if}
     </div>
   </main>
 </div>

@@ -551,6 +551,7 @@ defmodule Improve.App.UiApi do
             upcoming_work(upcoming_projections),
             slot_results_by_occurrence,
             session_slots_by_id,
+            pools_by_id,
             items_by_id
           )
         end)
@@ -1271,6 +1272,7 @@ defmodule Improve.App.UiApi do
          upcoming,
          slot_results_by_occurrence,
          session_slots_by_id,
+         pools_by_id,
          items_by_id
        ) do
     work =
@@ -1282,6 +1284,7 @@ defmodule Improve.App.UiApi do
           event_types_by_id,
           slot_results_by_occurrence,
           session_slots_by_id,
+          pools_by_id,
           items_by_id
         )
       )
@@ -1305,6 +1308,7 @@ defmodule Improve.App.UiApi do
             event_types_by_id,
             slot_results_by_occurrence,
             session_slots_by_id,
+            pools_by_id,
             items_by_id
           )
         ),
@@ -1320,6 +1324,7 @@ defmodule Improve.App.UiApi do
          event_types_by_id,
          slot_results_by_occurrence,
          session_slots_by_id,
+         pools_by_id,
          items_by_id
        ) do
     payload = work.payload
@@ -1350,6 +1355,7 @@ defmodule Improve.App.UiApi do
           work,
           slot_results_by_occurrence,
           session_slots_by_id,
+          pools_by_id,
           items_by_id
         ),
       canLog:
@@ -1362,6 +1368,7 @@ defmodule Improve.App.UiApi do
          %{kind: :session, payload: %{session_occurrence: occurrence}},
          slot_results_by_occurrence,
          session_slots_by_id,
+         pools_by_id,
          items_by_id
        ) do
     occurrence_id = Map.get(occurrence.session_state, :session_occurrence_id)
@@ -1372,34 +1379,53 @@ defmodule Improve.App.UiApi do
     %{
       sessionTemplateId: occurrence.session_template_id,
       recommendations:
-        occurrence.recommendations
-        |> Enum.flat_map(& &1.recommended_items)
-        |> Enum.map(fn item ->
+        Enum.map(occurrence.recommendations, fn slot_recommendation ->
+          slot = Map.get(session_slots_by_id, slot_recommendation.session_slot_id)
+          pool = slot && Map.get(pools_by_id, slot.pool_id)
+
           %{
-            id: item.item_id,
-            key: item.item_key,
-            name: item.item_name,
-            reason: Map.get(item, :reason),
-            source: Map.get(item, :source),
-            suggestedPayload: Map.get(item, :suggested_payload, %{}),
-            previousEventIds: Map.get(item, :previous_event_ids, []),
-            previousEvents: Map.get(item, :previous_events, [])
+            sessionSlotId: slot_recommendation.session_slot_id,
+            slotKey: slot_recommendation.slot_key,
+            slotName: slot_recommendation.slot_name,
+            count: slot_recommendation.count,
+            poolId: slot && slot.pool_id,
+            poolName: pool && pool.name,
+            items:
+              Enum.map(slot_recommendation.recommended_items, fn item ->
+                %{
+                  id: item.item_id,
+                  key: item.item_key,
+                  name: item.item_name,
+                  reason: Map.get(item, :reason),
+                  source: Map.get(item, :source),
+                  suggestedPayload: Map.get(item, :suggested_payload, %{}),
+                  previousEventIds: Map.get(item, :previous_event_ids, []),
+                  previousEvents: Map.get(item, :previous_events, [])
+                }
+              end)
           }
         end),
       state: occurrence |> Map.get(:session_state, %{}) |> camelize_keys(),
       slotResults:
         Enum.map(
           slot_results,
-          &slot_result_json(&1, session_slots_by_id, items_by_id)
+          &slot_result_json(&1, session_slots_by_id, pools_by_id, items_by_id)
         )
     }
   end
 
-  defp session_work_json(_work, _slot_results_by_occurrence, _session_slots_by_id, _items_by_id),
-    do: nil
+  defp session_work_json(
+         _work,
+         _slot_results_by_occurrence,
+         _session_slots_by_id,
+         _pools_by_id,
+         _items_by_id
+       ),
+       do: nil
 
-  defp slot_result_json(slot_result, session_slots_by_id, items_by_id) do
+  defp slot_result_json(slot_result, session_slots_by_id, pools_by_id, items_by_id) do
     slot = Map.get(session_slots_by_id, slot_result.session_slot_id)
+    pool = slot && Map.get(pools_by_id, slot.pool_id)
 
     recommended_item =
       slot_result.recommended_item_id && Map.get(items_by_id, slot_result.recommended_item_id)
@@ -1414,7 +1440,7 @@ defmodule Improve.App.UiApi do
       slotKey: slot && slot.key,
       slotName: slot && slot.name,
       poolId: slot && slot.pool_id,
-      poolName: slot && Map.get(slot, :poolName),
+      poolName: pool && pool.name,
       recommendedItemId: slot_result.recommended_item_id,
       recommendedItemKey: recommended_item && recommended_item.key,
       recommendedItemName: recommended_item && recommended_item.name,

@@ -134,7 +134,7 @@ export type RecommendationPreviousEvent = {
   payload: JsonMap
 }
 
-export type Recommendation = {
+export type RecommendedItem = {
   id: string
   key: string
   name: string
@@ -143,6 +143,18 @@ export type Recommendation = {
   suggestedPayload: JsonMap
   previousEventIds: string[]
   previousEvents: RecommendationPreviousEvent[]
+}
+
+// One entry per session slot, in slot order; present before a session
+// starts (slotResults take over once it does).
+export type SlotRecommendation = {
+  sessionSlotId: string
+  slotKey: string | null
+  slotName: string | null
+  count: number
+  poolId: string | null
+  poolName: string | null
+  items: RecommendedItem[]
 }
 
 export type TimeOffWindow = {
@@ -188,13 +200,23 @@ export type SlotResult = {
 
 export type SessionWork = {
   sessionTemplateId: string
-  recommendations: Recommendation[]
+  recommendations: SlotRecommendation[]
   state: SessionState
   slotResults: SlotResult[]
 }
 
 // Session work items carry no target progress, so the payload is {}.
 export type WorkItemTargetProgress = TargetProgress | Record<string, never>
+
+// Present when the effective target differs from the authored one (an
+// evaluator adjusted it); null otherwise.
+export type TargetProvenance = {
+  planned: Target | JsonMap
+  effective: Target | JsonMap
+  adjusted: boolean
+  source: string
+  reason: string | null
+}
 
 export type WorkItem = {
   id: string
@@ -209,6 +231,7 @@ export type WorkItem = {
   explanation: string | null
   target: Target | JsonMap
   targetProgress: WorkItemTargetProgress
+  provenance: TargetProvenance | null
   eventTypeId: string | null
   eventTypeName: string | null
   trackId: string | null
@@ -223,6 +246,18 @@ export type Diagnostic = {
   message?: string
 } & Record<string, unknown>
 
+export type ProposalCard = {
+  id: string
+  kind: string
+  text: string
+  sourceEvaluator: string | null
+}
+
+export type ProposalsSummary = {
+  count: number
+  cards: ProposalCard[]
+}
+
 export type Today = {
   planId: string
   date: string
@@ -231,6 +266,7 @@ export type Today = {
   remaining: number
   work: WorkItem[]
   upcoming: WorkItem[]
+  proposals: ProposalsSummary | null
   diagnostics: Diagnostic[]
   explanations: string[]
 }
