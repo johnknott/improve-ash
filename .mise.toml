@@ -8,6 +8,7 @@ go = "1.26.4"
 "go:github.com/hmans/beans" = "0.4.2"
 zellij = "0.44.3"
 watchexec = "2.5.1"
+"npm:agent-browser" = "latest"
 
 [env]
 DATABASE_URL = "postgres://postgres:postgres@localhost:5433/improve_ash_dev"
