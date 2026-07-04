@@ -1,9 +1,20 @@
 import { derived, get, writable } from 'svelte/store'
 import {
+  completeSession as completeSessionRequest,
   createPlan as createPlanRequest,
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
+  logEvent as logEventRequest,
+  logSessionSlot as logSessionSlotRequest,
+  logTrack as logTrackRequest,
+  skipSession as skipSessionRequest,
+  skipSessionSlot as skipSessionSlotRequest,
+  startSession as startSessionRequest,
+  swapSessionSlot as swapSessionSlotRequest,
   updatePlan as updatePlanRequest,
+  type LogEventInput,
+  type LogTrackInput,
+  type SlotActionInput,
 } from '../api/improveClient'
 import type {
   CreatePlanInput,
@@ -163,6 +174,95 @@ export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
   } finally {
     installingDemoPlan.set(null)
   }
+}
+
+// Write mutations share this shape: mark refreshing, apply the returned
+// patch, optionally toast; rethrow the original error so callers can show
+// it in place (the global banner stays out of it).
+async function runMutation(
+  mutate: () => Promise<DashboardPatch>,
+  successToast?: string,
+): Promise<void> {
+  dashboardStatus.update((status) => ({ ...status, refreshing: true, error: null }))
+
+  try {
+    applyDashboardPatch(await mutate())
+
+    if (successToast) {
+      showToast(successToast)
+    }
+  } catch (error) {
+    dashboardStatus.update((status) => ({ ...status, refreshing: false }))
+    throw error
+  }
+}
+
+export async function submitTrackLog(
+  input: Omit<LogTrackInput, 'planId' | 'date'>,
+  successToast = 'Logged.',
+): Promise<void> {
+  const planId = get(selectedPlanId)
+
+  if (!planId) {
+    throw new Error('Select a plan before logging.')
+  }
+
+  await runMutation(
+    () => logTrackRequest({ ...input, planId, date: get(selectedDate) }),
+    successToast,
+  )
+}
+
+export async function submitEventLog(
+  input: Omit<LogEventInput, 'planId'>,
+  successToast = 'Logged.',
+): Promise<void> {
+  const planId = get(selectedPlanId)
+
+  if (!planId) {
+    throw new Error('Select a plan before logging.')
+  }
+
+  await runMutation(() => logEventRequest({ ...input, planId }), successToast)
+}
+
+export async function startProjectedSession(sessionTemplateId: string): Promise<void> {
+  const planId = get(selectedPlanId)
+
+  if (!planId) {
+    throw new Error('Select a plan before starting a session.')
+  }
+
+  await runMutation(
+    () => startSessionRequest(planId, sessionTemplateId, get(selectedDate)),
+    'Session started.',
+  )
+}
+
+export async function acceptSessionSlot(input: SlotActionInput): Promise<void> {
+  await runMutation(() => logSessionSlotRequest(input), 'Slot logged.')
+}
+
+export async function skipSlot(input: SlotActionInput): Promise<void> {
+  await runMutation(() => skipSessionSlotRequest(input), 'Slot skipped.')
+}
+
+export async function swapSlot(
+  slotResultId: string,
+  actualItemKey: string,
+): Promise<void> {
+  await runMutation(() => swapSessionSlotRequest(slotResultId, actualItemKey), 'Slot swapped.')
+}
+
+export async function finishSession(sessionOccurrenceId: string): Promise<void> {
+  await runMutation(() => completeSessionRequest(sessionOccurrenceId), 'Session completed.')
+}
+
+export async function skipWholeSession(
+  sessionOccurrenceId: string,
+  note?: string | null,
+): Promise<void> {
+  await runMutation(() => skipSessionRequest(sessionOccurrenceId, note), 'Session skipped.')
 }
 
 // Plan form submissions rethrow the original error so the dialog can show

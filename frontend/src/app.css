@@ -1751,6 +1751,79 @@ textarea:focus {
   font-size: var(--fs-xs);
 }
 
+.work-card-side {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 0.5rem;
+}
+
+.session-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.slot-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.slot-actions .slot-button {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.55rem;
+  font-size: var(--fs-xs);
+}
+
+.slot-swap-select {
+  width: auto;
+  min-height: 1.75rem;
+  padding: 0.15rem 1.8rem 0.15rem 0.55rem;
+  font-size: var(--fs-xs);
+}
+
+.checkin-rows {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  list-style: none;
+  padding: 0;
+}
+
+.checkin-row {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.75rem;
+}
+
+.checkin-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.checkin-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.checkin-choice {
+  width: max-content;
+  grid-template-columns: repeat(3, minmax(4.2rem, auto));
+  height: 2rem;
+}
+
+.checkin-choice button {
+  padding: 0 0.6rem;
+  font-size: var(--fs-xs);
+}
+
 .diagnostics-block {
   display: grid;
   gap: 0.4rem;

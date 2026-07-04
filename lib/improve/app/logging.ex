@@ -127,6 +127,13 @@ defmodule Improve.App.Logging do
     note = Keyword.get(opts, :note, Value.value(payload, "note"))
     links = item_links(plan_id, merged_links(track, opts), actor)
 
+    # Track event types record the amount in the payload; backfill it from
+    # the resolved quantity/unit so target-default logs validate.
+    payload =
+      payload
+      |> backfill_payload("amount", quantity)
+      |> backfill_payload("unit", unit)
+
     Journal.log_generic_event!(
       %{
         plan_id: plan_id,
@@ -139,10 +146,21 @@ defmodule Improve.App.Logging do
         note: note,
         quantity: quantity,
         unit: unit,
-        item_links: links
+        item_links: links,
+        idempotency: Keyword.get(opts, :idempotency)
       },
       actor: actor
     )
+  end
+
+  defp backfill_payload(payload, _key, nil), do: payload
+
+  defp backfill_payload(payload, key, value) do
+    if Map.has_key?(payload, key) do
+      payload
+    else
+      Map.put(payload, key, value)
+    end
   end
 
   def correct_event!(original_log_or_event, opts) do

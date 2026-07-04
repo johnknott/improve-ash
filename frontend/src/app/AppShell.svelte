@@ -69,8 +69,8 @@
   </main>
 </div>
 
-<LogDialog {data} />
-<CheckInDialog {data} />
+<LogDialog />
+<CheckInDialog />
 <NewPlanDialog />
 
 {#if $toastMessage}

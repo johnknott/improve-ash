@@ -1,13 +1,60 @@
 <script lang="ts">
   import { ClipboardList, PauseCircle, Target } from '@lucide/svelte'
   import type { TimeOffWindow, WorkItem } from '../../api/types'
+  import {
+    finishSession,
+    skipWholeSession,
+    startProjectedSession,
+  } from '../../app/dashboardState'
+  import { showToast } from '../../app/uiState'
   import Badge from '../../components/ui/Badge.svelte'
+  import Button from '../../components/ui/Button.svelte'
   import Card from '../../components/ui/Card.svelte'
   import { formatDate } from '../../lib/dates'
+  import QuickLogDialog from './QuickLogDialog.svelte'
   import SessionSlots from './SessionSlots.svelte'
   import TargetProgressView from './TargetProgressView.svelte'
 
   let { item }: { item: WorkItem } = $props()
+
+  let quickLogOpen = $state(false)
+  let busy = $state(false)
+
+  let sessionState = $derived(item.session?.state ?? null)
+  let canStart = $derived(
+    item.kind === 'session' && item.status === 'planned' && Boolean(item.session),
+  )
+  let sessionOpen = $derived(item.status === 'started' || item.status === 'partial')
+
+  async function runAction(action: () => Promise<void>) {
+    busy = true
+
+    try {
+      await action()
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : 'That action failed.')
+    } finally {
+      busy = false
+    }
+  }
+
+  function startThisSession() {
+    if (item.session) {
+      runAction(() => startProjectedSession(item.session!.sessionTemplateId))
+    }
+  }
+
+  function completeThisSession() {
+    if (sessionState?.sessionOccurrenceId) {
+      runAction(() => finishSession(sessionState!.sessionOccurrenceId!))
+    }
+  }
+
+  function skipThisSession() {
+    if (sessionState?.sessionOccurrenceId) {
+      runAction(() => skipWholeSession(sessionState!.sessionOccurrenceId!))
+    }
+  }
 
   type Tone = 'neutral' | 'good' | 'info' | 'warning'
 
@@ -64,7 +111,29 @@
       {/if}
     </div>
 
-    <Badge {tone}>{statusLabel}</Badge>
+    <div class="work-card-side">
+      <Badge {tone}>{statusLabel}</Badge>
+
+      {#if item.kind === 'track' && item.canLog}
+        <Button
+          variant="secondary"
+          class="compact-button"
+          disabled={busy}
+          onclick={() => (quickLogOpen = true)}
+        >
+          Log
+        </Button>
+      {:else if canStart && !onHold}
+        <Button
+          variant="secondary"
+          class="compact-button"
+          disabled={busy}
+          onclick={startThisSession}
+        >
+          Start session
+        </Button>
+      {/if}
+    </div>
   </div>
 
   {#if item.kind === 'track'}
@@ -73,5 +142,20 @@
 
   {#if item.session}
     <SessionSlots session={item.session} />
+
+    {#if sessionOpen}
+      <div class="session-actions">
+        <Button variant="ghost" class="compact-button" disabled={busy} onclick={skipThisSession}>
+          Skip session
+        </Button>
+        <Button class="compact-button" disabled={busy} onclick={completeThisSession}>
+          Complete session
+        </Button>
+      </div>
+    {/if}
   {/if}
 </Card>
+
+{#if item.kind === 'track' && item.canLog}
+  <QuickLogDialog {item} bind:open={quickLogOpen} />
+{/if}

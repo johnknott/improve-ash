@@ -17,6 +17,22 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def log_track(conn, params) do
+    call_app(conn, params, &UiApi.log_track/2,
+      not_found_message: "That track is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not log that track."
+    )
+  end
+
+  def skip_session_slot(conn, params) do
+    call_app(conn, params, &UiApi.skip_session_slot/2,
+      not_found_message: "That session slot is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not skip that slot."
+    )
+  end
+
   def log_linked_event(conn, params) do
     call_app(conn, params, &UiApi.log_linked_event/2,
       not_found_message: "That item or event type is not available.",

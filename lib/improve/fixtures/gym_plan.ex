@@ -259,7 +259,11 @@ defmodule Improve.Fixtures.GymPlan do
           name: "Push",
           pool_id: pools.push.id,
           count: 2,
-          position: 1
+          position: 1,
+          rules: %{
+            "default_event" => "workout_exercise_performed",
+            "suggested_payload" => %{"sets" => 3, "reps" => 10}
+          }
         }
       ),
       create!(
@@ -272,7 +276,11 @@ defmodule Improve.Fixtures.GymPlan do
           name: "Pull",
           pool_id: pools.pull.id,
           count: 2,
-          position: 2
+          position: 2,
+          rules: %{
+            "default_event" => "workout_exercise_performed",
+            "suggested_payload" => %{"sets" => 3, "reps" => 10}
+          }
         }
       ),
       create!(
@@ -285,7 +293,11 @@ defmodule Improve.Fixtures.GymPlan do
           name: "Cardio",
           pool_id: pools.cardio.id,
           count: 1,
-          position: 3
+          position: 3,
+          rules: %{
+            "default_event" => "cardio_block_performed",
+            "suggested_payload" => %{"duration_minutes" => 20}
+          }
         }
       )
     ]

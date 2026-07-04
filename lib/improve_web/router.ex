@@ -43,6 +43,8 @@ defmodule ImproveWeb.Router do
     post "/app/complete-session", AppController, :complete_session
     post "/app/skip-session", AppController, :skip_session
     post "/app/log-event", AppController, :log_event
+    post "/app/log-track", AppController, :log_track
+    post "/app/skip-session-slot", AppController, :skip_session_slot
     post "/app/log-linked-event", AppController, :log_linked_event
     post "/app/correct-linked-event", AppController, :correct_linked_event
     post "/app/offline-events", AppController, :submit_offline_events

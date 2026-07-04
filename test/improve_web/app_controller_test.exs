@@ -444,6 +444,111 @@ defmodule ImproveWeb.AppControllerTest do
            } = json_response(conn, 200)
   end
 
+  test "quick-logging a track fills the payload amount and dedupes retries", %{conn: conn} do
+    conn = sign_in!(conn, "app-log-track@example.test")
+
+    conn =
+      post(conn, ~p"/api/app/plans", %{
+        name: "Reading",
+        intention: "Read a little every day",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
+
+    conn =
+      post(conn, ~p"/api/app/tracks", %{
+        plan_id: plan_id,
+        name: "Read for 15 minutes",
+        event_name: "Read",
+        quantity: "15",
+        unit: "minutes",
+        date: "2026-06-23"
+      })
+
+    assert [%{"trackKey" => track_key, "canLog" => true}] =
+             get_in(json_response(conn, 200), ["today", "work"])
+
+    log_params = %{
+      plan_id: plan_id,
+      track_key: track_key,
+      date: "2026-06-23",
+      quantity: "15",
+      unit: "minutes",
+      client_device_id: "test-device",
+      client_operation_id: "track-log-op-1"
+    }
+
+    conn = post(conn, ~p"/api/app/log-track", log_params)
+    response = json_response(conn, 200)
+
+    assert [
+             %{
+               "status" => "completed",
+               "targetProgress" => %{"completedEventCount" => 1}
+             }
+           ] = get_in(response, ["today", "work"])
+
+    assert [%{"quantity" => "15", "unit" => "minutes"}] = get_in(response, ["journal"])
+
+    # A retried submission with the same operation id must not double-log.
+    conn = post(conn, ~p"/api/app/log-track", log_params)
+    assert [_only_event] = get_in(json_response(conn, 200), ["journal"])
+  end
+
+  test "skipping a session slot records the skip", %{conn: conn} do
+    email = "app-slot-skip@example.test"
+    conn = sign_in!(conn, email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
+    %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+
+    [template] = Plans.list_session_templates!(actor: user, query: [filter: [plan_id: plan.id]])
+
+    conn =
+      post(conn, ~p"/api/app/start-session", %{
+        plan_id: plan.id,
+        session_template_id: template.id,
+        date: "2026-06-22"
+      })
+
+    assert %{
+             "today" => %{
+               "work" => [
+                 %{
+                   "session" => %{
+                     "state" => %{"sessionOccurrenceId" => occurrence_id},
+                     "slotResults" => slot_results
+                   }
+                 }
+               ]
+             }
+           } = json_response(conn, 200)
+
+    slot_result = Enum.find(slot_results, &(&1["slotKey"] == "push"))
+
+    conn =
+      post(conn, ~p"/api/app/skip-session-slot", %{
+        session_occurrence_id: occurrence_id,
+        slot_key: "push",
+        recommended_item_key: slot_result["recommendedItemKey"],
+        note: "Shoulder felt off",
+        date: "2026-06-22"
+      })
+
+    assert %{
+             "today" => %{
+               "work" => [%{"session" => %{"slotResults" => updated_slot_results}}]
+             }
+           } = json_response(conn, 200)
+
+    assert Enum.any?(
+             updated_slot_results,
+             &(&1["id"] == slot_result["id"] and &1["status"] == "skipped")
+           )
+  end
+
   test "mutation responses carry only the slices they invalidate", %{conn: conn} do
     email = "app-slim-responses@example.test"
     conn = sign_in!(conn, email)

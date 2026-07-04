@@ -30,8 +30,10 @@ defmodule Improve.App.UiApi do
 
   def log_event(actor, params) do
     with {:ok, attrs} <- log_attrs(params),
-         {:ok, result} <- Journal.log_generic_event(attrs, actor: actor) do
-      {:ok, %{event: event_json(result.event, nil, nil)}}
+         {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, result} <- Journal.log_generic_event(attrs, actor: actor),
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
+      {:ok, Map.put(payload, :event, event_json(result.event, nil, nil))}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
         {:error, diagnostics}
@@ -39,6 +41,73 @@ defmodule Improve.App.UiApi do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  def log_track(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, projection} <- Plans.project_today(plan, actor: actor, date: request_date(params)),
+         {:ok, _result} <- do_log_track(projection, params, actor),
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp do_log_track(projection, params, actor) do
+    opts =
+      [
+        actor: actor,
+        track: Map.get(params, "track_key"),
+        payload: Map.get(params, "payload", %{})
+      ]
+      |> maybe_put_keyword(:quantity, blank_to_nil(Map.get(params, "quantity")))
+      |> maybe_put_keyword(:unit, blank_to_nil(Map.get(params, "unit")))
+      |> maybe_put_keyword(:note, blank_to_nil(Map.get(params, "note")))
+      |> maybe_put_keyword(:summary, blank_to_nil(Map.get(params, "summary")))
+      |> maybe_put_keyword(:effective_at, parse_datetime(Map.get(params, "effective_at")))
+      |> maybe_put_keyword(:idempotency, idempotency_from_params(params))
+
+    {:ok, App.log_track!(projection, opts)}
+  rescue
+    error in [ArgumentError, Improve.CommandError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, [Exception.message(error)]}
+  end
+
+  def skip_session_slot(actor, params) do
+    with {:ok, occurrence} <- get_session_occurrence(params, actor),
+         {:ok, started_session} <- started_session(occurrence, actor),
+         {:ok, _result} <- do_skip_session_slot(started_session, params, actor),
+         {:ok, plan} <- Plans.get_plan(occurrence.plan_id, actor: actor),
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp do_skip_session_slot(started_session, params, actor) do
+    opts =
+      [
+        actor: actor,
+        slot: Map.get(params, "slot_key"),
+        recommended: blank_to_nil(Map.get(params, "recommended_item_key")),
+        payload: Map.get(params, "payload", %{})
+      ]
+      |> maybe_put_keyword(:note, blank_to_nil(Map.get(params, "note")))
+
+    {:ok, App.skip_session_slot!(started_session, opts)}
+  rescue
+    error in [ArgumentError, Improve.CommandError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, [Exception.message(error)]}
   end
 
   def log_linked_event(actor, params) do
@@ -1158,10 +1227,12 @@ defmodule Improve.App.UiApi do
         slot: Map.get(params, "slot_key"),
         item: Map.get(params, "actual_item_key"),
         recommended: blank_to_nil(Map.get(params, "recommended_item_key")),
-        event: Map.get(params, "event_key"),
-        role: Map.get(params, "role"),
         payload: Map.get(params, "payload", %{})
       ]
+      # event/role fall back to the slot's default rules when the client
+      # omits them, so a plain "accept" needs no per-slot knowledge.
+      |> maybe_put_keyword(:event, blank_to_nil(Map.get(params, "event_key")))
+      |> maybe_put_keyword(:role, blank_to_nil(Map.get(params, "role")))
       |> maybe_put_keyword(:quantity, blank_to_nil(Map.get(params, "quantity")))
       |> maybe_put_keyword(:unit, blank_to_nil(Map.get(params, "unit")))
       |> maybe_put_keyword(:note, blank_to_nil(Map.get(params, "note")))
@@ -1172,7 +1243,7 @@ defmodule Improve.App.UiApi do
 
     {:ok, result}
   rescue
-    error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+    error in [ArgumentError, Improve.CommandError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
   end
 
