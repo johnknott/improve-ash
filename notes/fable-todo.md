@@ -174,10 +174,10 @@ job is recording events.
     the full dashboard (plans + today + journal + complete plan detail).
     Return the affected slice, or add a delta/`changed-since` mechanism.
     Directly translates to mobile battery/bandwidth.
-15. **Stop leaking internals via broad rescues** — bug, **6/10**. The ~10
-    catch-all `rescue error -> {:error, [Exception.message(error)]}` blocks in
-    UiApi turn programming errors into client-visible 422s. Rescue only
-    expected error types; let the rest 500 and log.
+15. **Stop leaking internals via broad rescues** — bug, **6/10**. Done
+    2026-07-04 (bean `svdo`): removed the dead catch-all clauses so only
+    expected error types rescue to 422; everything else propagates to a
+    logged 500. Proper error envelope follows in #7.
 16. **Implement `adjust_goal` apply and a proposal-action registry** —
     feature, **5/10**. Close the dead-end where evaluators emit proposals the
     apply path can't execute; also fix `Adaptation.work_key` reading an

@@ -365,18 +365,12 @@ defmodule Improve.App.UiApi do
   rescue
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
-
-    error ->
-      {:error, [Exception.message(error)]}
   end
 
   defp persist_updated_plan(plan, attrs, actor) do
     Plans.update_plan(plan, attrs, actor: actor)
   rescue
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
-      {:error, [Exception.message(error)]}
-
-    error ->
       {:error, [Exception.message(error)]}
   end
 
@@ -443,9 +437,6 @@ defmodule Improve.App.UiApi do
     {:ok, track}
   rescue
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
-      {:error, [Exception.message(error)]}
-
-    error ->
       {:error, [Exception.message(error)]}
   end
 
@@ -558,9 +549,6 @@ defmodule Improve.App.UiApi do
   rescue
     error in [KeyError, ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
-
-    error ->
-      {:error, [Exception.message(error)]}
   end
 
   defp correct_linked_event(
@@ -589,9 +577,6 @@ defmodule Improve.App.UiApi do
     {:ok, Journal.correct_linked_item_event!(attrs, actor: actor)}
   rescue
     error in [KeyError, ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
-      {:error, [Exception.message(error)]}
-
-    error ->
       {:error, [Exception.message(error)]}
   end
 
@@ -647,7 +632,8 @@ defmodule Improve.App.UiApi do
         :ok
     end
   rescue
-    _error -> {:error, :start_failed}
+    _error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, :start_failed}
   end
 
   defp get_session_occurrence(%{"session_occurrence_id" => id}, actor) when is_binary(id) do
@@ -718,9 +704,6 @@ defmodule Improve.App.UiApi do
   rescue
     error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
-
-    error ->
-      {:error, [Exception.message(error)]}
   end
 
   defp swap_slot_result(slot_result, item, params, actor) do
@@ -737,9 +720,6 @@ defmodule Improve.App.UiApi do
        )}
     rescue
       error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
-        {:error, [Exception.message(error)]}
-
-      error ->
         {:error, [Exception.message(error)]}
     end
   end
@@ -774,9 +754,6 @@ defmodule Improve.App.UiApi do
     rescue
       error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
         {:error, [Exception.message(error)]}
-
-      error ->
-        {:error, [Exception.message(error)]}
     end
   end
 
@@ -790,9 +767,6 @@ defmodule Improve.App.UiApi do
        )}
     rescue
       error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
-        {:error, [Exception.message(error)]}
-
-      error ->
         {:error, [Exception.message(error)]}
     end
   end
@@ -811,7 +785,8 @@ defmodule Improve.App.UiApi do
     result = installer.(actor, starts_on: Date.utc_today())
     {:ok, Map.fetch!(result, :plan)}
   rescue
-    _error -> {:error, :install_failed}
+    _error in [ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, :install_failed}
   end
 
   defp upcoming_work(projections), do: Enum.flat_map(projections, & &1.projected_work)
