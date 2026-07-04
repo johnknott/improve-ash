@@ -79,10 +79,10 @@ job is recording events.
    do it today" product this is a correctness bug, and it gets worse once
    mobile is the capture device.
 4. **Accounts has no policies.** `list_users` / `get_user_by_email` are
-   callable by any actor — every user's email and name are readable. Also a
-   real nullability bug: `User.full_name` is `allow_nil? true` in the resource
-   but `NOT NULL` in the DB, so a create without it hits a DB constraint
-   error.
+   callable by any actor — every user's email and name are readable.
+   (Correction 2026-07-04: the originally-reported `full_name` nullability
+   mismatch was a false positive — the audit misread the `down` clause of
+   migration 20260623111144. DB and resource agree: nullable.)
 5. **API ergonomics are pre-frontend quality.** Mixed camelCase/snake_case in
    the same payload, two different error shapes, validation errors space-joined
    into one string, broad `rescue` blocks leaking raw exception messages as
@@ -126,8 +126,9 @@ job is recording events.
    it to exist to render it. *Graduated: expanded into
    `notes/coaching-foundations-todo.md` (items 2, 3, 7) — work it there.*
 5. **Lock down Accounts** — security bug, **8/10**. Add policies to
-   `User`/`Token` (self-only read/update, no open `list_users`), and fix the
-   `full_name` resource/DB nullability mismatch on the signup path.
+   `User`/`Token` (self-only read/update, no open `list_users`). Done
+   2026-07-04 (bean `gghs`); the `full_name` half was a false positive — see
+   the correction in weakness #4.
 6. **Expose offline batch ingress over HTTP** (bean `natd`) — feature,
    **8/10**. The V1.1 bean. `POST /app/offline-events` in front of the
    already-tested `submit_offline_event_batch`, returning per-entry statuses.

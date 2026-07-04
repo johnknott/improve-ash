@@ -32,7 +32,9 @@ defmodule ImproveWeb.AppControllerTest do
     conn = post(conn, ~p"/api/app/demo-plans", %{kind: "gym"})
     assert %{"currentPlan" => %{"id" => ^gym_plan_id}} = json_response(conn, 200)
 
-    assert {:ok, plans} = Plans.list_plans(actor: Accounts.get_user_by_email!(email))
+    assert {:ok, plans} =
+             Plans.list_plans(actor: Accounts.get_user_by_email!(email, authorize?: false))
+
     assert Enum.count(plans, &(&1.source_key == "gym")) == 1
   end
 
@@ -311,7 +313,7 @@ defmodule ImproveWeb.AppControllerTest do
   test "signed-in users can start, swap, log, and complete a projected gym session", %{conn: conn} do
     email = "app-session-flow@example.test"
     conn = sign_in!(conn, email)
-    user = Accounts.get_user_by_email!(email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
     %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
 
     [template] = Plans.list_session_templates!(actor: user, query: [filter: [plan_id: plan.id]])
@@ -420,7 +422,7 @@ defmodule ImproveWeb.AppControllerTest do
   test "signed-in users can skip a started session", %{conn: conn} do
     email = "app-session-skip@example.test"
     conn = sign_in!(conn, email)
-    user = Accounts.get_user_by_email!(email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
     %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
 
     [template] = Plans.list_session_templates!(actor: user, query: [filter: [plan_id: plan.id]])

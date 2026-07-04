@@ -39,7 +39,7 @@ defmodule Improve.Stories do
     email = Keyword.get(opts, :email, default_email(story.key))
 
     user =
-      case Accounts.get_user_by_email(email) do
+      case Accounts.get_user_by_email(email, authorize?: false) do
         {:ok, user} -> user
         {:error, _error} -> Accounts.create_user!(%{email: email, full_name: name})
       end

@@ -3,11 +3,30 @@ defmodule Improve.Accounts.User do
     otp_app: :improve,
     domain: Improve.Accounts,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshAuthentication, AshRateLimiter]
 
   postgres do
     table "users"
     repo Improve.Repo
+  end
+
+  policies do
+    bypass AshAuthentication.Checks.AshAuthenticationInteraction do
+      authorize_if always()
+    end
+
+    policy action_type(:create) do
+      authorize_if always()
+    end
+
+    policy action_type(:read) do
+      authorize_if expr(id == ^actor(:id))
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if expr(id == ^actor(:id))
+    end
   end
 
   authentication do

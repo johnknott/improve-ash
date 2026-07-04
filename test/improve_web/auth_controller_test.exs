@@ -49,7 +49,7 @@ defmodule ImproveWeb.AuthControllerTest do
       |> response_user_id()
 
     assert user_id_again == user_id
-    assert Accounts.get_user_by_email!(email).id == user_id
+    assert Accounts.get_user_by_email!(email, authorize?: false).id == user_id
   end
 
   test "signed-in users can complete their profile", %{conn: conn} do
@@ -64,7 +64,7 @@ defmodule ImproveWeb.AuthControllerTest do
     assert %{"user" => %{"email" => ^email, "fullName" => "John Knott"}} =
              json_response(conn, 200)
 
-    assert Accounts.get_user_by_email!(email).full_name == "John Knott"
+    assert Accounts.get_user_by_email!(email, authorize?: false).full_name == "John Knott"
   end
 
   test "profile completion requires a signed-in user", %{conn: conn} do
@@ -95,7 +95,9 @@ defmodule ImproveWeb.AuthControllerTest do
     assert %{"error" => %{"message" => "That code was invalid or expired."}} =
              json_response(conn, 401)
 
-    assert_raise Ash.Error.Invalid, fn -> Accounts.get_user_by_email!(email) end
+    assert_raise Ash.Error.Invalid, fn ->
+      Accounts.get_user_by_email!(email, authorize?: false)
+    end
   end
 
   test "OTP codes are single-use", %{conn: conn} do
