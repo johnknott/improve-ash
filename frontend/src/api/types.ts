@@ -331,6 +331,10 @@ export type DashboardData = {
   planDetail: PlanDetail | null
 }
 
+// Mutations return only the slices they invalidate; merge into the cached
+// DashboardData. GET /app/dashboard always returns every slice.
+export type DashboardPatch = Partial<DashboardData>
+
 export type DemoPlanKind = 'gym' | 'vial_inventory'
 
 export type CreatePlanInput = {

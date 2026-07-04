@@ -2,6 +2,7 @@ import type {
   ApiErrorDetail,
   ApiErrorPayload,
   DashboardData,
+  DashboardPatch,
   CreatePlanInput,
   DemoPlanKind,
   UpdatePlanInput,
@@ -35,15 +36,15 @@ export async function loadDashboard(planId?: string | null, date = todayIso()): 
   return apiFetch<DashboardData>(`/api/app/dashboard?${search.toString()}`)
 }
 
-export async function installDemoPlan(kind: DemoPlanKind, date = todayIso()): Promise<DashboardData> {
-  return apiFetch<DashboardData>('/api/app/demo-plans', {
+export async function installDemoPlan(kind: DemoPlanKind, date = todayIso()): Promise<DashboardPatch> {
+  return apiFetch<DashboardPatch>('/api/app/demo-plans', {
     method: 'POST',
     body: JSON.stringify({ kind, date }),
   })
 }
 
-export async function createPlan(input: CreatePlanInput): Promise<DashboardData> {
-  return apiFetch<DashboardData>('/api/app/plans', {
+export async function createPlan(input: CreatePlanInput): Promise<DashboardPatch> {
+  return apiFetch<DashboardPatch>('/api/app/plans', {
     method: 'POST',
     body: JSON.stringify({
       name: input.name,
@@ -55,8 +56,8 @@ export async function createPlan(input: CreatePlanInput): Promise<DashboardData>
   })
 }
 
-export async function updatePlan(input: UpdatePlanInput): Promise<DashboardData> {
-  return apiFetch<DashboardData>(`/api/app/plans/${input.id}`, {
+export async function updatePlan(input: UpdatePlanInput): Promise<DashboardPatch> {
+  return apiFetch<DashboardPatch>(`/api/app/plans/${input.id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       name: input.name,

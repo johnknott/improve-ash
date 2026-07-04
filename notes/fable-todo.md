@@ -135,17 +135,15 @@ job is recording events.
    per-entry statuses (accepted/duplicate/rejected/needs_resolution) with
    conflict categories. With #1 done, only #2 (bearer tokens) remains of the
    mobile backend contract.
-7. **Consistent, structured API errors** — feature, **7/10**. One error
-   envelope (controller and `ErrorJSON` currently disagree), field-level
-   validation errors instead of space-joined strings, and stop rescuing all
-   exceptions into 422s with raw messages. Much cheaper before the Svelte work
-   consumes the API than after.
-8. **Unify the TS contract** — architecture, **7/10**. One casing convention
-   end-to-end (payloads currently mix camelCase and snake_case at different
-   depths), and make the frontend actually consume generated types — either
-   extend `ash_typescript` coverage to the app endpoints or generate types
-   from the UiApi payloads. Add a codegen drift-check to `precommit`. Directly
-   de-risks the entire frontend phase.
+7. **Consistent, structured API errors** — feature, **7/10**. Done
+   2026-07-04 (bean `awdf`): one envelope
+   (`error.code/message/details[{field,message}]`) across controllers and
+   ErrorJSON; plan/track validation errors carry field names.
+8. **Unify the TS contract** — architecture, **7/10**. Done 2026-07-04
+   (bean `3faz`): engine-generated keys are camelCase everywhere (user
+   JSONB untouched), `frontend/src/api/types.ts` fully types the dashboard
+   payload, client throws typed `ApiRequestError`, and `precommit` runs
+   `ash_typescript.codegen --check`.
 9. **Fix the slot-status vocabulary** — bug, **7/10**. Done 2026-07-04 (bean
    `2hxc`). Correction: swapped-and-logged slots *did* count as logged via
    `event_instance_id`, so sessions could complete — now proven by a
@@ -172,10 +170,11 @@ job is recording events.
     `projection_load` pulls all history per projection. Add limits/keyset
     pagination at the query layer before journals grow. Feeds bean `elb2`
     (read models) later.
-14. **Slim mutation responses** — optimization, **6/10**. Every write returns
-    the full dashboard (plans + today + journal + complete plan detail).
-    Return the affected slice, or add a delta/`changed-since` mechanism.
-    Directly translates to mobile battery/bandwidth.
+14. **Slim mutation responses** — optimization, **6/10**. Done 2026-07-04
+    (bean `f7jj`): mutations return only the slices they invalidate
+    (session ops skip plans/planDetail; plan ops skip journal), unrequested
+    slice queries are skipped server-side, and the frontend merges patches
+    into its cached dashboard.
 15. **Stop leaking internals via broad rescues** — bug, **6/10**. Done
     2026-07-04 (bean `svdo`): removed the dead catch-all clauses so only
     expected error types rescue to 422; everything else propagates to a

@@ -46,8 +46,7 @@ defmodule Improve.App.UiApi do
          {:ok, linked_item} <- get_plan_item(params, plan.id, actor),
          {:ok, event_type} <- get_plan_event_type(params, plan.id, actor),
          {:ok, _result} <- log_linked_event(plan, linked_item, event_type, params, actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal, :planDetail]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -130,8 +129,7 @@ defmodule Improve.App.UiApi do
              params,
              actor
            ),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal, :planDetail]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -145,8 +143,8 @@ defmodule Improve.App.UiApi do
   def create_plan(actor, params) do
     with {:ok, attrs} <- create_plan_attrs(params),
          {:ok, plan} <- persist_created_plan(attrs, actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -161,8 +159,8 @@ defmodule Improve.App.UiApi do
     with {:ok, plan} <- get_owned_plan(params, actor),
          {:ok, attrs} <- create_plan_attrs(params),
          {:ok, plan} <- persist_updated_plan(plan, attrs, actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -177,8 +175,8 @@ defmodule Improve.App.UiApi do
     with {:ok, plan} <- get_owned_plan(params, actor),
          {:ok, attrs} <- create_track_attrs(params),
          {:ok, _track} <- persist_track(plan, attrs, actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -191,8 +189,8 @@ defmodule Improve.App.UiApi do
 
   def install_demo_plan(actor, params) do
     with {:ok, plan} <- install_or_select_demo_plan(actor, Map.get(params, "kind")),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <-
+           mutation_payload(plan, actor, params, [:plans, :currentPlan, :today, :planDetail]) do
       {:ok, payload}
     else
       {:error, error} -> {:error, error}
@@ -204,8 +202,7 @@ defmodule Improve.App.UiApi do
          {:ok, projection} <- Plans.project_today(plan, actor: actor, date: request_date(params)),
          {:ok, template} <- get_projected_session_template(params, projection, actor),
          :ok <- maybe_start_projected_session(projection, template, actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
       {:ok, payload}
     else
       {:error, error} -> {:error, error}
@@ -217,8 +214,7 @@ defmodule Improve.App.UiApi do
          {:ok, started_session} <- started_session(occurrence, actor),
          {:ok, _result} <- log_session_slot_event(started_session, params, actor),
          {:ok, plan} <- Plans.get_plan(occurrence.plan_id, actor: actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -234,8 +230,7 @@ defmodule Improve.App.UiApi do
          {:ok, item} <- get_slot_actual_item(params, slot_result.plan_id, actor),
          {:ok, _slot_result} <- swap_slot_result(slot_result, item, params, actor),
          {:ok, plan} <- Plans.get_plan(slot_result.plan_id, actor: actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
@@ -254,36 +249,81 @@ defmodule Improve.App.UiApi do
     update_session_status(actor, params, :skip)
   end
 
-  defp dashboard_payload(plan, plans, actor, params) do
-    date = parse_date(Map.get(params, "date")) || Date.utc_today()
+  @dashboard_slices [:plans, :currentPlan, :today, :journal, :planDetail]
 
-    with {:ok, summary} <- Plans.summarize_plan(plan, actor: actor),
+  defp dashboard_payload(plan, plans, actor, params) do
+    build_dashboard_payload(plan, plans, actor, params, @dashboard_slices)
+  end
+
+  # Mutations return only the slices they invalidate; clients merge the
+  # partial payload into their cached dashboard.
+  defp mutation_payload(plan, actor, params, slices) do
+    with {:ok, plans} <- maybe_list_plans(actor, :plans in slices) do
+      build_dashboard_payload(plan, plans, actor, params, slices)
+    end
+  end
+
+  defp maybe_list_plans(actor, true), do: Plans.list_plans(actor: actor)
+  defp maybe_list_plans(_actor, false), do: {:ok, []}
+
+  defp maybe_query(true, _default, query), do: query.()
+  defp maybe_query(false, default, _query), do: {:ok, default}
+
+  defp put_slice(payload, true, key, build), do: Map.put(payload, key, build.())
+  defp put_slice(payload, false, _key, _build), do: payload
+
+  defp build_dashboard_payload(plan, plans, actor, params, slices) do
+    date = parse_date(Map.get(params, "date")) || Date.utc_today()
+    plan_detail? = :planDetail in slices
+    journal? = :journal in slices
+    summary? = :currentPlan in slices or plan_detail?
+
+    with {:ok, summary} <-
+           maybe_query(summary?, nil, fn -> Plans.summarize_plan(plan, actor: actor) end),
          {:ok, projections} <-
            Plans.project_dates(plan, [date | next_days(date, 3)], actor: actor, as_of_date: date),
          [projection | upcoming_projections] = projections,
-         {:ok, journal_events} <- Journal.read_journal(plan, actor: actor),
+         {:ok, journal_events} <-
+           maybe_query(journal?, [], fn -> Journal.read_journal(plan, actor: actor) end),
          {:ok, items} <- Plans.list_items(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, item_types} <-
-           Plans.list_item_types(actor: actor, query: [filter: [plan_id: plan.id]]),
+           maybe_query(plan_detail?, [], fn ->
+             Plans.list_item_types(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
          {:ok, event_types} <-
            Plans.list_event_types(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, tracks} <-
-           Plans.list_tracks(actor: actor, query: [filter: [plan_id: plan.id]]),
-         {:ok, pools} <- Plans.list_pools(actor: actor, query: [filter: [plan_id: plan.id]]),
+           maybe_query(plan_detail?, [], fn ->
+             Plans.list_tracks(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
+         {:ok, pools} <-
+           maybe_query(plan_detail?, [], fn ->
+             Plans.list_pools(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
          {:ok, pool_memberships} <-
-           Plans.list_pool_memberships(actor: actor, query: [filter: [plan_id: plan.id]]),
+           maybe_query(plan_detail?, [], fn ->
+             Plans.list_pool_memberships(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
          {:ok, session_templates} <-
-           Plans.list_session_templates(actor: actor, query: [filter: [plan_id: plan.id]]),
+           maybe_query(plan_detail?, [], fn ->
+             Plans.list_session_templates(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
          {:ok, session_slots} <-
            Plans.list_session_slots(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, schedules} <-
-           Plans.list_schedules(actor: actor, query: [filter: [plan_id: plan.id]]),
+           maybe_query(plan_detail?, [], fn ->
+             Plans.list_schedules(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
          {:ok, slot_results} <-
            Sessions.list_slot_results(actor: actor, query: [filter: [plan_id: plan.id]]),
          {:ok, event_item_links} <-
-           Journal.list_event_item_links(actor: actor, query: [filter: [plan_id: plan.id]]),
+           maybe_query(journal?, [], fn ->
+             Journal.list_event_item_links(actor: actor, query: [filter: [plan_id: plan.id]])
+           end),
          {:ok, item_effects} <-
-           Journal.list_item_effects(actor: actor, query: [filter: [plan_id: plan.id]]) do
+           maybe_query(journal?, [], fn ->
+             Journal.list_item_effects(actor: actor, query: [filter: [plan_id: plan.id]])
+           end) do
       event_types_by_id = Map.new(event_types, &{&1.id, &1})
       item_types_by_id = Map.new(item_types, &{&1.id, &1})
       pools_by_id = Map.new(pools, &{&1.id, &1})
@@ -298,51 +338,58 @@ defmodule Improve.App.UiApi do
 
       event_item_links_by_event_id = Enum.group_by(event_item_links, & &1.event_instance_id)
       item_effects_by_event_id = Enum.group_by(item_effects, & &1.event_instance_id)
-      plan_by_id = Map.new(plans, &{&1.id, &1})
+      plan_by_id = %{plan.id => plan}
 
-      {:ok,
-       %{
-         plans: Enum.map(plans, &plan_json(&1, date)),
-         currentPlan: plan_json(plan, date, summary),
-         today:
-           today_json(
-             projection,
-             plan,
-             event_types_by_id,
-             upcoming_work(upcoming_projections),
-             slot_results_by_occurrence,
-             session_slots_by_id,
-             items_by_id
-           ),
-         journal:
-           journal_events
-           |> Enum.take(-5)
-           |> Enum.reverse()
-           |> Enum.map(
-             &event_json(
-               &1,
-               plan_by_id,
-               event_types_by_id,
-               event_item_links_by_event_id,
-               item_effects_by_event_id,
-               slot_results_by_event_id,
-               session_slots_by_id,
-               items_by_id
-             )
-           ),
-         planDetail: %{
-           summary: plan_json(plan, date, summary),
-           items: Enum.map(items, &item_json(&1, item_types_by_id, actor)),
-           itemTypes: Enum.map(item_types, &item_type_json(&1, items)),
-           eventTypes: Enum.map(event_types, &event_type_json/1),
-           tracks: Enum.map(tracks, &track_json(&1, event_types_by_id, schedules)),
-           pools: Enum.map(pools, &pool_json/1),
-           poolMemberships: Enum.map(pool_memberships, &pool_membership_json/1),
-           sessionTemplates: Enum.map(session_templates, &session_template_json/1),
-           sessionSlots: Enum.map(session_slots, &session_slot_json(&1, pools_by_id)),
-           schedules: Enum.map(schedules, &schedule_json/1)
-         }
-       }}
+      payload =
+        %{}
+        |> put_slice(:plans in slices, :plans, fn -> Enum.map(plans, &plan_json(&1, date)) end)
+        |> put_slice(:currentPlan in slices, :currentPlan, fn ->
+          plan_json(plan, date, summary)
+        end)
+        |> put_slice(:today in slices, :today, fn ->
+          today_json(
+            projection,
+            plan,
+            event_types_by_id,
+            upcoming_work(upcoming_projections),
+            slot_results_by_occurrence,
+            session_slots_by_id,
+            items_by_id
+          )
+        end)
+        |> put_slice(journal?, :journal, fn ->
+          journal_events
+          |> Enum.take(-5)
+          |> Enum.reverse()
+          |> Enum.map(
+            &event_json(
+              &1,
+              plan_by_id,
+              event_types_by_id,
+              event_item_links_by_event_id,
+              item_effects_by_event_id,
+              slot_results_by_event_id,
+              session_slots_by_id,
+              items_by_id
+            )
+          )
+        end)
+        |> put_slice(plan_detail?, :planDetail, fn ->
+          %{
+            summary: plan_json(plan, date, summary),
+            items: Enum.map(items, &item_json(&1, item_types_by_id, actor)),
+            itemTypes: Enum.map(item_types, &item_type_json(&1, items)),
+            eventTypes: Enum.map(event_types, &event_type_json/1),
+            tracks: Enum.map(tracks, &track_json(&1, event_types_by_id, schedules)),
+            pools: Enum.map(pools, &pool_json/1),
+            poolMemberships: Enum.map(pool_memberships, &pool_membership_json/1),
+            sessionTemplates: Enum.map(session_templates, &session_template_json/1),
+            sessionSlots: Enum.map(session_slots, &session_slot_json(&1, pools_by_id)),
+            schedules: Enum.map(schedules, &schedule_json/1)
+          }
+        end)
+
+      {:ok, payload}
     end
   end
 
@@ -806,8 +853,7 @@ defmodule Improve.App.UiApi do
     with {:ok, occurrence} <- get_session_occurrence(params, actor),
          {:ok, _occurrence} <- apply_session_status(occurrence, action, params, actor),
          {:ok, plan} <- Plans.get_plan(occurrence.plan_id, actor: actor),
-         {:ok, plans} <- Plans.list_plans(actor: actor),
-         {:ok, payload} <- dashboard_payload(plan, plans, actor, params) do
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
       {:ok, payload}
     else
       {:error, diagnostics} when is_list(diagnostics) ->

@@ -8,6 +8,7 @@ import {
 } from '../api/improveClient'
 import type {
   DashboardData,
+  DashboardPatch,
   CreatePlanInput,
   DemoPlanKind,
   Plan,
@@ -175,11 +176,18 @@ export async function submitPlanEdit(input: UpdatePlanInput): Promise<void> {
   }
 }
 
-function setDashboardData(data: DashboardData): void {
-  lastLoadedPlanId = data.currentPlan?.id ?? null
+function setDashboardData(patch: DashboardPatch): void {
+  const current = get(dashboardState)
+  const data = { ...emptyDashboard(), ...current.data, ...patch }
+
+  lastLoadedPlanId = data.currentPlan?.id ?? lastLoadedPlanId
   selectedPlanId.set(lastLoadedPlanId)
   selectedDate.set(data.today?.date ?? get(selectedDate))
   dashboardState.set({ loading: false, refreshing: false, error: null, data })
+}
+
+function emptyDashboard(): DashboardData {
+  return { plans: [], currentPlan: null, today: null, journal: [], planDetail: null }
 }
 
 function addIsoDays(date: string, days: number): string {

@@ -444,6 +444,50 @@ defmodule ImproveWeb.AppControllerTest do
            } = json_response(conn, 200)
   end
 
+  test "mutation responses carry only the slices they invalidate", %{conn: conn} do
+    email = "app-slim-responses@example.test"
+    conn = sign_in!(conn, email)
+    user = Accounts.get_user_by_email!(email, authorize?: false)
+    %{plan: plan} = GymPlan.install!(user, starts_on: ~D[2026-06-22])
+
+    [template] = Plans.list_session_templates!(actor: user, query: [filter: [plan_id: plan.id]])
+
+    conn =
+      patch(conn, ~p"/api/app/plans/#{plan.id}", %{
+        name: "Renamed plan",
+        intention: "Same work, new name",
+        starts_on: "2026-06-22",
+        ends_on: "2026-08-19",
+        date: "2026-06-22"
+      })
+
+    plan_update = json_response(conn, 200)
+    assert Map.has_key?(plan_update, "plans")
+    assert Map.has_key?(plan_update, "currentPlan")
+    assert Map.has_key?(plan_update, "planDetail")
+    refute Map.has_key?(plan_update, "journal")
+
+    conn =
+      post(conn, ~p"/api/app/start-session", %{
+        plan_id: plan.id,
+        session_template_id: template.id,
+        date: "2026-06-22"
+      })
+
+    session_start = json_response(conn, 200)
+    assert Map.has_key?(session_start, "today")
+    assert Map.has_key?(session_start, "journal")
+    refute Map.has_key?(session_start, "plans")
+    refute Map.has_key?(session_start, "planDetail")
+
+    conn = get(conn, ~p"/api/app/dashboard?date=2026-06-22")
+    dashboard = json_response(conn, 200)
+
+    for slice <- ["plans", "currentPlan", "today", "journal", "planDetail"] do
+      assert Map.has_key?(dashboard, slice), "dashboard should include #{slice}"
+    end
+  end
+
   test "retried event logs with idempotency metadata do not duplicate", %{conn: conn} do
     email = "app-idempotent-log@example.test"
     conn = sign_in!(conn, email)
