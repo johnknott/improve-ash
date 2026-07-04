@@ -179,15 +179,19 @@ and an `adjust_goal` consumer, sharing zero marathon code. Do it if items
 Order: 1 → 2 → 3 → 4 → 6, with 5 parallel after 1, and 7 alongside 2–6 as
 payload shapes settle.
 
-| Item | Depends on | Unblocks |
-|---|---|---|
-| 1 Effective targets | fable-todo #3 (timezones) | 2, 5, frontend Phase 1 |
-| 2 Pipelines in projection | 1; fable-todo #9 (status vocab) | 3, 7 |
-| 3 Durable proposals | 2 | 4, 6, frontend Phase 5 |
-| 4 Action registry | 3 | 6 |
-| 5 Responsive progression | 1 | 8 |
-| 6 Review + drift rule | 3, 4 | frontend Phase 5, coach v1 |
-| 7 Payload provenance | 2 | frontend Phases 1 & 5 |
+Tracked as beans under epic `improve-ash-xxkf`, with blocking edges
+matching this table (`beans list --ready` gives the next workable item):
+
+| Item | Bean | Depends on | Unblocks |
+|---|---|---|---|
+| 1 Effective targets | `vpsn` | fable-todo #3 (timezones, done) | 2, 5, frontend Phase 1 |
+| 2 Pipelines in projection | `mj8g` | 1; fable-todo #9 (status vocab, done) | 3, 7 |
+| 3 Durable proposals | `8cxq` | 2 | 4, 6, frontend Phase 5 |
+| 4 Action registry | `xi85` | 3 | 6 |
+| 5 Responsive progression | `zhwu` | 1 | 8 |
+| 6 Review + drift rule | `ja2l` | 3, 4 | frontend Phase 5, coach v1 |
+| 7 Payload provenance | `eeou` | 2 | frontend Phases 1 & 5 |
+| 8 Adaptive strength (stretch) | `m8ry` | 5 | — |
 
 The frontend can start its Phase 0 (contract/data layer) in parallel with
 this entire phase; frontend Phase 1 wants items 1–2 and 7 done first so
