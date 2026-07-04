@@ -3,8 +3,9 @@ alias Improve.Fixtures.GymPlan
 alias Improve.Fixtures.VialPlan
 alias Improve.Plans
 
+# Seeds run as trusted setup, so bypass the self-only Accounts read policy.
 seed_user =
-  case Accounts.get_user_by_email("demo@improve.local") do
+  case Accounts.get_user_by_email("demo@improve.local", authorize?: false) do
     {:ok, user} ->
       user
 
