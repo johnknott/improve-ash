@@ -14,6 +14,7 @@ defmodule Improve.Bundles.Marathon.RecentLoad do
   """
   def evaluate(input) when is_map(input) do
     as_of_date = Map.fetch!(input, :as_of_date)
+    timezone = Map.get(input, :timezone) || Improve.Planning.LocalDate.default_timezone()
     window_start = Date.add(as_of_date, -(@window_days - 1))
     running_track_ids = running_track_ids(Map.get(input, :tracks, []))
 
@@ -21,7 +22,7 @@ defmodule Improve.Bundles.Marathon.RecentLoad do
       input
       |> Map.get(:journal_events, [])
       |> Enum.reduce({0.0, [], []}, fn event, {total, event_ids, diagnostics} ->
-        evaluate_event(event, running_track_ids, window_start, as_of_date, {
+        evaluate_event(event, running_track_ids, window_start, as_of_date, timezone, {
           total,
           event_ids,
           diagnostics
@@ -50,7 +51,7 @@ defmodule Improve.Bundles.Marathon.RecentLoad do
      }, diagnostics}
   end
 
-  defp evaluate_event(event, running_track_ids, window_start, as_of_date, state) do
+  defp evaluate_event(event, running_track_ids, window_start, as_of_date, timezone, state) do
     {total, event_ids, diagnostics} = state
 
     cond do
@@ -60,7 +61,7 @@ defmodule Improve.Bundles.Marathon.RecentLoad do
       not running_track_event?(event, running_track_ids) ->
         state
 
-      not in_window?(event, window_start, as_of_date) ->
+      not in_window?(event, window_start, as_of_date, timezone) ->
         state
 
       true ->
@@ -98,8 +99,8 @@ defmodule Improve.Bundles.Marathon.RecentLoad do
 
   defp active?(event), do: event_value(event, :status) in [:active, "active"]
 
-  defp in_window?(event, window_start, as_of_date) do
-    case event_date(event) do
+  defp in_window?(event, window_start, as_of_date, timezone) do
+    case event_date(event, timezone) do
       nil ->
         false
 
@@ -108,13 +109,8 @@ defmodule Improve.Bundles.Marathon.RecentLoad do
     end
   end
 
-  defp event_date(event) do
-    case event_value(event, :effective_at) do
-      %DateTime{} = datetime -> DateTime.to_date(datetime)
-      %NaiveDateTime{} = datetime -> NaiveDateTime.to_date(datetime)
-      %Date{} = date -> date
-      _other -> nil
-    end
+  defp event_date(event, timezone) do
+    Improve.Planning.LocalDate.to_date(event_value(event, :effective_at), timezone)
   end
 
   defp run_amount_km(event) do

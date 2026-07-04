@@ -130,6 +130,7 @@ defmodule Improve.Bundles.Marathon.AdaptationTest do
       %{
         date: ~D[2026-07-09],
         as_of_date: ~D[2026-07-09],
+        timezone: "Etc/UTC",
         projected_work: [
           %{
             kind: :track,

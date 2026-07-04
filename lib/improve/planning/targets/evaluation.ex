@@ -7,13 +7,14 @@ defmodule Improve.Planning.Targets.Evaluation do
   """
 
   @enforce_keys [:track]
-  defstruct [:track, :plan, :date, :as_of_date, journal_events: []]
+  defstruct [:track, :plan, :date, :as_of_date, journal_events: [], timezone: "Etc/UTC"]
 
   @type t :: %__MODULE__{
           track: map(),
           plan: map() | nil,
           date: Date.t() | nil,
           as_of_date: Date.t() | nil,
-          journal_events: [map()]
+          journal_events: [map()],
+          timezone: String.t()
         }
 end

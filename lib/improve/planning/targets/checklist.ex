@@ -3,16 +3,20 @@ defmodule Improve.Planning.Targets.Checklist do
 
   @behaviour Improve.Planning.Targets.Evaluator
 
+  alias Improve.Planning.LocalDate
+
   def target_type, do: "checklist"
 
   def diagnostics(_evaluation), do: []
 
-  def completion(%{track: track, date: date, journal_events: journal_events}) do
+  def completion(%{track: track, date: date, journal_events: journal_events} = evaluation) do
+    timezone = Map.get(evaluation, :timezone) || LocalDate.default_timezone()
+
     required_items = checklist_items(track.target)
 
     completed_events =
       journal_events
-      |> Enum.filter(&completed_event_for?(track, date, &1))
+      |> Enum.filter(&completed_event_for?(track, date, timezone, &1))
 
     completed_items =
       completed_events
@@ -37,11 +41,11 @@ defmodule Improve.Planning.Targets.Checklist do
      }, []}
   end
 
-  defp completed_event_for?(_track, nil, _event), do: false
+  defp completed_event_for?(_track, nil, _timezone, _event), do: false
 
-  defp completed_event_for?(track, date, event) do
+  defp completed_event_for?(track, date, timezone, event) do
     event_value(event, :track_id) == track.id and event_value(event, :status) == :active and
-      Date.compare(DateTime.to_date(event_value(event, :effective_at)), date) == :eq
+      Date.compare(LocalDate.to_date(event_value(event, :effective_at), timezone), date) == :eq
   end
 
   defp checklist_items(target) do

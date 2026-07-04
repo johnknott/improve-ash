@@ -24,7 +24,12 @@ defmodule Improve.App.Logging do
 
     Sessions.start_projected_session!(projected_occurrence,
       actor: actor,
-      started_at: Keyword.get(opts, :started_at, Value.default_datetime(projection.date)),
+      started_at:
+        Keyword.get(
+          opts,
+          :started_at,
+          Value.default_datetime(projection.date, actor_timezone(actor))
+        ),
       actual_item_ids_by_slot_key: Keyword.get(opts, :actual_item_ids_by_slot_key, %{})
     )
   end
@@ -43,7 +48,11 @@ defmodule Improve.App.Logging do
     event_type = Lookup.event_type!(plan_id, event_key!(slot, opts), actor)
 
     effective_at =
-      Keyword.get(opts, :effective_at, Value.default_datetime(occurrence.planned_for))
+      Keyword.get(
+        opts,
+        :effective_at,
+        Value.default_datetime(occurrence.planned_for, actor_timezone(actor))
+      )
 
     payload = slot_payload(slot, opts)
 
@@ -103,7 +112,14 @@ defmodule Improve.App.Logging do
     plan_id = projection.plan_id
     track = Lookup.track!(plan_id, Keyword.fetch!(opts, :track), actor)
     event_type = track_event_type!(plan_id, track, opts, actor)
-    effective_at = Keyword.get(opts, :effective_at, Value.default_datetime(projection.date))
+
+    effective_at =
+      Keyword.get(
+        opts,
+        :effective_at,
+        Value.default_datetime(projection.date, actor_timezone(actor))
+      )
+
     payload = Value.stringify_keys(Keyword.get(opts, :payload, %{}))
     quantity = Keyword.get(opts, :quantity, quantity_from_target(payload, track.target))
     unit = Keyword.get(opts, :unit, Value.value(track.target, "unit"))
@@ -168,7 +184,7 @@ defmodule Improve.App.Logging do
     event_type = event_type!(plan_id, track, opts, actor)
     payload = Value.stringify_keys(Keyword.get(opts, :payload, %{}))
     links = item_links(plan_id, merged_links(track, opts), actor)
-    effective_at = event_datetime(opts)
+    effective_at = event_datetime(opts, actor)
     quantity = Keyword.get(opts, :quantity, quantity_from_event(payload, track))
     unit = Keyword.get(opts, :unit, unit_from_event(payload, track))
 
@@ -405,10 +421,12 @@ defmodule Improve.App.Logging do
     }
   end
 
-  defp event_datetime(opts) do
+  defp event_datetime(opts, actor) do
     case Keyword.fetch(opts, :effective_at) do
       {:ok, effective_at} -> effective_at
-      :error -> Value.default_datetime(Keyword.fetch!(opts, :on))
+      :error -> Value.default_datetime(Keyword.fetch!(opts, :on), actor_timezone(actor))
     end
   end
+
+  defp actor_timezone(actor), do: Map.get(actor, :timezone) || "Etc/UTC"
 end

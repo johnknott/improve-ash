@@ -70,20 +70,26 @@ defmodule Improve.Accounts.User do
 
     create :create do
       primary? true
-      accept [:email, :full_name]
+      accept [:email, :full_name, :timezone]
+
+      validate Improve.Validations.ValidTimezone
     end
 
     update :update do
       primary? true
-      accept [:email, :full_name]
+      accept [:email, :full_name, :timezone]
+
+      validate Improve.Validations.ValidTimezone
     end
 
     update :complete_profile do
-      accept [:full_name]
+      accept [:full_name, :timezone]
 
       validate present(:full_name) do
         message "is required"
       end
+
+      validate Improve.Validations.ValidTimezone
     end
   end
 
@@ -99,6 +105,12 @@ defmodule Improve.Accounts.User do
     attribute :full_name, :string do
       allow_nil? true
       public? true
+    end
+
+    attribute :timezone, :string do
+      allow_nil? false
+      public? true
+      default "Etc/UTC"
     end
 
     create_timestamp :inserted_at, public?: true

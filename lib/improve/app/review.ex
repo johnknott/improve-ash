@@ -9,6 +9,7 @@ defmodule Improve.App.Review do
   def review!(plan, opts) do
     actor = Keyword.fetch!(opts, :actor)
     on = Keyword.fetch!(opts, :on)
+    timezone = Map.get(actor, :timezone) || "Etc/UTC"
 
     summary = Plans.summarize_plan!(plan, actor: actor)
     projection = Plans.project_today!(plan, actor: actor, date: on)
@@ -17,7 +18,7 @@ defmodule Improve.App.Review do
     recent_events =
       journal_events
       |> Enum.filter(&active_event?/1)
-      |> Enum.filter(&event_on_or_before?(&1, on))
+      |> Enum.filter(&event_on_or_before?(&1, on, timezone))
       |> Enum.take(-Keyword.get(opts, :journal_limit, 20))
 
     completed = Enum.filter(projection.projected_work, &(&1.status == :completed))
@@ -130,8 +131,11 @@ defmodule Improve.App.Review do
 
   defp active_event?(event), do: event.status == :active
 
-  defp event_on_or_before?(event, date) do
-    Date.compare(DateTime.to_date(event.effective_at), date) in [:lt, :eq]
+  defp event_on_or_before?(event, date, timezone) do
+    Date.compare(Improve.Planning.LocalDate.to_date(event.effective_at, timezone), date) in [
+      :lt,
+      :eq
+    ]
   end
 
   defp diagnostic_summary(diagnostic) do

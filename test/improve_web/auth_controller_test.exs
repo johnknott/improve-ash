@@ -67,6 +67,22 @@ defmodule ImproveWeb.AuthControllerTest do
     assert Accounts.get_user_by_email!(email, authorize?: false).full_name == "John Knott"
   end
 
+  test "profile completion can set the user's time zone", %{conn: conn} do
+    email = "profile-timezone-user@example.test"
+
+    conn = request_and_verify!(conn, email)
+
+    conn =
+      post(conn, ~p"/api/auth/profile", %{full_name: "John Knott", timezone: "Europe/London"})
+
+    assert %{"user" => %{"timezone" => "Europe/London"}} = json_response(conn, 200)
+
+    conn = post(conn, ~p"/api/auth/profile", %{full_name: "John Knott", timezone: "Mars/Olympus"})
+
+    assert %{"error" => %{"message" => "Please choose a valid time zone."}} =
+             json_response(conn, 422)
+  end
+
   test "profile completion requires a signed-in user", %{conn: conn} do
     conn = post(conn, ~p"/api/auth/profile", %{full_name: "John Knott"})
 

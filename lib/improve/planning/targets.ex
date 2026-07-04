@@ -57,7 +57,8 @@ defmodule Improve.Planning.Targets do
       plan: Map.get(input, :plan),
       date: Map.fetch!(input, :date),
       as_of_date: Map.get(input, :as_of_date, Map.fetch!(input, :date)),
-      journal_events: Map.get(input, :journal_events, [])
+      journal_events: Map.get(input, :journal_events, []),
+      timezone: Map.get(input, :timezone) || Improve.Planning.LocalDate.default_timezone()
     }
 
     track

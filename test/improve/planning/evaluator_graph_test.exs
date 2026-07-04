@@ -69,6 +69,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
 
       assert producer_input == %{
                as_of_date: ~D[2026-07-09],
+               timezone: "Etc/UTC",
                tracks: host_input.tracks,
                journal_events: host_input.journal_events
              }
@@ -157,6 +158,7 @@ defmodule Improve.Planning.EvaluatorGraphTest do
   defp host_input do
     %{
       as_of_date: ~D[2026-07-09],
+      timezone: "Etc/UTC",
       tracks: [%{key: "tempo_run"}, %{key: "long_run"}],
       journal_events: [%{status: :active, payload: %{"amount" => 18, "unit" => "km"}}],
       projected_work: [%{kind: :track, owner_key: "tempo_run"}],

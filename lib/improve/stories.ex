@@ -350,6 +350,7 @@ defmodule Improve.Stories do
     %{
       date: projection.date,
       as_of_date: Keyword.get(opts, :as_of, projection.date),
+      timezone: Map.get(actor!(story), :timezone) || "Etc/UTC",
       projected_work: projection.projected_work,
       recent_missed_work: Keyword.get(opts, :recent_missed_work, []),
       journal_events: journal_events,

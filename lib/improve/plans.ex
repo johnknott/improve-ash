@@ -203,8 +203,16 @@ defmodule Improve.Plans do
       pool_memberships: plan.pool_memberships,
       environments: plan.environments,
       as_of_date: Keyword.get(opts, :as_of_date, date),
-      recent_item_ids: Keyword.get(opts, :recent_item_ids, [])
+      recent_item_ids: Keyword.get(opts, :recent_item_ids, []),
+      timezone: Keyword.get(opts, :timezone, plan_timezone(plan))
     }
+  end
+
+  defp plan_timezone(plan) do
+    case plan.user do
+      %{timezone: timezone} when is_binary(timezone) -> timezone
+      _not_loaded -> Improve.Planning.LocalDate.default_timezone()
+    end
   end
 
   defp summary_aggregates do
@@ -239,6 +247,7 @@ defmodule Improve.Plans do
 
   defp projection_load do
     [
+      :user,
       :session_templates,
       :session_slots,
       :schedules,

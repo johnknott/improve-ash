@@ -128,10 +128,12 @@ defmodule Improve.Planning.Schedules.TimesPerWeek do
   end
 
   defp completed_dates(%{owner_type: :track, owner_id: owner_id}, input) do
+    timezone = Map.get(input, :timezone) || Improve.Planning.LocalDate.default_timezone()
+
     input
     |> Map.get(:journal_events, [])
     |> Enum.filter(&(&1.track_id == owner_id and &1.status == :active))
-    |> Enum.map(&DateTime.to_date(&1.effective_at))
+    |> Enum.map(&Improve.Planning.LocalDate.to_date(&1.effective_at, timezone))
   end
 
   defp completed_dates(%{owner_type: :session_template, owner_id: owner_id}, input) do

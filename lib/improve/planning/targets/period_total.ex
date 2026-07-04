@@ -3,19 +3,23 @@ defmodule Improve.Planning.Targets.PeriodTotal do
 
   @behaviour Improve.Planning.Targets.Evaluator
 
+  alias Improve.Planning.LocalDate
+
   alias Improve.Planning.PathReader
 
   def target_type, do: "period_total"
 
   def diagnostics(_evaluation), do: []
 
-  def completion(%{track: track, date: date, journal_events: journal_events}) do
+  def completion(%{track: track, date: date, journal_events: journal_events} = evaluation) do
+    timezone = Map.get(evaluation, :timezone) || LocalDate.default_timezone()
+
     period = period_for(date, target_value(track.target, "per"))
     target_quantity = decimal(target_value(track.target, "quantity"))
 
     entries =
       journal_events
-      |> Enum.filter(&event_in_period?(track, period, &1))
+      |> Enum.filter(&event_in_period?(track, period, timezone, &1))
       |> Enum.map(&quantity_entry(track, &1))
       |> Enum.reject(&is_nil(&1.quantity))
 
@@ -46,10 +50,10 @@ defmodule Improve.Planning.Targets.PeriodTotal do
     {Date.beginning_of_week(date, :monday), Date.end_of_week(date, :monday), :week}
   end
 
-  defp event_in_period?(_track, nil, _event), do: false
+  defp event_in_period?(_track, nil, _timezone, _event), do: false
 
-  defp event_in_period?(track, {starts_on, ends_on, _kind}, event) do
-    event_date = event |> event_value(:effective_at) |> DateTime.to_date()
+  defp event_in_period?(track, {starts_on, ends_on, _kind}, timezone, event) do
+    event_date = LocalDate.to_date(event_value(event, :effective_at), timezone)
 
     event_value(event, :track_id) == track.id and event_value(event, :status) == :active and
       Date.compare(event_date, starts_on) != :lt and Date.compare(event_date, ends_on) != :gt

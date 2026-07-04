@@ -31,6 +31,9 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# IANA time zone database for local-day event bucketing
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
 config :ash_typescript,
   output_file: "priv/generated/ash_rpc.ts",
   types_output_file: "priv/generated/ash_types.ts",

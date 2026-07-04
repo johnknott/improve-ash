@@ -3,18 +3,24 @@ defmodule Improve.Planning.Targets.Progression do
 
   @behaviour Improve.Planning.Targets.Evaluator
 
+  alias Improve.Planning.LocalDate
+
   alias Improve.Planning.PathReader
 
   def target_type, do: "progression"
 
   def diagnostics(_evaluation), do: []
 
-  def completion(%{track: track, plan: plan, date: date, journal_events: journal_events}) do
+  def completion(
+        %{track: track, plan: plan, date: date, journal_events: journal_events} = evaluation
+      ) do
+    timezone = Map.get(evaluation, :timezone) || LocalDate.default_timezone()
+
     expected = expected_quantity(track.target, plan, date)
 
     entries =
       journal_events
-      |> Enum.filter(&completed_event_for?(track, date, &1))
+      |> Enum.filter(&completed_event_for?(track, date, timezone, &1))
       |> Enum.map(&quantity_entry(track, &1))
       |> Enum.reject(&is_nil(&1.quantity))
 
@@ -35,11 +41,11 @@ defmodule Improve.Planning.Targets.Progression do
      }, []}
   end
 
-  defp completed_event_for?(_track, nil, _event), do: false
+  defp completed_event_for?(_track, nil, _timezone, _event), do: false
 
-  defp completed_event_for?(track, date, event) do
+  defp completed_event_for?(track, date, timezone, event) do
     event_value(event, :track_id) == track.id and event_value(event, :status) == :active and
-      Date.compare(DateTime.to_date(event_value(event, :effective_at)), date) == :eq
+      Date.compare(LocalDate.to_date(event_value(event, :effective_at), timezone), date) == :eq
   end
 
   defp quantity_entry(track, event) do

@@ -27,8 +27,13 @@ defmodule Improve.App.Value do
   def maybe_put(map, _key, nil), do: map
   def maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  def default_datetime(date) do
-    DateTime.new!(date, ~T[20:00:00], "Etc/UTC")
+  def default_datetime(date, timezone \\ "Etc/UTC") do
+    case DateTime.new(date, ~T[20:00:00], timezone || "Etc/UTC") do
+      {:ok, datetime} -> DateTime.shift_zone!(datetime, "Etc/UTC")
+      {:ambiguous, first, _second} -> DateTime.shift_zone!(first, "Etc/UTC")
+      {:gap, _before, after_gap} -> DateTime.shift_zone!(after_gap, "Etc/UTC")
+      {:error, _reason} -> DateTime.new!(date, ~T[20:00:00], "Etc/UTC")
+    end
   end
 
   defp existing_atom(key) when is_binary(key) do

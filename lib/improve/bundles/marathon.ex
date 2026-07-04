@@ -12,7 +12,7 @@ defmodule Improve.Bundles.Marathon do
       evaluator: :recent_load_metric,
       kind: :derived_metric,
       provides: [:recent_load_km],
-      requires: [:as_of_date, :tracks, :journal_events]
+      requires: [:as_of_date, :tracks, :journal_events, :timezone]
     },
     %{
       evaluator: :marathon_adaptation,

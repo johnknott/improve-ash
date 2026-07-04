@@ -10,6 +10,7 @@ defmodule Improve.Bundles.Marathon.RecentLoadTest do
       assert {:ok, %{recent_load_km: metric}, []} =
                RecentLoad.evaluate(%{
                  as_of_date: ~D[2026-07-09],
+                 timezone: "Etc/UTC",
                  tracks: [
                    %{id: "tempo-track", key: "tempo_run", target: %{"unit" => "km"}},
                    %{id: "reading-track", key: "reading", target: %{"unit" => "pages"}}
@@ -39,6 +40,7 @@ defmodule Improve.Bundles.Marathon.RecentLoadTest do
       assert {:ok, %{recent_load_km: %{value: 0, event_ids: []}}, diagnostics} =
                RecentLoad.evaluate(%{
                  as_of_date: ~D[2026-07-09],
+                 timezone: "Etc/UTC",
                  tracks: [%{id: "tempo-track", target: %{"unit" => "km"}}],
                  journal_events: [
                    run_event("bad-amount", "tempo-track", ~D[2026-07-05], "far"),
@@ -60,6 +62,7 @@ defmodule Improve.Bundles.Marathon.RecentLoadTest do
 
       host_input = %{
         as_of_date: ~D[2026-07-09],
+        timezone: "Etc/UTC",
         tracks: [%{id: "tempo-track", key: "tempo_run", target: %{"unit" => "km"}}],
         journal_events: [run_event("tempo", "tempo-track", ~D[2026-07-05], 18)],
         date: ~D[2026-07-09],

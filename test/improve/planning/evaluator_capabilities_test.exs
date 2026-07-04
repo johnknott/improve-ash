@@ -22,7 +22,7 @@ defmodule Improve.Planning.EvaluatorCapabilitiesTest do
       assert producer.provides == [:recent_load_km]
 
       assert Enum.sort(producer.requires) ==
-               Enum.sort([:as_of_date, :tracks, :journal_events])
+               Enum.sort([:as_of_date, :tracks, :journal_events, :timezone])
     end
 
     test "bounds the marathon adaptation input around projected work and metrics" do

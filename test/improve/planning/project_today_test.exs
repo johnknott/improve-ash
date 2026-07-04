@@ -299,6 +299,43 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, []} = Sessions.list_session_occurrences(actor: user)
     end
 
+    test "buckets journal events by the user's local day, not UTC" do
+      user =
+        Accounts.create_user!(%{
+          email: "project-track-timezone@example.com",
+          full_name: "Project Track Timezone",
+          timezone: "America/New_York"
+        })
+
+      plan = plan!(user)
+      event_type = event_type!(user, plan)
+      track = track!(user, plan, event_type)
+      schedule!(user, plan, track)
+
+      # 01:30 UTC on June 23 is 21:30 on June 22 in New York.
+      Journal.log_generic_event!(
+        %{
+          plan_id: plan.id,
+          event_type_id: event_type.id,
+          track_id: track.id,
+          effective_at: ~U[2026-06-23 01:30:00Z],
+          recorded_at: ~U[2026-06-23 01:31:00Z],
+          summary: "Late evening reading",
+          quantity: 25,
+          unit: "pages",
+          payload: %{"amount" => 25, "unit" => "pages"}
+        },
+        actor: user
+      )
+
+      assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
+      assert [%{kind: :track, status: :completed}] = projection.projected_work
+
+      assert {:ok, next_day} = Plans.project_today(plan, actor: user, date: ~D[2026-06-23])
+      assert [%{kind: :track, status: status}] = next_day.projected_work
+      assert status != :completed
+    end
+
     test "projects a scheduled track as missed when the date has passed without history" do
       user =
         Accounts.create_user!(%{

@@ -115,10 +115,11 @@ job is recording events.
    alongside cookies, refresh/revocation endpoints, per-device sessions.
    Prerequisite for Flutter; also fixes the CSRF/SameSite awkwardness.
 3. **User timezone and local-day semantics** — bug/architecture, **9/10**.
-   Add `timezone` to `User`, convert `effective_at` to local date in all six
-   target evaluators, `Review`, and `RecentLoad`; fix the 20:00-UTC date-only
-   default. Do this before mobile, or historic data will be bucketed wrong
-   forever.
+   Done 2026-07-04 (bean `pxze`): `User.timezone` + validation + profile
+   endpoint, `Improve.Planning.LocalDate` helper, timezone threaded through
+   projection input, all six target evaluators, `TimesPerWeek`, `Review`,
+   and `RecentLoad`; date-only logging defaults to 20:00 local. Clients
+   should send the device zone at profile completion.
 4. **First-class proposal surface wired into projection** — feature, **8/10**.
    Run bundle evaluator pipelines inside `project_today`, expose derived and
    committed proposals (with reasons, source evaluator, approval state) in the

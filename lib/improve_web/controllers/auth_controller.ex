@@ -51,13 +51,25 @@ defmodule ImproveWeb.AuthController do
     auth_error(conn, 401, "Please sign in to continue.")
   end
 
-  def complete_profile(%{assigns: %{current_user: user}} = conn, %{"full_name" => full_name}) do
-    case Accounts.complete_profile(user, %{full_name: String.trim(full_name)}, actor: user) do
+  def complete_profile(
+        %{assigns: %{current_user: user}} = conn,
+        %{"full_name" => full_name} = params
+      ) do
+    attrs =
+      case Map.get(params, "timezone") do
+        timezone when is_binary(timezone) and timezone != "" ->
+          %{full_name: String.trim(full_name), timezone: timezone}
+
+        _missing ->
+          %{full_name: String.trim(full_name)}
+      end
+
+    case Accounts.complete_profile(user, attrs, actor: user) do
       {:ok, user} ->
         json(conn, %{user: user_json(user)})
 
-      {:error, _error} ->
-        auth_error(conn, 422, "Please enter your name.")
+      {:error, error} ->
+        auth_error(conn, 422, profile_error_message(error))
     end
   end
 
@@ -91,13 +103,24 @@ defmodule ImproveWeb.AuthController do
 
   defp rate_limited?(_error), do: false
 
+  defp profile_error_message(%Ash.Error.Invalid{errors: errors}) do
+    if Enum.any?(errors, &(Map.get(&1, :field) == :timezone)) do
+      "Please choose a valid time zone."
+    else
+      "Please enter your name."
+    end
+  end
+
+  defp profile_error_message(_error), do: "Please enter your name."
+
   defp user_json(nil), do: nil
 
   defp user_json(user) do
     %{
       id: user.id,
       email: user.email,
-      fullName: user.full_name
+      fullName: user.full_name,
+      timezone: user.timezone
     }
   end
 end
