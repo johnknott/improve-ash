@@ -28,7 +28,7 @@ defmodule ImproveWeb.AuthController do
       {:ok, user} ->
         conn
         |> Helpers.store_in_session(user)
-        |> json(%{user: user_json(user)})
+        |> json(%{user: user_json(user), token: user.__metadata__.token})
 
       {:error, error} ->
         if rate_limited?(error) do
@@ -79,8 +79,29 @@ defmodule ImproveWeb.AuthController do
 
   def logout(conn, _params) do
     conn
+    |> Helpers.revoke_bearer_tokens(:improve)
     |> Helpers.revoke_session_tokens(:improve)
     |> configure_session(drop: true)
+    |> json(%{ok: true})
+  end
+
+  def refresh_token(%{assigns: %{current_user: nil}} = conn, _params) do
+    auth_error(conn, 401, "unauthenticated", "Please sign in to continue.")
+  end
+
+  def refresh_token(%{assigns: %{current_user: user}} = conn, _params) do
+    case AshAuthentication.Jwt.token_for_user(user) do
+      {:ok, new_token, _claims} ->
+        json(conn, %{token: new_token})
+
+      {:error, _reason} ->
+        auth_error(conn, 500, "token_error", "Could not issue a new token.")
+    end
+  end
+
+  def revoke_token(conn, _params) do
+    conn
+    |> Helpers.revoke_bearer_tokens(:improve)
     |> json(%{ok: true})
   end
 

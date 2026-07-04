@@ -7,6 +7,7 @@ defmodule ImproveWeb.Router do
     plug :accepts, ["json"]
     plug :fetch_session
     plug :load_from_session
+    plug :load_from_bearer
   end
 
   scope "/api", ImproveWeb do
@@ -17,6 +18,8 @@ defmodule ImproveWeb.Router do
     get "/auth/me", AuthController, :me
     post "/auth/profile", AuthController, :complete_profile
     post "/auth/logout", AuthController, :logout
+    post "/auth/refresh-token", AuthController, :refresh_token
+    post "/auth/revoke-token", AuthController, :revoke_token
 
     get "/app/dashboard", AppController, :dashboard
     post "/app/plans", AppController, :create_plan
