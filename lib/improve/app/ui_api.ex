@@ -247,8 +247,8 @@ defmodule Improve.App.UiApi do
 
       {:ok,
        %{
-         plans: Enum.map(plans, &plan_json/1),
-         currentPlan: plan_json(plan, summary),
+         plans: Enum.map(plans, &plan_json(&1, date)),
+         currentPlan: plan_json(plan, date, summary),
          today:
            today_json(
              projection,
@@ -276,7 +276,7 @@ defmodule Improve.App.UiApi do
              )
            ),
          planDetail: %{
-           summary: plan_json(plan, summary),
+           summary: plan_json(plan, date, summary),
            items: Enum.map(items, &item_json(&1, item_types_by_id, actor)),
            itemTypes: Enum.map(item_types, &item_type_json(&1, items)),
            eventTypes: Enum.map(event_types, &event_type_json/1),
@@ -995,9 +995,9 @@ defmodule Improve.App.UiApi do
 
   defp target_json(_target), do: %{}
 
-  defp plan_json(plan, summary \\ nil) do
+  defp plan_json(plan, date, summary \\ nil) do
     duration = Date.diff(plan.ends_on, plan.starts_on) + 1
-    elapsed = Date.diff(Date.utc_today(), plan.starts_on) + 1
+    elapsed = Date.diff(date, plan.starts_on) + 1
 
     %{
       id: plan.id,
