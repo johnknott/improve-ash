@@ -1,7 +1,19 @@
 import { writable } from 'svelte/store'
-import type { Plan } from '../api/types'
+import type { Plan, WorkItem } from '../api/types'
 
 export const logDialogOpen = writable(false)
+
+// The per-track log dialog is a single global instance; setting an item
+// opens it (from a work card or the top-bar Log menu).
+export const trackLogItem = writable<WorkItem | null>(null)
+
+export function openTrackLog(item: WorkItem): void {
+  trackLogItem.set(item)
+}
+
+export function closeTrackLog(): void {
+  trackLogItem.set(null)
+}
 export const checkInDialogOpen = writable(false)
 export const newPlanDialogOpen = writable(false)
 export const planDialogPlan = writable<Plan | null>(null)
@@ -39,6 +51,7 @@ export function showToast(message: string): void {
 
 export function resetUiState(): void {
   logDialogOpen.set(false)
+  trackLogItem.set(null)
   checkInDialogOpen.set(false)
   newPlanDialogOpen.set(false)
   planDialogPlan.set(null)

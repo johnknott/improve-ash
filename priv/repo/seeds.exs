@@ -1,5 +1,6 @@
 alias Improve.Accounts
 alias Improve.Fixtures.GymPlan
+alias Improve.Fixtures.ImproveMyselfPlan
 alias Improve.Fixtures.VialPlan
 alias Improve.Plans
 
@@ -28,4 +29,8 @@ unless MapSet.member?(existing_source_keys, "vial_inventory") do
   VialPlan.install!(seed_user, starts_on: Date.utc_today())
 end
 
-IO.puts("Seeded demo user demo@improve.local with gym and vial plans.")
+unless MapSet.member?(existing_source_keys, ImproveMyselfPlan.source_key()) do
+  ImproveMyselfPlan.install!(seed_user, starts_on: Date.utc_today())
+end
+
+IO.puts("Seeded demo user demo@improve.local with gym, vial, and Improve myself! plans.")

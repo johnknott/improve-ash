@@ -1,0 +1,385 @@
+{
+  "schemaVersion": "improve.plan-draft.v1",
+  "metadata": {
+    "title": "Improve myself!",
+    "source": "improve-app export",
+    "createdAt": "2026-06-15T14:49:11Z"
+  },
+  "plan": {
+    "name": "Improve myself!",
+    "intention": "Improve my fitness and mental health",
+    "startsOn": "2026-06-16",
+    "endsOn": "2026-08-06"
+  },
+  "tracks": [
+    {
+      "key": "weigh_myself",
+      "name": "Weigh myself",
+      "description": "Daily bodyweight check-in. Log the number only; judge progress by the weekly trend rather than day-to-day noise.",
+      "kind": "habit",
+      "scheduleLabel": "Every day",
+      "targetLabel": "Weight (kg)",
+      "groupKey": "body_metrics",
+      "groupName": "Body Metrics",
+      "targetMode": "metric",
+      "targetUnit": "kg",
+      "metricName": "Weight"
+    },
+    {
+      "key": "measure_waist",
+      "name": "Measure waist",
+      "description": "Weekly waist measurement. Take it consistently on Tuesday, ideally at the same time of day.",
+      "kind": "habit",
+      "scheduleLabel": "Every 1 week on Tue",
+      "targetLabel": "circumference (cm)",
+      "groupKey": "body_metrics",
+      "groupName": "Body Metrics",
+      "targetMode": "metric",
+      "targetUnit": "cm",
+      "metricName": "circumference"
+    },
+    {
+      "key": "steps",
+      "name": "Steps",
+      "description": "Baseline daily movement target. Treat gym and cycling as extra unless you need a recovery day.",
+      "kind": "progression",
+      "scheduleLabel": "Every day",
+      "targetLabel": "1000 to 10000 steps",
+      "groupKey": "daily_movement",
+      "groupName": "Daily Movement",
+      "targetMode": "progression",
+      "targetUnit": "steps",
+      "startAmount": "1000",
+      "endAmount": "10000"
+    },
+    {
+      "key": "cycling",
+      "name": "Cycling",
+      "description": "Steady bike session. Log distance in km and keep the effort moderate enough to recover for gym days.",
+      "kind": "progression",
+      "scheduleLabel": "Tue, Thu, Sat",
+      "targetLabel": "20 to 60 min",
+      "groupKey": "cardio",
+      "groupName": "Cardio",
+      "targetMode": "progression",
+      "targetUnit": "min",
+      "startAmount": "20",
+      "endAmount": "60",
+      "weekdays": ["tuesday", "thursday", "saturday"]
+    },
+    {
+      "key": "rowing",
+      "name": "Rowing",
+      "description": "Warm-up row for the upper-body gym session. Log time taken if useful.",
+      "kind": "progression",
+      "scheduleLabel": "Tue, Thu",
+      "targetLabel": "500 to 5000 m",
+      "groupKey": "cardio",
+      "groupName": "Cardio",
+      "targetMode": "progression",
+      "targetUnit": "m",
+      "startAmount": "500",
+      "endAmount": "5000",
+      "weekdays": ["tuesday", "thursday"]
+    },
+    {
+      "key": "elliptical",
+      "name": "Elliptical",
+      "description": "Low-impact conditioning for the upper-body gym session. Keep it steady.",
+      "kind": "progression",
+      "scheduleLabel": "Tue, Thu",
+      "targetLabel": "5 to 20 min",
+      "groupKey": "cardio",
+      "groupName": "Cardio",
+      "targetMode": "progression",
+      "targetUnit": "min",
+      "startAmount": "5",
+      "endAmount": "20",
+      "weekdays": ["tuesday", "thursday"]
+    },
+    {
+      "key": "chest_press",
+      "name": "Chest Press",
+      "description": "Horizontal push pattern. Work up from 2 to 3 sets of 8 controlled reps at medium effort. Choose a load that makes the last reps challenging without chasing a fixed kg number. Prefer chest press; alternatives: dumbbell bench, Smith press, cable press, or push-ups.",
+      "kind": "progression",
+      "scheduleLabel": "Tue, Thu",
+      "targetLabel": "2 to 3 sets · 8 reps · medium effort",
+      "groupKey": "strength",
+      "groupName": "Strength",
+      "targetMode": "progression",
+      "targetUnit": "sets",
+      "startAmount": "2",
+      "endAmount": "3",
+      "weekdays": ["tuesday", "thursday"]
+    },
+    {
+      "key": "lat_pulldown",
+      "name": "Lat Pulldown",
+      "description": "Vertical pull pattern. Work up from 2 to 3 sets of 8 controlled reps at medium effort. Choose a load by feel and keep form clean. Prefer lat pulldown; alternatives: assisted pull-up, seated cable row, single-arm pulldown, or resistance-band pulldown.",
+      "kind": "progression",
+      "scheduleLabel": "Tue, Thu",
+      "targetLabel": "2 to 3 sets · 8 reps · medium effort",
+      "groupKey": "strength",
+      "groupName": "Strength",
+      "targetMode": "progression",
+      "targetUnit": "sets",
+      "startAmount": "2",
+      "endAmount": "3",
+      "weekdays": ["tuesday", "thursday"]
+    },
+    {
+      "key": "shoulder_press",
+      "name": "Shoulder Press",
+      "description": "Machine shoulder press. Keep form strict and log weight/reps when useful.",
+      "kind": "progression",
+      "scheduleLabel": "Tue, Thu",
+      "targetLabel": "2 to 3 sets · 8 reps · medium effort",
+      "groupKey": "strength",
+      "groupName": "Strength",
+      "targetMode": "progression",
+      "targetUnit": "sets",
+      "startAmount": "2",
+      "endAmount": "3",
+      "weekdays": ["tuesday", "thursday"]
+    },
+    {
+      "key": "rowing_2",
+      "name": "Rowing",
+      "description": "Warm-up row for the lower-body gym session. Log time taken if useful.",
+      "kind": "progression",
+      "scheduleLabel": "Sat",
+      "targetLabel": "500 to 5000 m",
+      "groupKey": "cardio",
+      "groupName": "Cardio",
+      "targetMode": "progression",
+      "targetUnit": "m",
+      "startAmount": "500",
+      "endAmount": "5000",
+      "weekdays": ["saturday"]
+    },
+    {
+      "key": "elliptical_2",
+      "name": "Elliptical",
+      "description": "Low-impact conditioning for the lower-body gym session. Keep it steady.",
+      "kind": "progression",
+      "scheduleLabel": "Sat",
+      "targetLabel": "5 to 20 min",
+      "groupKey": "cardio",
+      "groupName": "Cardio",
+      "targetMode": "progression",
+      "targetUnit": "min",
+      "startAmount": "5",
+      "endAmount": "20",
+      "weekdays": ["saturday"]
+    },
+    {
+      "key": "leg_press",
+      "name": "Leg Press",
+      "description": "Lower-body press pattern. Work up from 2 to 3 sets of 8-10 controlled reps at medium effort. Choose the load by effort and range of motion rather than a fixed kg target. Prefer leg press; alternatives: hack squat, goblet squat, Smith squat, split squat, or bodyweight squat.",
+      "kind": "progression",
+      "scheduleLabel": "Sat",
+      "targetLabel": "2 to 3 sets · 8-10 reps · medium effort",
+      "groupKey": "strength",
+      "groupName": "Strength",
+      "targetMode": "progression",
+      "targetUnit": "sets",
+      "startAmount": "2",
+      "endAmount": "3",
+      "weekdays": ["saturday"]
+    },
+    {
+      "key": "leg_curl",
+      "name": "Leg Curl",
+      "description": "Hamstring machine work. Keep the eccentric controlled and log weight/reps when useful.",
+      "kind": "progression",
+      "scheduleLabel": "Sat",
+      "targetLabel": "2 to 3 sets · 8-10 reps · medium effort",
+      "groupKey": "strength",
+      "groupName": "Strength",
+      "targetMode": "progression",
+      "targetUnit": "sets",
+      "startAmount": "2",
+      "endAmount": "3",
+      "weekdays": ["saturday"]
+    },
+    {
+      "key": "leg_extension",
+      "name": "Leg Extension",
+      "description": "Quad machine work. Smooth reps, no locking out hard; log weight/reps when useful.",
+      "kind": "progression",
+      "scheduleLabel": "Sat",
+      "targetLabel": "2 to 3 sets · 8-10 reps · medium effort",
+      "groupKey": "strength",
+      "groupName": "Strength",
+      "targetMode": "progression",
+      "targetUnit": "sets",
+      "startAmount": "2",
+      "endAmount": "3",
+      "weekdays": ["saturday"]
+    },
+    {
+      "key": "daily_habits",
+      "name": "Daily habits",
+      "description": "Daily baseline checklist. Keep this as the non-negotiables list rather than a place for one-off tasks.",
+      "kind": "habit",
+      "scheduleLabel": "Every day",
+      "targetLabel": "7 checklist items",
+      "groupKey": "daily_foundations",
+      "groupName": "Daily Foundations",
+      "targetMode": "checklist",
+      "checklistItems": [
+        { "id": "tidy_bedroom", "label": "Tidy Bedroom" },
+        { "id": "make_parents_breakfast", "label": "Make parents breakfast" },
+        { "id": "shower_brush_teeth", "label": "Shower / Brush teeth" },
+        { "id": "item_16_8_diet_followed", "label": "16-8 diet followed" },
+        { "id": "commit_code", "label": "Commit code" },
+        { "id": "avoid_alcohol", "label": "Avoid Alcohol" },
+        { "id": "avoid_junk_food", "label": "Avoid Junk Food" }
+      ]
+    },
+    {
+      "key": "drink_water",
+      "name": "Drink water",
+      "description": "Daily hydration target. Spread it through the day rather than trying to catch up at night.",
+      "kind": "habit",
+      "scheduleLabel": "Every day",
+      "targetLabel": "3 litres",
+      "groupKey": "daily_foundations",
+      "groupName": "Daily Foundations",
+      "targetMode": "fixed",
+      "targetAmount": "3",
+      "targetUnit": "litres"
+    },
+    {
+      "key": "retatrutide",
+      "name": "Retatrutide",
+      "description": "Weekly scheduled dose linked to the Retatrutide vial inventory so the remaining amount is tracked.",
+      "kind": "habit",
+      "scheduleLabel": "Mon",
+      "targetLabel": "2 mg",
+      "groupKey": "health",
+      "groupName": "Health",
+      "targetMode": "fixed",
+      "targetAmount": "2",
+      "targetUnit": "mg",
+      "weekdays": ["monday"],
+      "scheduledEvent": {
+        "eventTypeKey": "use_resource",
+        "payloadMappings": { "amountMg": "target.amount" },
+        "resourceLinks": [{ "resourceKey": "retatrutide", "roleKey": "container" }]
+      }
+    },
+    {
+      "key": "put_bins_out",
+      "name": "Put bins out",
+      "description": "Weekly household reminder for bin day.",
+      "kind": "habit",
+      "scheduleLabel": "Wed",
+      "targetLabel": "1 checklist item",
+      "groupKey": "home",
+      "groupName": "Home",
+      "targetMode": "checklist",
+      "weekdays": ["wednesday"],
+      "checklistItems": [{ "id": "put_bins_out", "label": "Put bins out" }]
+    },
+    {
+      "key": "reading",
+      "name": "Reading",
+      "description": "Daily reading target for decompression and mental wellbeing.",
+      "kind": "habit",
+      "scheduleLabel": "Every day",
+      "targetLabel": "15 pages",
+      "groupKey": "recovery_mind",
+      "groupName": "Recovery & Mind",
+      "targetMode": "fixed",
+      "targetAmount": "15",
+      "targetUnit": "pages"
+    },
+    {
+      "key": "watch_a_film_or_tv_series",
+      "name": "Watch a film or TV series",
+      "description": "Deliberate downtime. Pick a film or episode and let it count as planned recovery, not procrastination.",
+      "kind": "habit",
+      "scheduleLabel": "Wed, Fri, Sun",
+      "targetLabel": "90 min",
+      "groupKey": "recovery_mind",
+      "groupName": "Recovery & Mind",
+      "targetMode": "fixed",
+      "targetAmount": "90",
+      "targetUnit": "min",
+      "weekdays": ["wednesday", "friday", "sunday"]
+    },
+    {
+      "key": "listen_to_music_or_audiobook",
+      "name": "Listen to music or audiobook",
+      "description": "Audio-based downtime. Listen to one album or a meaningful audiobook section.",
+      "kind": "habit",
+      "scheduleLabel": "Tue, Thu, Sat",
+      "targetLabel": "1 album",
+      "groupKey": "recovery_mind",
+      "groupName": "Recovery & Mind",
+      "targetMode": "fixed",
+      "targetAmount": "1",
+      "targetUnit": "album",
+      "weekdays": ["tuesday", "thursday", "saturday"]
+    }
+  ],
+  "resourceTypes": [
+    {
+      "key": "vial",
+      "name": "Vial",
+      "description": "A small container with contents, amount, preparation details, and dates.",
+      "dataSchema": {
+        "required": ["contents", "initialAmountMg"],
+        "properties": {
+          "batch": { "type": "string" },
+          "notes": { "type": "string" },
+          "contents": { "type": "string" },
+          "expiresOn": { "type": "string", "format": "date" },
+          "preparedOn": { "type": "string", "format": "date" },
+          "initialAmountMg": { "type": "number" },
+          "preparedVolumeMl": { "type": "number" },
+          "concentrationPerMl": { "type": "number" }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "key": "retatrutide",
+      "resourceTypeKey": "vial",
+      "name": "Retatrutide",
+      "data": {
+        "contents": "Retatrutide",
+        "initialAmountMg": 20,
+        "preparedVolumeMl": 20
+      }
+    }
+  ],
+  "eventTypes": [
+    {
+      "key": "use_resource",
+      "name": "Use resource",
+      "description": "Log an amount used from a linked resource.",
+      "payloadSchema": {
+        "required": ["amountMg"],
+        "properties": { "amountMg": { "type": "number" } }
+      },
+      "resourceRoles": [
+        { "key": "container", "name": "Container", "resourceTypeKey": "vial", "required": true }
+      ],
+      "effectDefinitions": [
+        {
+          "key": "subtract_amount",
+          "kind": "subtract",
+          "resourceRole": "container",
+          "targetPath": "/remainingAmountMg",
+          "initialPath": "/initialAmountMg",
+          "quantityPath": "/amountMg",
+          "unit": "mg"
+        }
+      ]
+    }
+  ],
+  "note": "Condensed from the original export: repeated defaulted definition fields (policyMode, missedAction, rounding, catch-up, etc.) and system event types were dropped; the semantically meaningful fields are preserved. The original export is in the chat/git history if ever needed byte-for-byte."
+}

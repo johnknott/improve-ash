@@ -6,18 +6,16 @@
     skipWholeSession,
     startProjectedSession,
   } from '../../app/dashboardState'
-  import { showToast } from '../../app/uiState'
+  import { openTrackLog, showToast } from '../../app/uiState'
   import Badge from '../../components/ui/Badge.svelte'
   import Button from '../../components/ui/Button.svelte'
   import Card from '../../components/ui/Card.svelte'
   import { formatDate } from '../../lib/dates'
-  import QuickLogDialog from './QuickLogDialog.svelte'
   import SessionSlots from './SessionSlots.svelte'
   import TargetProgressView from './TargetProgressView.svelte'
 
   let { item }: { item: WorkItem } = $props()
 
-  let quickLogOpen = $state(false)
   let busy = $state(false)
 
   let sessionState = $derived(item.session?.state ?? null)
@@ -119,7 +117,7 @@
           variant="secondary"
           class="compact-button"
           disabled={busy}
-          onclick={() => (quickLogOpen = true)}
+          onclick={() => openTrackLog(item)}
         >
           Log
         </Button>
@@ -155,7 +153,3 @@
     {/if}
   {/if}
 </Card>
-
-{#if item.kind === 'track' && item.canLog}
-  <QuickLogDialog {item} bind:open={quickLogOpen} />
-{/if}

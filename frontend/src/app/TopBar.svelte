@@ -6,14 +6,17 @@
     ChevronRight,
     ClipboardPlus,
     Menu,
+    PenLine,
   } from '@lucide/svelte'
+  import { DropdownMenu } from 'bits-ui'
   import {
     changeSelectedDate,
     resetSelectedDate,
     selectedDate,
     stepSelectedDate,
+    today,
   } from './dashboardState'
-  import { checkInDialogOpen, openLogDialog } from './uiState'
+  import { checkInDialogOpen, openLogDialog, openTrackLog } from './uiState'
   import { todayIso } from '../lib/dates'
   import type { AppRoute } from './routes'
   import { routeInfo } from './routes'
@@ -28,6 +31,19 @@
 
   let info = $derived(routeInfo(route))
   let isSelectedToday = $derived($selectedDate === todayIso())
+  let loggableTracks = $derived(
+    ($today?.work ?? []).filter((item) => item.kind === 'track' && item.canLog),
+  )
+
+  function trackTargetSummary(item: (typeof loggableTracks)[number]): string {
+    const target = (item.target ?? {}) as Record<string, unknown>
+
+    if (target.quantity != null) {
+      return `${target.quantity}${typeof target.unit === 'string' ? ` ${target.unit}` : ''}`
+    }
+
+    return ''
+  }
 
   function openDatePicker(event: MouseEvent & { currentTarget: HTMLInputElement }) {
     try {
@@ -78,10 +94,37 @@
         <CheckCircle2 size={18} />
         <span>Check-in</span>
       </button>
-      <button class="primary-button" type="button" onclick={() => openLogDialog()}>
-        <ClipboardPlus size={18} />
-        <span>Log</span>
-      </button>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger class="primary-button">
+          <ClipboardPlus size={18} />
+          <span>Log</span>
+        </DropdownMenu.Trigger>
+
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content class="dropdown-content log-menu" align="end" sideOffset={8}>
+            {#if loggableTracks.length > 0}
+              <p class="dropdown-heading">Scheduled today</p>
+              {#each loggableTracks as item (item.id)}
+                <DropdownMenu.Item class="dropdown-item" onclick={() => openTrackLog(item)}>
+                  <span class="log-menu-title">{item.title}</span>
+                  {#if trackTargetSummary(item)}
+                    <small>{trackTargetSummary(item)}</small>
+                  {/if}
+                </DropdownMenu.Item>
+              {/each}
+              <div class="dropdown-separator"></div>
+            {/if}
+
+            <DropdownMenu.Item
+              class="dropdown-item dropdown-action"
+              onclick={() => openLogDialog()}
+            >
+              <PenLine size={16} />
+              <span>Something else…</span>
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
   </div>
 </header>

@@ -7,6 +7,7 @@ import {
   logEvent as logEventRequest,
   logSessionSlot as logSessionSlotRequest,
   logTrack as logTrackRequest,
+  skipTrack as skipTrackRequest,
   skipSession as skipSessionRequest,
   skipSessionSlot as skipSessionSlotRequest,
   startSession as startSessionRequest,
@@ -209,6 +210,22 @@ export async function submitTrackLog(
 
   await runMutation(
     () => logTrackRequest({ ...input, planId, date: get(selectedDate) }),
+    successToast,
+  )
+}
+
+export async function submitTrackSkip(
+  input: { trackKey: string; reason?: string | null },
+  successToast = 'Skipped.',
+): Promise<void> {
+  const planId = get(selectedPlanId)
+
+  if (!planId) {
+    throw new Error('Select a plan before skipping.')
+  }
+
+  await runMutation(
+    () => skipTrackRequest({ ...input, planId, date: get(selectedDate) }),
     successToast,
   )
 }

@@ -1848,6 +1848,107 @@ textarea:focus {
   font-size: var(--fs-xs);
 }
 
+.track-log-form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.target-card {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 0.85rem 1rem;
+}
+
+.target-card-eyebrow {
+  color: var(--text-subtle);
+  font-size: var(--fs-xs);
+}
+
+.target-card-eyebrow span {
+  margin-right: 0.35rem;
+  color: var(--brand-strong);
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.target-card h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.target-card-guidance {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.what-happened {
+  height: var(--control-h);
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.amount-row input {
+  flex: 1;
+}
+
+.unit-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: var(--control-h);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  padding: 0 0.75rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.add-note-toggle {
+  justify-self: start;
+}
+
+.field-optional {
+  margin-left: 0.4rem;
+  color: var(--text-subtle);
+  font-size: var(--fs-xs);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.dropdown-heading {
+  padding: 0.35rem 0.75rem 0.15rem;
+  color: var(--text-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.log-menu {
+  min-width: 15rem;
+}
+
+.log-menu .log-menu-title {
+  font-weight: 600;
+}
+
+.log-menu small {
+  color: var(--text-subtle);
+}
+
 .checkin-rows {
   display: grid;
   gap: 0.65rem;

@@ -26,10 +26,26 @@
   let error = $state<string | null>(null)
   let seeded = $state(false)
 
+  let showMore = $state(false)
+
   let eventTypes = $derived($planDetail?.eventTypes ?? [])
   let eventType = $derived(eventTypes.find((candidate) => candidate.id === eventTypeId) ?? null)
   let schemaFields = $derived(schemaFieldsFor(eventType))
   let linkRoles = $derived(linkRolesFor(eventType))
+
+  // Progressive disclosure: required inputs up front, everything optional
+  // behind "More details".
+  let requiredSchemaFields = $derived(schemaFields.filter((field) => field.required))
+  let optionalSchemaFields = $derived(schemaFields.filter((field) => !field.required))
+  let requiredRoles = $derived(linkRoles.filter((role) => role.required))
+  let optionalRoles = $derived(linkRoles.filter((role) => !role.required))
+  let quantityRequired = $derived.by(() => {
+    const required = eventType ? stringList(eventType.payloadSchema['required']) : []
+    return required.includes('amount') || required.includes('quantity')
+  })
+  let hasMoreDetails = $derived(
+    optionalSchemaFields.length > 0 || optionalRoles.length > 0 || !quantityRequired,
+  )
 
   $effect(() => {
     if ($logDialogOpen && !seeded) {
@@ -38,6 +54,7 @@
       quantity = ''
       unit = ''
       note = ''
+      showMore = false
       saving = false
       error = null
       seeded = true
@@ -206,10 +223,10 @@
       </Field>
     </div>
 
-    {#each linkRoles as role (role.role)}
-      <Field label={fieldLabel(role.role)} hint={role.required ? '' : 'Optional'}>
+    {#each requiredRoles as role (role.role)}
+      <Field label={fieldLabel(role.role)}>
         <Select bind:value={roleSelections[role.role]} disabled={saving}>
-          <option value="">{role.required ? 'Choose…' : 'None'}</option>
+          <option value="">Choose…</option>
           {#each itemsForRole(role) as item (item.id)}
             <option value={item.id}>{item.name}</option>
           {/each}
@@ -217,27 +234,74 @@
       </Field>
     {/each}
 
-    <div class="form-grid">
-      <Field label="Quantity" hint="Optional">
-        <TextInput bind:value={quantity} inputmode="decimal" disabled={saving} />
-      </Field>
-      <Field label="Unit" hint="Optional">
-        <TextInput bind:value={unit} disabled={saving} />
-      </Field>
-    </div>
-
-    {#if schemaFields.length > 0}
+    {#if quantityRequired}
       <div class="form-grid">
-        {#each schemaFields as field (field.name)}
-          <Field label={fieldLabel(field.name)} hint={field.required ? '' : 'Optional'}>
+        <Field label="Quantity">
+          <TextInput bind:value={quantity} inputmode="decimal" disabled={saving} />
+        </Field>
+        <Field label="Unit">
+          <TextInput bind:value={unit} disabled={saving} />
+        </Field>
+      </div>
+    {/if}
+
+    {#if requiredSchemaFields.length > 0}
+      <div class="form-grid">
+        {#each requiredSchemaFields as field (field.name)}
+          <Field label={fieldLabel(field.name)}>
             <TextInput bind:value={fieldValues[field.name]} disabled={saving} />
           </Field>
         {/each}
       </div>
     {/if}
 
-    <Field label="Note" hint="Optional">
-      <TextInput bind:value={note} disabled={saving} />
-    </Field>
+    {#if hasMoreDetails && !showMore}
+      <button
+        type="button"
+        class="text-button add-note-toggle"
+        disabled={saving}
+        onclick={() => (showMore = true)}
+      >
+        More details…
+      </button>
+    {/if}
+
+    {#if showMore || !hasMoreDetails}
+      {#each optionalRoles as role (role.role)}
+        <Field label={fieldLabel(role.role)} optional>
+          <Select bind:value={roleSelections[role.role]} disabled={saving}>
+            <option value="">None</option>
+            {#each itemsForRole(role) as item (item.id)}
+              <option value={item.id}>{item.name}</option>
+            {/each}
+          </Select>
+        </Field>
+      {/each}
+
+      {#if !quantityRequired}
+        <div class="form-grid">
+          <Field label="Quantity" optional>
+            <TextInput bind:value={quantity} inputmode="decimal" disabled={saving} />
+          </Field>
+          <Field label="Unit" optional>
+            <TextInput bind:value={unit} disabled={saving} />
+          </Field>
+        </div>
+      {/if}
+
+      {#if optionalSchemaFields.length > 0}
+        <div class="form-grid">
+          {#each optionalSchemaFields as field (field.name)}
+            <Field label={fieldLabel(field.name)} optional>
+              <TextInput bind:value={fieldValues[field.name]} disabled={saving} />
+            </Field>
+          {/each}
+        </div>
+      {/if}
+
+      <Field label="Note" optional>
+        <TextInput bind:value={note} disabled={saving} />
+      </Field>
+    {/if}
   {/if}
 </FormDialog>

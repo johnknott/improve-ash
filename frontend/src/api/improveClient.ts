@@ -102,6 +102,24 @@ export async function logTrack(input: LogTrackInput): Promise<DashboardPatch> {
   })
 }
 
+export async function skipTrack(input: {
+  planId: string
+  trackKey: string
+  date: string
+  reason?: string | null
+}): Promise<DashboardPatch> {
+  return request<DashboardPatch>('/api/app/skip-track', {
+    method: 'POST',
+    body: {
+      plan_id: input.planId,
+      track_key: input.trackKey,
+      date: input.date,
+      reason: input.reason,
+      ...operationIdempotency(),
+    },
+  })
+}
+
 export async function logEvent(input: LogEventInput): Promise<DashboardPatch> {
   return request<DashboardPatch>('/api/app/log-event', {
     method: 'POST',

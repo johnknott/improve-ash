@@ -9,8 +9,9 @@
   import PlaceholderPage from '../features/placeholders/PlaceholderPage.svelte'
   import NewPlanDialog from '../features/plans/NewPlanDialog.svelte'
   import TodayPage from '../features/today/TodayPage.svelte'
+  import TrackLogDialog from '../features/today/TrackLogDialog.svelte'
   import { reportBoundaryError } from '../lib/devErrors'
-  import { resetUiState, toastMessage } from './uiState'
+  import { closeTrackLog, resetUiState, toastMessage, trackLogItem } from './uiState'
   import Sidebar from './Sidebar.svelte'
   import TopBar from './TopBar.svelte'
   import { activeRoute, type AppRoute } from './routes'
@@ -107,6 +108,12 @@
 
 <svelte:boundary onerror={(caught) => reportBoundaryError(caught)} failed={dialogFailed}>
   <LogDialog />
+</svelte:boundary>
+
+<svelte:boundary onerror={(caught) => reportBoundaryError(caught)} failed={dialogFailed}>
+  {#if $trackLogItem}
+    <TrackLogDialog item={$trackLogItem} onClose={closeTrackLog} />
+  {/if}
 </svelte:boundary>
 
 <svelte:boundary onerror={(caught) => reportBoundaryError(caught)} failed={dialogFailed}>
