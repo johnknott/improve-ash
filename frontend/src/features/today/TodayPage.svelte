@@ -27,9 +27,12 @@
       <DemoPlanSetup title="Install a demo plan first" />
     </Card>
   {:else if $today}
-    {#if $today.diagnostics.length > 0}
-      <section class="diagnostics-block" aria-label="Plan warnings">
-        {#each $today.diagnostics as diagnostic, index (index)}
+    {@const errorDiagnostics = $today.diagnostics.filter((d) => d.severity === 'error')}
+    {@const noteDiagnostics = $today.diagnostics.filter((d) => d.severity !== 'error')}
+
+    {#if errorDiagnostics.length > 0}
+      <section class="diagnostics-block" aria-label="Plan problems">
+        {#each errorDiagnostics as diagnostic, index (index)}
           <div class="diagnostic {severityClass(diagnostic.severity)}">
             <TriangleAlert size={15} />
             <span>{diagnostic.message ?? 'This plan has an authoring problem.'}</span>
@@ -37,6 +40,24 @@
         {/each}
         <Button variant="text" onclick={() => navigate('plan')}>Review plan setup</Button>
       </section>
+    {/if}
+
+    {#if noteDiagnostics.length > 0}
+      <details class="schedule-notes">
+        <summary>
+          {noteDiagnostics.length}
+          {noteDiagnostics.length === 1 ? 'scheduling note' : 'scheduling notes'}
+        </summary>
+        <div class="schedule-notes-body">
+          {#each noteDiagnostics as diagnostic, index (index)}
+            <div class="diagnostic {severityClass(diagnostic.severity)}">
+              <TriangleAlert size={15} />
+              <span>{diagnostic.message}</span>
+            </div>
+          {/each}
+          <Button variant="text" onclick={() => navigate('plan')}>Review plan setup</Button>
+        </div>
+      </details>
     {/if}
 
     {#if $today.work.length > 0}
@@ -70,16 +91,5 @@
     {/if}
 
     <UpcomingStrip upcoming={$today.upcoming} />
-
-    {#if $today.explanations.length > 0}
-      <details class="explanations-block">
-        <summary>Why today looks like this</summary>
-        <ul>
-          {#each $today.explanations as explanation, index (index)}
-            <li>{explanation}</li>
-          {/each}
-        </ul>
-      </details>
-    {/if}
   {/if}
 </section>

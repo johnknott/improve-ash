@@ -53,7 +53,7 @@ defmodule Improve.Sessions.StartProjectedSessionTest do
       assert [%{reason: reason, source: "manual_rule"}] =
                cardio_recommendation.recommended_items
 
-      assert reason == "Suggested from manual rules for Cardio."
+      assert reason == "The plan's usual starting point."
 
       result =
         Sessions.start_projected_session!(

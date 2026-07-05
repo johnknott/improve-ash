@@ -425,8 +425,8 @@ defmodule Improve.Planning.ProjectTodayTest do
              ] = projection.projected_work
 
       assert time_off_id == time_off.id
-      assert explanation =~ "on hold"
-      assert explanation =~ "summer_holiday"
+      assert explanation =~ "On hold"
+      assert explanation =~ "Summer holiday"
       assert {:ok, []} = Journal.read_journal(plan, actor: user)
     end
 
@@ -603,7 +603,10 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
 
       assert projection.projected_work == []
-      assert diagnostic(projection, :unplaceable_schedule).message =~ "cannot place any work"
+
+      diagnostic = diagnostic(projection, :partial_week_schedule)
+      assert diagnostic.severity == :info
+      assert diagnostic.message =~ "remain this week"
     end
 
     test "returns diagnostics for a missing track target" do
@@ -1129,9 +1132,11 @@ defmodule Improve.Planning.ProjectTodayTest do
       assert {:ok, projection} = Plans.project_today(plan, actor: user, date: ~D[2026-06-22])
 
       assert [_work] = projection.projected_work
-      diagnostic = diagnostic(projection, :partially_placeable_schedule)
-      assert diagnostic.message =~ "can only place 1 of 3"
+      diagnostic = diagnostic(projection, :unsatisfiable_schedule_rules)
+      assert diagnostic.severity == :warning
+      assert diagnostic.message =~ "only fit 1"
       assert diagnostic.details.placed == 1
+      assert diagnostic.details.structural_maximum == 1
     end
   end
 

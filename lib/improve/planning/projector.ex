@@ -71,6 +71,7 @@ defmodule Improve.Planning.Projector do
     plan = Map.fetch!(input, :plan)
     schedules = schedules_for(input.schedules, :session_template, template.id)
     time_off_window = fully_off_window(input, date)
+    decision_input = Map.put(input, :schedule_owner_name, template.name)
 
     cond do
       not in_date_range?(date, plan.starts_on, plan.ends_on) ->
@@ -80,9 +81,10 @@ defmodule Improve.Planning.Projector do
         {:ok, nil}
 
       true ->
-        case schedule_decisions(schedules, date, input) do
+        case schedule_decisions(schedules, date, decision_input) do
           {:ok, true, diagnostics} ->
-            {:ok, occurrence_projection(template, input, time_off_window), diagnostics}
+            cadence = Schedules.describe(List.first(schedules))
+            {:ok, occurrence_projection(template, input, time_off_window, cadence), diagnostics}
 
           {:ok, false, diagnostics} ->
             {:ok, nil, diagnostics}
@@ -98,6 +100,7 @@ defmodule Improve.Planning.Projector do
     plan = Map.fetch!(input, :plan)
     schedules = schedules_for(input.schedules, :track, track.id)
     time_off_window = fully_off_window(input, date)
+    decision_input = Map.put(input, :schedule_owner_name, track.name)
 
     cond do
       not in_date_range?(date, plan.starts_on, plan.ends_on) ->
@@ -109,9 +112,10 @@ defmodule Improve.Planning.Projector do
       true ->
         target_diagnostics = Targets.diagnostics(track)
 
-        case schedule_decisions(schedules, date, input) do
+        case schedule_decisions(schedules, date, decision_input) do
           {:ok, true, diagnostics} ->
-            {work, completion_diagnostics} = track_work(track, input, time_off_window)
+            cadence = Schedules.describe(List.first(schedules))
+            {work, completion_diagnostics} = track_work(track, input, time_off_window, cadence)
 
             {:ok, work, target_diagnostics ++ diagnostics ++ completion_diagnostics}
 
@@ -124,7 +128,7 @@ defmodule Improve.Planning.Projector do
     end
   end
 
-  defp occurrence_projection(template, input, time_off_window) do
+  defp occurrence_projection(template, input, time_off_window, cadence) do
     slots =
       input.session_slots
       |> Enum.filter(&(&1.session_template_id == template.id))
@@ -159,7 +163,7 @@ defmodule Improve.Planning.Projector do
       planned_for: input.date,
       recommendations: recommendations,
       projected_status: status,
-      projected_explanation: session_explanation(template, status, session_state),
+      projected_explanation: session_explanation(status, session_state, cadence),
       session_state: session_state
     }
   end
@@ -240,39 +244,43 @@ defmodule Improve.Planning.Projector do
     |> Enum.sum()
   end
 
-  defp session_explanation(template, :planned, _state) do
-    "Projected #{template.name} from its schedule and deterministic slot recommendations."
+  # Explanations are UI copy: they sit under the card title, so they carry
+  # schedule cadence and state in product language, never engine mechanics.
+  defp session_explanation(:planned, _state, cadence) do
+    cadence || "Planned for today."
   end
 
-  defp session_explanation(template, :started, _state) do
-    "Projected #{template.name} as started from its session occurrence."
-  end
-
-  defp session_explanation(template, :partial, state) do
-    "Projected #{template.name} as partial because #{state.progress_label}."
-  end
-
-  defp session_explanation(template, :completed, state) do
-    if state.progress_label do
-      "Projected #{template.name} as completed because #{state.progress_label}."
-    else
-      "Projected #{template.name} as completed from its session occurrence."
+  defp session_explanation(:started, state, _cadence) do
+    case state.progress_label do
+      nil -> "In progress."
+      label -> "In progress — #{label}."
     end
   end
 
-  defp session_explanation(template, :skipped, _state) do
-    "Projected #{template.name} as skipped from its session occurrence."
+  defp session_explanation(:partial, state, _cadence) do
+    "Partly done — #{state.progress_label}."
   end
 
-  defp session_explanation(template, :missed, _state) do
-    "Projected #{template.name} as missed from its session occurrence."
+  defp session_explanation(:completed, state, _cadence) do
+    case state.progress_label do
+      nil -> "Completed."
+      label -> "Completed — #{label}."
+    end
   end
 
-  defp session_explanation(template, :on_hold, %{time_off_window: time_off_window}) do
-    "Projected #{template.name} as on hold because #{time_off_window.key} is fully off."
+  defp session_explanation(:skipped, _state, _cadence) do
+    "Skipped for the day."
   end
 
-  defp track_work(track, input, time_off_window) do
+  defp session_explanation(:missed, _state, _cadence) do
+    "Missed — the day passed without this session."
+  end
+
+  defp session_explanation(:on_hold, %{time_off_window: time_off_window}, _cadence) do
+    "On hold — #{time_off_label(time_off_window)}."
+  end
+
+  defp track_work(track, input, time_off_window, cadence) do
     effective_target = effective_target_for(track, input)
     eval_track = %{track | target: EffectiveTarget.target_for_completion(effective_target)}
 
@@ -291,9 +299,9 @@ defmodule Improve.Planning.Projector do
 
     explanation =
       if status == :skipped do
-        skip_explanation(track, skip_event)
+        skip_explanation(skip_event)
       else
-        track_explanation(track, status, completed_events, time_off_window)
+        track_explanation(status, time_off_window, cadence)
       end
 
     ProjectedWork.track(track,
@@ -322,10 +330,10 @@ defmodule Improve.Planning.Projector do
     end)
   end
 
-  defp skip_explanation(track, skip_event) do
+  defp skip_explanation(skip_event) do
     case skip_event && skip_event.note do
-      nil -> "Skipped #{track.name} for the day."
-      reason -> "Skipped #{track.name} — #{reason}."
+      nil -> "Skipped for the day."
+      reason -> "Skipped — #{reason}."
     end
   end
 
@@ -375,20 +383,29 @@ defmodule Improve.Planning.Projector do
     end
   end
 
-  defp track_explanation(track, :completed, events, _time_off_window) do
-    "Projected #{track.name} as completed from #{length(events)} linked journal event(s)."
+  defp track_explanation(:completed, _time_off_window, _cadence) do
+    "Done for today."
   end
 
-  defp track_explanation(track, :missed, _events, _time_off_window) do
-    "Projected #{track.name} as missed because the date has passed without a linked journal event."
+  defp track_explanation(:missed, _time_off_window, _cadence) do
+    "Missed — no entry for this day."
   end
 
-  defp track_explanation(track, :planned, _events, _time_off_window) do
-    "Projected #{track.name} from its track schedule."
+  defp track_explanation(:planned, _time_off_window, cadence) do
+    cadence || "Planned for today."
   end
 
-  defp track_explanation(track, :on_hold, _events, time_off_window) do
-    "Projected #{track.name} as on hold because #{time_off_key(time_off_window)} is fully off."
+  defp track_explanation(:on_hold, time_off_window, _cadence) do
+    "On hold — #{time_off_label(time_off_window)}."
+  end
+
+  defp time_off_label(nil), do: "time off"
+
+  defp time_off_label(window) do
+    time_off_value(window, :reason) ||
+      (time_off_value(window, :key) || "time off")
+      |> to_string()
+      |> String.replace("_", " ")
   end
 
   defp schedule_decisions(schedules, date, input) do
@@ -466,7 +483,6 @@ defmodule Improve.Planning.Projector do
     }
   end
 
-  defp time_off_key(nil), do: "time off"
   defp time_off_key(window), do: time_off_value(window, :key) || "time off"
 
   defp time_off_value(window, key) do

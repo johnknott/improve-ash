@@ -21,7 +21,7 @@ defmodule Improve.Planning.RecommenderTest do
              }
 
       assert recommendation.source == "cold_start"
-      assert recommendation.reason == "Suggested from cold-start defaults for Practice slot."
+      assert recommendation.reason == "A starting suggestion — adjust as you go."
       assert recommendation.previous_event_ids == []
       assert recommendation.previous_events == []
     end
@@ -55,7 +55,7 @@ defmodule Improve.Planning.RecommenderTest do
       assert recommendation.source == "history"
 
       assert recommendation.reason ==
-               "Suggested from the most recent logged Practice slot result for this item."
+               "Based on your last Practice slot entry."
 
       assert recommendation.previous_event_ids == ["latest-event", "older-event"]
 

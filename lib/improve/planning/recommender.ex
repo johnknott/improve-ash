@@ -79,7 +79,7 @@ defmodule Improve.Planning.Recommender do
         else
           %{
             payload: payload,
-            reason: "Suggested from the most recent logged #{slot.name} result for this item.",
+            reason: "Based on your last #{slot.name} entry.",
             source: "history",
             previous_events: previous_events
           }
@@ -91,7 +91,7 @@ defmodule Improve.Planning.Recommender do
       manual_payload(slot) != %{} ->
         %{
           payload: manual_payload(slot),
-          reason: "Suggested from manual rules for #{slot.name}.",
+          reason: "The plan's usual starting point.",
           source: "manual_rule",
           previous_events: []
         }
@@ -109,7 +109,7 @@ defmodule Improve.Planning.Recommender do
   defp cold_start_suggestion(slot, previous_events) do
     %{
       payload: cold_start_payload(slot),
-      reason: "Suggested from cold-start defaults for #{slot.name}.",
+      reason: "A starting suggestion — adjust as you go.",
       source: "cold_start",
       previous_events: previous_events
     }
@@ -186,7 +186,7 @@ defmodule Improve.Planning.Recommender do
   defp datetime_string(value), do: value
 
   defp recommendation_reason(slot) do
-    "Recommended from #{slot.name} using availability, archive, and recent-use rules."
+    "Picked from the #{slot.name} pool, favouring variety."
   end
 
   defp rule(slot, key), do: value(slot.rules || %{}, key)

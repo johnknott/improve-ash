@@ -21,13 +21,18 @@ defmodule Improve.Planning.Schedules.TimesPerWeek do
     as_of_date = Map.get(input, :as_of_date, date)
     placement_start = quota_placement_start(date, as_of_date, week_start)
 
-    candidate_dates =
+    # Weekday-only candidates over the full week tell structural capacity
+    # apart from situational truncation (schedule starting/ending mid-week).
+    weekday_candidates =
       week_start
       |> Helpers.dates_through(week_end)
-      |> Enum.filter(fn candidate_date ->
-        Helpers.in_date_range?(candidate_date, schedule.starts_on, schedule.ends_on) and
-          Helpers.weekday(candidate_date) in allowed_weekdays
-      end)
+      |> Enum.filter(&(Helpers.weekday(&1) in allowed_weekdays))
+
+    candidate_dates =
+      Enum.filter(
+        weekday_candidates,
+        &Helpers.in_date_range?(&1, schedule.starts_on, schedule.ends_on)
+      )
 
     completed_dates =
       schedule
@@ -52,9 +57,22 @@ defmodule Improve.Planning.Schedules.TimesPerWeek do
         due_dates: due_dates,
         diagnostics:
           rule_diagnostics ++
-            quota_diagnostics(schedule, times, candidate_dates, completed_dates, placed_dates)
+            quota_diagnostics(
+              schedule,
+              owner_name(input),
+              times,
+              minimum_gap_days,
+              weekday_candidates,
+              candidate_dates,
+              completed_dates,
+              placed_dates
+            )
       }
     end)
+  end
+
+  defp owner_name(input) do
+    Map.get(input, :schedule_owner_name) || "This schedule"
   end
 
   defp allowed_weekdays(schedule, rules) do
@@ -78,34 +96,63 @@ defmodule Improve.Planning.Schedules.TimesPerWeek do
     end
   end
 
-  defp quota_diagnostics(schedule, times, candidate_dates, completed_dates, placed_dates) do
+  # A structurally unsatisfiable schedule (the rules could never fit the
+  # quota even into a full empty week) is an authoring problem and warns.
+  # Everything else — plan starting mid-week, days already gone by — is
+  # ordinary life and stays a calm info note.
+  defp quota_diagnostics(
+         schedule,
+         owner_name,
+         times,
+         minimum_gap_days,
+         weekday_candidates,
+         candidate_dates,
+         completed_dates,
+         placed_dates
+       ) do
     placed_count = length(completed_dates) + length(placed_dates)
+    structural_max = length(place_quota_dates(weekday_candidates, times, [], minimum_gap_days))
 
     cond do
+      placed_count >= times ->
+        []
+
+      structural_max < times ->
+        [
+          %{
+            code: :unsatisfiable_schedule_rules,
+            severity: :warning,
+            message:
+              "#{owner_name} asks for #{times}× a week, but its allowed weekdays and minimum gap only fit #{structural_max}. Adjust its schedule.",
+            details: %{
+              schedule_id: schedule.id,
+              requested: times,
+              placed: placed_count,
+              structural_maximum: structural_max
+            }
+          }
+        ]
+
       candidate_dates == [] and completed_dates == [] ->
         [
           %{
-            code: :unplaceable_schedule,
-            severity: :warning,
-            message:
-              "Schedule cannot place any work this week because no allowed dates fall inside the schedule range.",
+            code: :partial_week_schedule,
+            severity: :info,
+            message: "No scheduled days for #{owner_name} remain this week.",
             details: %{schedule_id: schedule.id, requested: times, placed: 0}
           }
         ]
 
-      placed_count < times ->
+      true ->
         [
           %{
-            code: :partially_placeable_schedule,
-            severity: :warning,
+            code: :partial_week_schedule,
+            severity: :info,
             message:
-              "Schedule can only place #{placed_count} of #{times} requested occurrence(s) this week with the current allowed weekdays and minimum gap.",
+              "#{owner_name}: #{placed_count} of #{times} this week — the rest don't fit in the days left.",
             details: %{schedule_id: schedule.id, requested: times, placed: placed_count}
           }
         ]
-
-      true ->
-        []
     end
   end
 
