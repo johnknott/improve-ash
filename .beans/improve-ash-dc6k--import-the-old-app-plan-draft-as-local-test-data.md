@@ -1,10 +1,11 @@
 ---
 # improve-ash-dc6k
 title: Import the old-app plan draft as local test data
-status: in-progress
+status: completed
 type: task
+priority: normal
 created_at: 2026-07-05T12:23:59Z
-updated_at: 2026-07-05T12:23:59Z
+updated_at: 2026-07-05T12:58:52Z
 parent: improve-ash-o39y
 ---
 

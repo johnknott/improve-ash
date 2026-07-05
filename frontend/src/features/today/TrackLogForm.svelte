@@ -16,14 +16,21 @@
   // read-only chip (units are defined on the track, never typed at log
   // time), note behind a disclosure, and a dynamic submit label. Used by
   // the log dialog and by the check-in wizard steps.
+  // Dialog use passes onCancel; wizard steps pass onBack + onLeave (leave
+  // this item unlogged and advance). onFinished fires after a successful
+  // log or skip.
   let {
     item,
     onFinished,
     onCancel = null,
+    onBack = null,
+    onLeave = null,
   }: {
     item: WorkItem
     onFinished: () => void
     onCancel?: (() => void) | null
+    onBack?: (() => void) | null
+    onLeave?: (() => void) | null
   } = $props()
 
   function targetOf(work: WorkItem): Record<string, unknown> {
@@ -175,9 +182,16 @@
     <p class="error inline-error" role="alert">{error}</p>
   {/if}
 
-  <div class="dialog-actions">
+  <div class="dialog-actions track-log-actions">
+    {#if onBack}
+      <Button variant="ghost" disabled={saving} onclick={onBack}>Back</Button>
+    {/if}
     {#if onCancel}
       <Button variant="secondary" disabled={saving} onclick={onCancel}>Cancel</Button>
+    {/if}
+    <span class="track-log-actions-spacer"></span>
+    {#if onLeave}
+      <Button variant="secondary" disabled={saving} onclick={onLeave}>Leave</Button>
     {/if}
     <Button type="submit" disabled={saving}>
       {saving ? (mode === 'skip' ? 'Skipping' : 'Logging') : submitLabel}

@@ -1,38 +1,38 @@
 <script lang="ts">
+  import { Dialog } from 'bits-ui'
+  import { ClipboardCheck } from '@lucide/svelte'
   import type { WorkItem } from '../../api/types'
-  import {
-    finishSession,
-    skipWholeSession,
-    submitTrackLog,
-    today,
-  } from '../../app/dashboardState'
+  import { today } from '../../app/dashboardState'
   import { checkInDialogOpen, showToast } from '../../app/uiState'
-  import Field from '../../components/ui/Field.svelte'
-  import FormDialog from '../../components/ui/FormDialog.svelte'
-  import TextInput from '../../components/ui/TextInput.svelte'
+  import Button from '../../components/ui/Button.svelte'
+  import { formatDate } from '../../lib/dates'
+  import { selectedDate } from '../../app/dashboardState'
+  import CheckInSessionStep from './CheckInSessionStep.svelte'
+  import TrackLogForm from '../today/TrackLogForm.svelte'
 
-  type Choice = 'done' | 'skip' | 'leave'
+  const REMAINING = ['planned', 'started', 'partial']
 
-  let choices = $state<Record<string, Choice>>({})
-  let skipNotes = $state<Record<string, string>>({})
-  let rowErrors = $state<Record<string, string>>({})
-  let saving = $state(false)
+  // stage: intro → one step per remaining item → done.
+  // The queue is frozen at Start so completing an item (which refreshes the
+  // dashboard and drops it from `today.work`) doesn't reshuffle the wizard
+  // mid-sweep; we just walk the frozen list by index.
+  let stage = $state<'intro' | 'steps' | 'done'>('intro')
+  let queue = $state<WorkItem[]>([])
+  let index = $state(0)
+  let handled = $state(0)
   let seeded = $state(false)
 
-  let rows = $derived(
-    ($today?.work ?? []).filter((item) =>
-      ['planned', 'started', 'partial'].includes(item.status),
-    ),
-  )
+  let work = $derived($today?.work ?? [])
+  let remaining = $derived(work.filter((item) => REMAINING.includes(item.status)))
+  let alreadyLogged = $derived(work.filter((item) => item.status === 'completed').length)
+  let current = $derived(queue[index] ?? null)
 
   $effect(() => {
     if ($checkInDialogOpen && !seeded) {
-      choices = {}
-      // Seed every row's note with '' — binding an undefined property into
-      // an input with a $bindable fallback is a Svelte runtime error.
-      skipNotes = Object.fromEntries(rows.map((item) => [item.id, '']))
-      rowErrors = {}
-      saving = false
+      stage = 'intro'
+      queue = []
+      index = 0
+      handled = 0
       seeded = true
     }
 
@@ -45,138 +45,127 @@
     checkInDialogOpen.set(false)
   }
 
-  // Tracks can be marked done (quick-log with target defaults) or left;
-  // sessions can be completed (once started), skipped with a reason, or left.
-  function rowChoices(item: WorkItem): Choice[] {
-    if (item.kind === 'track') {
-      return item.canLog ? ['done', 'leave'] : ['leave']
-    }
-
-    const startable = Boolean(item.session?.state.sessionOccurrenceId)
-    return startable ? ['done', 'skip', 'leave'] : ['skip', 'leave']
+  function start() {
+    queue = remaining
+    index = 0
+    handled = 0
+    stage = queue.length > 0 ? 'steps' : 'done'
   }
 
-  function choiceLabel(choice: Choice): string {
-    if (choice === 'done') return 'Done'
-    if (choice === 'skip') return 'Skip'
-    return 'Leave'
-  }
-
-  function sessionSkippable(item: WorkItem): boolean {
-    return item.kind === 'session' && Boolean(item.session?.state.sessionOccurrenceId)
-  }
-
-  async function applyRow(item: WorkItem, choice: Choice): Promise<void> {
-    if (choice === 'leave') {
-      return
-    }
-
-    if (item.kind === 'track') {
-      // Send the target the card showed (the effective target), so "done"
-      // means "did the planned amount".
-      const target = item.target as Record<string, unknown>
-
-      await submitTrackLog(
-        {
-          trackKey: item.trackKey!,
-          quantity: target?.quantity != null ? String(target.quantity) : null,
-          unit: typeof target?.unit === 'string' ? target.unit : null,
-        },
-        '',
-      )
-      return
-    }
-
-    const occurrenceId = item.session?.state.sessionOccurrenceId
-
-    if (!occurrenceId) {
-      throw new Error('This session has not been started.')
-    }
-
-    if (choice === 'done') {
-      await finishSession(occurrenceId)
+  function advance() {
+    if (index + 1 < queue.length) {
+      index += 1
     } else {
-      await skipWholeSession(occurrenceId, (skipNotes[item.id] ?? '').trim() || null)
+      stage = 'done'
     }
   }
 
-  async function handleSubmit() {
-    saving = true
-    rowErrors = {}
-    let failures = 0
+  function onStepFinished() {
+    handled += 1
+    advance()
+  }
 
-    for (const item of rows) {
-      const choice = choices[item.id] ?? 'leave'
-
-      try {
-        await applyRow(item, choice)
-      } catch (caught) {
-        failures += 1
-        rowErrors = {
-          ...rowErrors,
-          [item.id]: caught instanceof Error ? caught.message : 'That did not apply.',
-        }
-      }
+  function back() {
+    if (index > 0) {
+      index -= 1
+    } else {
+      stage = 'intro'
     }
+  }
 
-    saving = false
-
-    if (failures === 0) {
+  function finishSweep() {
+    if (handled > 0) {
       showToast('Check-in saved.')
-      close()
     }
+    close()
   }
 </script>
 
-<FormDialog
-  open={$checkInDialogOpen}
-  title="Evening check-in"
-  submitLabel="Apply check-in"
-  busyLabel="Applying"
-  busy={saving}
-  error={null}
-  onClose={close}
-  onSubmit={handleSubmit}
->
-  {#if rows.length === 0}
-    <p class="hint">Everything is wrapped up — nothing left to sweep today.</p>
-  {:else}
-    <p class="hint">
-      Sweep what's left of today: mark it done, skip it honestly, or leave it for later.
-    </p>
+<Dialog.Root open={$checkInDialogOpen} onOpenChange={(next) => !next && close()}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="dialog-overlay" />
+    <Dialog.Content class="dialog-content small-dialog">
+      {#if stage === 'intro'}
+        <div class="dialog-header">
+          <div>
+            <Dialog.Title>Check-in for {formatDate($selectedDate)}</Dialog.Title>
+            <Dialog.Description>Work through what's left, one at a time.</Dialog.Description>
+          </div>
+          <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+        </div>
 
-    <ul class="checkin-rows">
-      {#each rows as item (item.id)}
-        {@const available = rowChoices(item)}
-        <li class="checkin-row">
-          <div class="checkin-row-head">
-            <span class="checkin-title">{item.title}</span>
-
-            <div class="segmented-control checkin-choice" aria-label="Choice for {item.title}">
-              {#each available as choice (choice)}
-                <button
-                  type="button"
-                  class:active={(choices[item.id] ?? 'leave') === choice}
-                  disabled={saving}
-                  onclick={() => (choices[item.id] = choice)}
-                >
-                  {choiceLabel(choice)}
-                </button>
-              {/each}
+        <div class="checkin-intro">
+          <span class="checkin-intro-icon"><ClipboardCheck size={22} /></span>
+          <div class="checkin-counts">
+            <div class="checkin-count">
+              <strong>{work.length}</strong>
+              <span>targets</span>
+            </div>
+            <div class="checkin-count">
+              <strong>{alreadyLogged}</strong>
+              <span>already logged</span>
+            </div>
+            <div class="checkin-count">
+              <strong>{remaining.length}</strong>
+              <span>to review</span>
             </div>
           </div>
+        </div>
 
-          {#if choices[item.id] === 'skip' && sessionSkippable(item)}
-            <Field label="Why skip it?" hint="Optional — honesty helps the review">
-              <TextInput bind:value={skipNotes[item.id]} disabled={saving} />
-            </Field>
-          {/if}
+        <div class="dialog-actions">
+          <Button variant="secondary" onclick={close}>Not now</Button>
+          <Button disabled={remaining.length === 0} onclick={start}>
+            {remaining.length === 0 ? 'All done' : 'Start check-in'}
+          </Button>
+        </div>
+      {:else if stage === 'steps' && current}
+        <div class="dialog-header">
+          <div>
+            <Dialog.Title>{current.title}</Dialog.Title>
+            <Dialog.Description>{index + 1} of {queue.length}</Dialog.Description>
+          </div>
+          <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+        </div>
 
-          {#if rowErrors[item.id]}
-            <p class="field-error" role="alert">{rowErrors[item.id]}</p>
+        {#key current.id}
+          {#if current.kind === 'session'}
+            <CheckInSessionStep
+              item={current}
+              onFinished={onStepFinished}
+              onBack={back}
+              onLeave={advance}
+            />
+          {:else}
+            <TrackLogForm
+              item={current}
+              onFinished={onStepFinished}
+              onBack={back}
+              onLeave={advance}
+            />
           {/if}
-        </li>
-      {/each}
-    </ul>
-  {/if}
-</FormDialog>
+        {/key}
+      {:else}
+        <div class="dialog-header">
+          <div>
+            <Dialog.Title>Check-in complete</Dialog.Title>
+            <Dialog.Description>
+              {handled === 0
+                ? 'Nothing left to sweep today.'
+                : `${handled} ${handled === 1 ? 'item' : 'items'} handled.`}
+            </Dialog.Description>
+          </div>
+          <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+        </div>
+
+        <div class="checkin-done">
+          <span class="checkin-intro-icon"><ClipboardCheck size={22} /></span>
+          <p>You're on top of today.</p>
+        </div>
+
+        <div class="dialog-actions">
+          <Button onclick={finishSweep}>Done</Button>
+        </div>
+      {/if}
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>

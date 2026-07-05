@@ -159,7 +159,11 @@ defmodule Improve.Fixtures.ImproveMyselfPlan do
         }
       },
       effects: [
-        App.subtract_quantity(from: "source_vial", quantity: "payload.amount", unit: "payload.unit")
+        App.subtract_quantity(
+          from: "source_vial",
+          quantity: "payload.amount",
+          unit: "payload.unit"
+        )
       ]
     )
   end
@@ -250,8 +254,17 @@ defmodule Improve.Fixtures.ImproveMyselfPlan do
       items: ["rowing", "elliptical"]
     )
 
-    App.add_pool!(plan, "Upper body push", actor: actor, key: "upper_push", items: ["chest_press"])
-    App.add_pool!(plan, "Upper body pull", actor: actor, key: "upper_pull", items: ["lat_pulldown"])
+    App.add_pool!(plan, "Upper body push",
+      actor: actor,
+      key: "upper_push",
+      items: ["chest_press"]
+    )
+
+    App.add_pool!(plan, "Upper body pull",
+      actor: actor,
+      key: "upper_pull",
+      items: ["lat_pulldown"]
+    )
 
     App.add_pool!(plan, "Upper body shoulders",
       actor: actor,
@@ -265,7 +278,11 @@ defmodule Improve.Fixtures.ImproveMyselfPlan do
       items: ["rowing", "elliptical"]
     )
 
-    App.add_pool!(plan, "Lower body press", actor: actor, key: "lower_press", items: ["leg_press"])
+    App.add_pool!(plan, "Lower body press",
+      actor: actor,
+      key: "lower_press",
+      items: ["leg_press"]
+    )
 
     App.add_pool!(plan, "Lower body hamstrings",
       actor: actor,
@@ -308,7 +325,11 @@ defmodule Improve.Fixtures.ImproveMyselfPlan do
       slots: [
         App.choose(2, from: "lower_cardio", key: "lower_cardio", name: "Warm-up cardio"),
         App.choose(1, from: "lower_press", key: "lower_press", name: "Press pattern"),
-        App.choose(1, from: "lower_hamstrings", key: "lower_hamstrings", name: "Hamstring pattern"),
+        App.choose(1,
+          from: "lower_hamstrings",
+          key: "lower_hamstrings",
+          name: "Hamstring pattern"
+        ),
         App.choose(1, from: "lower_quads", key: "lower_quads", name: "Quad pattern")
       ]
     )

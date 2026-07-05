@@ -1949,6 +1949,66 @@ textarea:focus {
   color: var(--text-subtle);
 }
 
+.track-log-actions {
+  flex-wrap: wrap;
+}
+
+.track-log-actions-spacer {
+  flex: 1;
+}
+
+.checkin-intro {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 1rem;
+}
+
+.checkin-intro-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.checkin-counts {
+  display: flex;
+  flex: 1;
+  gap: 1.25rem;
+}
+
+.checkin-count {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.checkin-count strong {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--tracking-tight);
+}
+
+.checkin-count span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.checkin-done {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  color: var(--text-muted);
+}
+
 .checkin-rows {
   display: grid;
   gap: 0.65rem;
