@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import AppShell from './app/AppShell.svelte'
   import { dashboardData, dashboardStatus, loadDashboard, resetDashboard } from './app/dashboardState'
+  import DevErrorBadge from './components/DevErrorBadge.svelte'
   import CompleteProfilePage from './features/auth/CompleteProfilePage.svelte'
   import LoginPage from './features/auth/LoginPage.svelte'
   import { authState, loadCurrentUser } from './features/auth/authStore'
@@ -46,4 +47,8 @@
     error={$dashboardStatus.error}
     onRetry={() => loadDashboard()}
   />
+{/if}
+
+{#if import.meta.env.DEV}
+  <DevErrorBadge />
 {/if}

@@ -12,7 +12,10 @@ layout {
             }
             pane split_direction="Vertical" {
                 pane command="bash" {
-                    args "-lc" "watchexec -w lib -w test -w config -e ex,exs --restart -- mix test --stale"
+                    // No --restart: killing a mid-run BEAM races and leaves
+                    // orphaned nodes holding DB pools; queue the rerun instead.
+                    // Debounce so a burst of saves triggers one run, not many.
+                    args "-lc" "watchexec -w lib -w test -w config -e ex,exs --debounce 3000 -- mix test --stale"
                 }
                 pane command="bash" {
                     args "-lc" "iex -S mix"

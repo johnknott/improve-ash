@@ -107,17 +107,30 @@ mise x -- agent-browser eval "fetch('/api/app/demo-plans',{method:'POST',credent
 mise x -- agent-browser open http://localhost:5173
 ```
 
-## Catching runtime errors
+## Catching runtime errors — poll after EVERY interaction
 
-A Svelte error thrown during render wedges that component's subtree (a dialog
-stops closing, a form goes dead) but leaves the rest of the app working — and
-`console --errors` misses it. Install a `window.onerror` listener right after
-loading, exercise the flow, then read the collected messages:
+agent-browser's `console --errors` misses uncaught exceptions entirely (a
+Svelte render error can wedge a dialog while the channel stays silent). The
+app now captures everything itself in dev: uncaught errors, unhandled
+rejections, console.error/warn, error-boundary catches, and slow perf marks
+all land in `window.__improveErrors` (installed from `main.ts` before first
+paint — no setup needed). A red badge also appears bottom-left in the UI.
 
 ```bash
-mise x -- agent-browser eval "(()=>{window.__errs=[];addEventListener('error',e=>window.__errs.push(e.message));return 'listening';})()"
-# ...open the dialog / drive the flow...
-mise x -- agent-browser eval "JSON.stringify(window.__errs)"   # [] means clean
+mise x -- agent-browser eval "JSON.stringify(window.__improveErrors)"
+# [] means clean; poll this after every interaction you drive.
+```
+
+Perf marks: every nav and API request is timed to the console (`[perf] ...`);
+anything slow (nav > 250ms, request > 300ms) is a console.warn, so it also
+shows up in `__improveErrors` and the badge.
+
+To test the page error boundary deliberately:
+
+```bash
+mise x -- agent-browser eval "(()=>{sessionStorage.setItem('improve-crash-test','1');return 'armed';})()"
+# then navigate to any placeholder route — it throws once, the boundary
+# shows an inline card with Try again, and the badge lights up.
 ```
 
 ## Representative check

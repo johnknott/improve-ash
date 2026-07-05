@@ -1,13 +1,16 @@
 <script lang="ts">
   import type { Component } from 'svelte'
   import type { DashboardData } from '../api/types'
+  import Button from '../components/ui/Button.svelte'
+  import Card from '../components/ui/Card.svelte'
   import type { CurrentUser } from '../features/auth/authClient'
   import CheckInDialog from '../features/logging/CheckInDialog.svelte'
   import LogDialog from '../features/logging/LogDialog.svelte'
   import PlaceholderPage from '../features/placeholders/PlaceholderPage.svelte'
   import NewPlanDialog from '../features/plans/NewPlanDialog.svelte'
   import TodayPage from '../features/today/TodayPage.svelte'
-  import { toastMessage } from './uiState'
+  import { reportBoundaryError } from '../lib/devErrors'
+  import { resetUiState, toastMessage } from './uiState'
   import Sidebar from './Sidebar.svelte'
   import TopBar from './TopBar.svelte'
   import { activeRoute, type AppRoute } from './routes'
@@ -36,7 +39,26 @@
   function closeSidebar() {
     sidebarOpen = false
   }
+
+  function errorMessage(caught: unknown): string {
+    return caught instanceof Error ? caught.message : String(caught)
+  }
 </script>
+
+{#snippet dialogFailed(caught: unknown, reset: () => void)}
+  <div class="dialog-boundary-fallback" role="alert">
+    <span>A dialog crashed: {errorMessage(caught)}</span>
+    <button
+      type="button"
+      onclick={() => {
+        resetUiState()
+        reset()
+      }}
+    >
+      Dismiss
+    </button>
+  </div>
+{/snippet}
 
 <div class="app-frame">
   {#if sidebarOpen}
@@ -59,19 +81,41 @@
         </section>
       {/if}
 
-      {#if pages[$activeRoute.route]}
-        {@const Page = pages[$activeRoute.route]!}
-        <Page />
-      {:else}
-        <PlaceholderPage route={$activeRoute.route} {data} />
-      {/if}
+      <svelte:boundary onerror={(caught) => reportBoundaryError(caught)}>
+        {#if pages[$activeRoute.route]}
+          {@const Page = pages[$activeRoute.route]!}
+          <Page />
+        {:else}
+          <PlaceholderPage route={$activeRoute.route} {data} />
+        {/if}
+
+        {#snippet failed(caught, reset)}
+          <section class="page-stack">
+            <Card>
+              <div class="boundary-fallback" role="alert">
+                <strong>This page crashed.</strong>
+                <p>{errorMessage(caught)}</p>
+                <Button variant="secondary" onclick={reset}>Try again</Button>
+              </div>
+            </Card>
+          </section>
+        {/snippet}
+      </svelte:boundary>
     </div>
   </main>
 </div>
 
-<LogDialog />
-<CheckInDialog />
-<NewPlanDialog />
+<svelte:boundary onerror={(caught) => reportBoundaryError(caught)} failed={dialogFailed}>
+  <LogDialog />
+</svelte:boundary>
+
+<svelte:boundary onerror={(caught) => reportBoundaryError(caught)} failed={dialogFailed}>
+  <CheckInDialog />
+</svelte:boundary>
+
+<svelte:boundary onerror={(caught) => reportBoundaryError(caught)} failed={dialogFailed}>
+  <NewPlanDialog />
+</svelte:boundary>
 
 {#if $toastMessage}
   <div class="toast" role="status">{$toastMessage}</div>

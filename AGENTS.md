@@ -144,6 +144,14 @@ Expected task names may evolve, but prefer this shape:
 When exact tool versions are not established yet, choose current stable versions
 unless a documented compatibility constraint says otherwise.
 
+While the user's zellij dev session is running, be a considerate guest on
+their machine: the test-watcher pane already recompiles and runs the stale
+test suite on every `.ex`/`.exs` save, so during iteration run only targeted
+tests (`mix test path/to/test.exs`), avoid gratuitous full `mix test` runs,
+and save `mise run verify` for handoff points. Bursts of file saves plus
+parallel full-suite runs have pinned the BEAM at 300-400% CPU and made the
+whole machine janky.
+
 Before adding a new Mix package, check Elixir Observer categories first:
 `https://elixir-observer.com/categories`. Use it to understand the current
 package landscape and nearby alternatives. Still verify the chosen package

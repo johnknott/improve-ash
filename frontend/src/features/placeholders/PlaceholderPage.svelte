@@ -8,6 +8,13 @@
 
   let { route, data }: { route: AppRoute; data: DashboardData | null } = $props()
 
+  // One-shot hook for testing the page error boundary:
+  // sessionStorage.setItem('improve-crash-test', '1') then navigate here.
+  if (import.meta.env.DEV && sessionStorage.getItem('improve-crash-test')) {
+    sessionStorage.removeItem('improve-crash-test')
+    throw new Error('Deliberate dev crash test (improve-crash-test)')
+  }
+
   let info = $derived(routeInfo(route))
 </script>
 

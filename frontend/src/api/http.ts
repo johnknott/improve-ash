@@ -35,37 +35,56 @@ export type RequestOptions = {
 }
 
 // Every API call goes through here, so cross-cutting concerns (session
-// expiry, and later per-operation idempotency keys) attach in one place.
+// expiry, request timing, and later per-operation idempotency keys) attach
+// in one place.
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers = new Headers()
-  const init: RequestInit = {
-    method: options.method ?? 'GET',
-    credentials: 'include',
-    headers,
-  }
+  const method = options.method ?? 'GET'
+  const startedAt = performance.now()
 
-  if (options.body !== undefined) {
-    headers.set('content-type', 'application/json')
-    init.body = JSON.stringify(options.body)
-  }
-
-  const response = await fetch(path, init)
-
-  if (!response.ok) {
-    if (response.status === 401 && options.notifyUnauthorized !== false) {
-      unauthorizedHandler?.()
+  try {
+    const headers = new Headers()
+    const init: RequestInit = {
+      method,
+      credentials: 'include',
+      headers,
     }
 
-    const body = (await response.json().catch(() => ({}))) as ApiErrorPayload
+    if (options.body !== undefined) {
+      headers.set('content-type', 'application/json')
+      init.body = JSON.stringify(options.body)
+    }
 
-    throw new ApiRequestError(
-      response.status,
-      body.error?.code ?? 'request_failed',
-      body.error?.message ?? 'We could not reach Improve.',
-      body.error?.details ?? [],
-    )
+    const response = await fetch(path, init)
+
+    if (!response.ok) {
+      if (response.status === 401 && options.notifyUnauthorized !== false) {
+        unauthorizedHandler?.()
+      }
+
+      const body = (await response.json().catch(() => ({}))) as ApiErrorPayload
+
+      throw new ApiRequestError(
+        response.status,
+        body.error?.code ?? 'request_failed',
+        body.error?.message ?? 'We could not reach Improve.',
+        body.error?.details ?? [],
+      )
+    }
+
+    const text = await response.text()
+    return (text ? JSON.parse(text) : null) as T
+  } finally {
+    if (import.meta.env.DEV) {
+      // Slow requests warn, which surfaces them in the dev error badge —
+      // e.g. a dev-server recompile blocking the first request after edits.
+      const elapsed = performance.now() - startedAt
+      const line = `[perf] ${method} ${path.split('?')[0]}: ${elapsed.toFixed(0)}ms`
+
+      if (elapsed > 300) {
+        console.warn(line)
+      } else {
+        console.debug(line)
+      }
+    }
   }
-
-  const text = await response.text()
-  return (text ? JSON.parse(text) : null) as T
 }

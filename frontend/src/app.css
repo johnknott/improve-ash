@@ -1454,6 +1454,69 @@ textarea:focus {
   margin-top: 1.25rem;
 }
 
+/* Dev-only error badge (see lib/devErrors.ts) */
+
+.dev-error-badge {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 90;
+  border-radius: var(--radius-pill);
+  padding: 0.35rem 0.8rem;
+  background: var(--danger);
+  color: var(--primary-contrast);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+}
+
+.dev-error-badge.warnings-only {
+  background: var(--warning);
+}
+
+.boundary-fallback {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  border: 1px solid var(--danger-soft);
+  border-radius: var(--radius-lg);
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 1rem 1.15rem;
+}
+
+.boundary-fallback p {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.dialog-boundary-fallback {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(90vw, 34rem);
+  border-radius: var(--radius);
+  background: var(--danger);
+  color: var(--primary-contrast);
+  padding: 0.6rem 0.9rem;
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-xl);
+}
+
+.dialog-boundary-fallback button {
+  border: 1px solid rgb(255 255 255 / 40%);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.6rem;
+  color: inherit;
+  font-weight: 650;
+}
+
 .timeline-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(14rem, 1fr);

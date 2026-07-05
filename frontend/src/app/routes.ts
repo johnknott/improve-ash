@@ -90,8 +90,28 @@ window.addEventListener('popstate', () => {
 })
 
 export function navigate(route: AppRoute, params: RouteParams = {}): void {
+  const startedAt = performance.now()
+
   window.history.pushState({}, '', buildPath(route, params))
   activeRoute.set({ route, params })
+
+  if (import.meta.env.DEV) {
+    // Double rAF lands after the next paint: this measures what the user
+    // felt, so "the page switch took 2 seconds" becomes a number. Slow
+    // switches warn, which also surfaces them in the dev error badge.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const elapsed = performance.now() - startedAt
+        const line = `[perf] nav → ${route}: ${elapsed.toFixed(0)}ms`
+
+        if (elapsed > 250) {
+          console.warn(line)
+        } else {
+          console.debug(line)
+        }
+      })
+    })
+  }
 }
 
 export function routeInfo(route: AppRoute): RouteInfo {
