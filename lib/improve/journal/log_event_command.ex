@@ -14,6 +14,9 @@ defmodule Improve.Journal.LogEventCommand do
   """
 
   @origins [:manual, :seed, :assistant_proposed, :imported, :offline_sync]
+  # Only these statuses can be logged directly; :voided/:corrected are
+  # transitions applied to existing events.
+  @loggable_statuses [:active, :skipped]
 
   defstruct [
     :plan_id,
@@ -30,6 +33,7 @@ defmodule Improve.Journal.LogEventCommand do
     :replaces_event_instance_id,
     :replaces_item_effect_id,
     :target_snapshot,
+    status: :active,
     payload: %{},
     origin: :manual,
     item_links: [],
@@ -57,6 +61,7 @@ defmodule Improve.Journal.LogEventCommand do
       unit: value(attrs, :unit),
       note: value(attrs, :note),
       payload: value(attrs, :payload, %{}),
+      status: normalize_status(value(attrs, :status, :active)),
       origin: normalize_origin(value(attrs, :origin, :manual)),
       session_occurrence_id: value(attrs, :session_occurrence_id),
       slot_result_id: value(attrs, :slot_result_id),
@@ -100,9 +105,24 @@ defmodule Improve.Journal.LogEventCommand do
     |> require_field(command, :recorded_at, "Recorded time is required.")
     |> require_field(command, :summary, "Summary is required.")
     |> validate_origin(command)
+    |> validate_status(command)
     |> validate_item_links(command)
     |> validate_idempotency(command)
   end
+
+  defp validate_status(diagnostics, command) do
+    if command.status in @loggable_statuses do
+      diagnostics
+    else
+      diagnostics ++ ["Event log status must be active or skipped."]
+    end
+  end
+
+  defp normalize_status(status) when is_binary(status) do
+    Enum.find(@loggable_statuses, status, &(Atom.to_string(&1) == status))
+  end
+
+  defp normalize_status(status), do: status
 
   defp require_field(diagnostics, command, field, message) do
     if blank?(Map.fetch!(command, field)) do

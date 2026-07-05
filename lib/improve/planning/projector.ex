@@ -278,14 +278,23 @@ defmodule Improve.Planning.Projector do
 
     {:ok, target_completion, diagnostics} = Targets.completion(eval_track, input)
     completed_events = Map.get(target_completion, :completed_events, [])
+    skip_event = skip_event_for(track, input)
 
     status =
       track_status(
         input.date,
         Map.get(input, :as_of_date, input.date),
         Map.fetch!(target_completion, :status),
-        time_off_window
+        time_off_window,
+        skip_event
       )
+
+    explanation =
+      if status == :skipped do
+        skip_explanation(track, skip_event)
+      else
+        track_explanation(track, status, completed_events, time_off_window)
+      end
 
     ProjectedWork.track(track,
       planned_for: input.date,
@@ -294,9 +303,30 @@ defmodule Improve.Planning.Projector do
       target_progress: Map.get(target_completion, :progress),
       effective_target: effective_target,
       time_off_window: time_off_payload(time_off_window),
-      explanation: track_explanation(track, status, completed_events, time_off_window)
+      explanation: explanation
     )
     |> then(&{&1, diagnostics})
+  end
+
+  defp skip_event_for(track, input) do
+    timezone = Map.get(input, :timezone) || Improve.Planning.LocalDate.default_timezone()
+
+    input
+    |> Map.get(:journal_events, [])
+    |> Enum.find(fn event ->
+      event.track_id == track.id and event.status == :skipped and
+        Date.compare(
+          Improve.Planning.LocalDate.to_date(event.effective_at, timezone),
+          input.date
+        ) == :eq
+    end)
+  end
+
+  defp skip_explanation(track, skip_event) do
+    case skip_event && skip_event.note do
+      nil -> "Skipped #{track.name} for the day."
+      reason -> "Skipped #{track.name} — #{reason}."
+    end
   end
 
   defp effective_target_for(track, input) do
@@ -326,10 +356,14 @@ defmodule Improve.Planning.Projector do
     )
   end
 
-  defp track_status(_date, _as_of_date, :completed, _time_off_window), do: :completed
+  # A real completion always wins over a skip logged the same day.
+  defp track_status(_date, _as_of_date, :completed, _time_off_window, _skip_event), do: :completed
 
-  defp track_status(date, as_of_date, :incomplete, time_off_window) do
+  defp track_status(date, as_of_date, :incomplete, time_off_window, skip_event) do
     cond do
+      skip_event ->
+        :skipped
+
       time_off_window ->
         :on_hold
 

@@ -25,6 +25,14 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def skip_track(conn, params) do
+    call_app(conn, params, &UiApi.skip_track/2,
+      not_found_message: "That track is not available.",
+      fallback_status: 422,
+      fallback_message: "We could not skip that track."
+    )
+  end
+
   def skip_session_slot(conn, params) do
     call_app(conn, params, &UiApi.skip_session_slot/2,
       not_found_message: "That session slot is not available.",

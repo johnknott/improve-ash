@@ -163,6 +163,37 @@ defmodule Improve.App.Logging do
     end
   end
 
+  def skip_track!(projection, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+    plan_id = projection.plan_id
+    track = Lookup.track!(plan_id, Keyword.fetch!(opts, :track), actor)
+    event_type = track_event_type!(plan_id, track, opts, actor)
+    reason = Keyword.get(opts, :reason)
+
+    effective_at =
+      Keyword.get(
+        opts,
+        :effective_at,
+        Value.default_datetime(projection.date, actor_timezone(actor))
+      )
+
+    Journal.log_generic_event!(
+      %{
+        plan_id: plan_id,
+        event_type_id: event_type.id,
+        track_id: track.id,
+        effective_at: effective_at,
+        recorded_at: Keyword.get(opts, :recorded_at, effective_at),
+        summary: Keyword.get(opts, :summary, "Skipped #{track.name}"),
+        status: :skipped,
+        note: reason,
+        payload: %{},
+        idempotency: Keyword.get(opts, :idempotency)
+      },
+      actor: actor
+    )
+  end
+
   def correct_event!(original_log_or_event, opts) do
     actor = Keyword.fetch!(opts, :actor)
     original_event = event_from(original_log_or_event)

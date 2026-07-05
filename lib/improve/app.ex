@@ -67,6 +67,7 @@ defmodule Improve.App do
   defdelegate skip_session_slot!(started_session, opts), to: Logging
   defdelegate log_event!(plan, opts), to: Logging
   defdelegate log_track!(projection, opts), to: Logging
+  defdelegate skip_track!(projection, opts), to: Logging
   defdelegate correct_event!(original_log_or_event, opts), to: Logging
   defdelegate build_offline_event(plan, opts), to: Logging
   defdelegate submit_offline_events!(entries, opts), to: Logging

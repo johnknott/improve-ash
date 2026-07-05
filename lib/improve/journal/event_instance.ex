@@ -132,7 +132,10 @@ defmodule Improve.Journal.EventInstance do
       allow_nil? false
       public? true
       default :active
-      constraints one_of: [:active, :voided, :corrected]
+      # :skipped records a conscious "not today" decision for planned work.
+      # Skips are excluded from completion (evaluators count :active only)
+      # and are terminal — they are replaced by logging, not corrected.
+      constraints one_of: [:active, :voided, :corrected, :skipped]
     end
 
     attribute :origin, :atom do

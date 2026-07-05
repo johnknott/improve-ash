@@ -20,7 +20,7 @@ export type EventInstanceResourceSchema = {
   unit: string | null;
   payload: Record<string, any>;
   note: string | null;
-  status: "active" | "corrected" | "voided";
+  status: "active" | "corrected" | "skipped" | "voided";
   origin: "assistant_proposed" | "imported" | "manual" | "offline_sync" | "seed";
   voidedAt: UtcDateTimeUsec | null;
   clientEventId: string | null;
@@ -54,7 +54,7 @@ export type EventInstanceAttributesOnlySchema = {
   unit: string | null;
   payload: Record<string, any>;
   note: string | null;
-  status: "active" | "corrected" | "voided";
+  status: "active" | "corrected" | "skipped" | "voided";
   origin: "assistant_proposed" | "imported" | "manual" | "offline_sync" | "seed";
   voidedAt: UtcDateTimeUsec | null;
   clientEventId: string | null;
@@ -298,9 +298,9 @@ export type EventInstanceFilterInput = {
   };
 
   status?: {
-    eq?: "active" | "corrected" | "voided";
-    notEq?: "active" | "corrected" | "voided";
-    in?: Array<"active" | "corrected" | "voided">;
+    eq?: "active" | "corrected" | "skipped" | "voided";
+    notEq?: "active" | "corrected" | "skipped" | "voided";
+    in?: Array<"active" | "corrected" | "skipped" | "voided">;
   };
 
   origin?: {

@@ -8,6 +8,10 @@ defmodule Improve.Plans.Proposal do
   postgres do
     table "proposals"
     repo Improve.Repo
+
+    identity_wheres_to_sql(
+      unique_divergence_per_plan: "status = 'proposed' AND divergence_key IS NOT NULL"
+    )
   end
 
   actions do

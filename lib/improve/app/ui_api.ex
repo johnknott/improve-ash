@@ -58,6 +58,33 @@ defmodule Improve.App.UiApi do
     end
   end
 
+  def skip_track(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, projection} <- Plans.project_today(plan, actor: actor, date: request_date(params)),
+         {:ok, _result} <- do_skip_track(projection, params, actor),
+         {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal]) do
+      {:ok, payload}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp do_skip_track(projection, params, actor) do
+    opts =
+      [actor: actor, track: Map.get(params, "track_key")]
+      |> maybe_put_keyword(:reason, blank_to_nil(Map.get(params, "reason")))
+      |> maybe_put_keyword(:idempotency, idempotency_from_params(params))
+
+    {:ok, App.skip_track!(projection, opts)}
+  rescue
+    error in [ArgumentError, Improve.CommandError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
+      {:error, [Exception.message(error)]}
+  end
+
   defp do_log_track(projection, params, actor) do
     opts =
       [

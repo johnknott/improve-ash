@@ -42,7 +42,7 @@ export function installPerfWatch(): void {
         console.warn(
           `[perf] main thread blocked ${Math.round(entry.duration)}ms — ${
             attribution || 'no script attribution (GC, extension isolate, or system pressure)'
-          }`,
+          }${heapSummary()}`,
         )
       }
     })
@@ -53,6 +53,18 @@ export function installPerfWatch(): void {
   } catch {
     // Not supported in this browser — nav/request marks still apply.
   }
+}
+
+// Chrome-only, non-standard. A tiny heap at stall time rules out our own
+// GC as the cause; a huge one implicates in-tab memory churn.
+function heapSummary(): string {
+  const memory = (performance as { memory?: { usedJSHeapSize: number } }).memory
+
+  if (!memory) {
+    return ''
+  }
+
+  return ` [heap ${Math.round(memory.usedJSHeapSize / 1024 / 1024)}MB]`
 }
 
 function shortSource(source: string): string {

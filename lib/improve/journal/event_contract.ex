@@ -9,6 +9,10 @@ defmodule Improve.Journal.EventContract do
 
   alias Improve.Planning.PathReader
 
+  # Skips record a decision, not data — the event type's payload and item
+  # link contract only applies to active events.
+  def validate(_event_type, %{status: :skipped}), do: []
+
   def validate(event_type, command) do
     validate_item_link_roles(event_type.item_link_roles || %{}, command.item_links) ++
       validate_payload_schema(event_type.payload_schema || %{}, command.payload || %{})

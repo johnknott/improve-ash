@@ -498,6 +498,65 @@ defmodule ImproveWeb.AppControllerTest do
     assert [_only_event] = get_in(json_response(conn, 200), ["journal"])
   end
 
+  test "skipping a track records an honest skip that logging overrides", %{conn: conn} do
+    conn = sign_in!(conn, "app-skip-track@example.test")
+
+    conn =
+      post(conn, ~p"/api/app/plans", %{
+        name: "Reading",
+        intention: "Read a little every day",
+        starts_on: "2026-06-23",
+        ends_on: "2026-08-19",
+        date: "2026-06-23"
+      })
+
+    plan_id = get_in(json_response(conn, 200), ["currentPlan", "id"])
+
+    conn =
+      post(conn, ~p"/api/app/tracks", %{
+        plan_id: plan_id,
+        name: "Read for 15 minutes",
+        event_name: "Read",
+        quantity: "15",
+        unit: "minutes",
+        date: "2026-06-23"
+      })
+
+    assert [%{"trackKey" => track_key}] = get_in(json_response(conn, 200), ["today", "work"])
+
+    conn =
+      post(conn, ~p"/api/app/skip-track", %{
+        plan_id: plan_id,
+        track_key: track_key,
+        date: "2026-06-23",
+        reason: "Long travel day",
+        client_device_id: "test-device",
+        client_operation_id: "track-skip-op-1"
+      })
+
+    response = json_response(conn, 200)
+
+    assert [%{"status" => "skipped", "explanation" => explanation}] =
+             get_in(response, ["today", "work"])
+
+    assert explanation =~ "Long travel day"
+
+    assert [%{"status" => "skipped", "note" => "Long travel day"}] =
+             get_in(response, ["journal"])
+
+    # Changing your mind and logging for real wins over the skip.
+    conn =
+      post(conn, ~p"/api/app/log-track", %{
+        plan_id: plan_id,
+        track_key: track_key,
+        date: "2026-06-23",
+        quantity: "15",
+        unit: "minutes"
+      })
+
+    assert [%{"status" => "completed"}] = get_in(json_response(conn, 200), ["today", "work"])
+  end
+
   test "skipping a session slot records the skip", %{conn: conn} do
     email = "app-slot-skip@example.test"
     conn = sign_in!(conn, email)
