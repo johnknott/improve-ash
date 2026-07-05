@@ -121,7 +121,7 @@ mise x -- agent-browser eval "JSON.stringify(window.__improveErrors)"
 # [] means clean; poll this after every interaction you drive.
 ```
 
-Perf marks: every nav and API request is timed to the console (`[perf] ...`);
+Perf marks: every nav and API request is timed to the console (`[perf] ...`), and main-thread stalls >200ms warn with per-script attribution (our module vs chrome-extension:// vs none = GC/system);
 anything slow (nav > 250ms, request > 300ms) is a console.warn, so it also
 shows up in `__improveErrors` and the badge.
 
