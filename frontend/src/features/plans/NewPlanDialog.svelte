@@ -211,6 +211,7 @@
         <button
           class:active={lengthMode === 'duration'}
           type="button"
+          aria-pressed={lengthMode === 'duration'}
           disabled={saving}
           onclick={() => setLengthMode('duration')}
         >
@@ -219,6 +220,7 @@
         <button
           class:active={lengthMode === 'endDate'}
           type="button"
+          aria-pressed={lengthMode === 'endDate'}
           disabled={saving}
           onclick={() => setLengthMode('endDate')}
         >

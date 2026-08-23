@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui'
   import type { Snippet } from 'svelte'
+  import { dialogFirstFieldSelector, handleDialogOpenAutoFocus } from '../../lib/dialogFocus'
   import Button from './Button.svelte'
 
   // The shared dialog-form shell: header with close, a form that submits on
@@ -13,6 +14,7 @@
     busyLabel = 'Saving',
     cancelLabel = 'Cancel',
     busy = false,
+    submitDisabled = false,
     error = null,
     class: className = '',
     onClose,
@@ -25,23 +27,33 @@
     busyLabel?: string
     cancelLabel?: string
     busy?: boolean
+    submitDisabled?: boolean
     error?: string | null
     class?: string
     onClose: () => void
     onSubmit: () => void
     children: Snippet
   } = $props()
+
+  let content = $state<HTMLElement | null>(null)
 </script>
 
 <Dialog.Root {open} onOpenChange={(next) => !next && onClose()}>
   <Dialog.Portal>
     <Dialog.Overlay class="dialog-overlay" />
-    <Dialog.Content class="dialog-content {className}">
+    <Dialog.Content
+      bind:ref={content}
+      class="dialog-content {className}"
+      onEscapeKeydown={(event) => busy && event.preventDefault()}
+      onInteractOutside={(event) => busy && event.preventDefault()}
+      onOpenAutoFocus={(event) =>
+        handleDialogOpenAutoFocus(event, () => content, dialogFirstFieldSelector)}
+    >
       <div class="dialog-header">
         <div>
           <Dialog.Title>{title}</Dialog.Title>
         </div>
-        <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+        <Dialog.Close class="icon-button" aria-label="Close" disabled={busy}>×</Dialog.Close>
       </div>
 
       <form
@@ -58,8 +70,17 @@
         {/if}
 
         <div class="dialog-actions">
-          <Button variant="secondary" disabled={busy} onclick={onClose}>{cancelLabel}</Button>
-          <Button type="submit" disabled={busy}>{busy ? busyLabel : submitLabel}</Button>
+          <Button
+            variant="secondary"
+            data-dialog-initial-focus
+            disabled={busy}
+            onclick={onClose}
+          >
+            {cancelLabel}
+          </Button>
+          <Button type="submit" disabled={busy || submitDisabled}>
+            {busy ? busyLabel : submitLabel}
+          </Button>
         </div>
       </form>
     </Dialog.Content>

@@ -16,11 +16,11 @@
 
 {#if days.length > 0}
   <section class="upcoming-strip" aria-label="Upcoming work">
-    <p class="upcoming-title">Coming up</p>
+    <h2 class="upcoming-title">Coming up</h2>
     <div class="upcoming-days">
       {#each days as [date, items] (date)}
         <div class="upcoming-day">
-          <p class="upcoming-date">{formatDate(date)}</p>
+          <time class="upcoming-date" datetime={date}>{formatDate(date)}</time>
           <ul>
             {#each items as item (item.id)}
               <li>{item.title}</li>

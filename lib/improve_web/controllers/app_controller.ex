@@ -10,6 +10,14 @@ defmodule ImproveWeb.AppController do
     )
   end
 
+  def journal(conn, params) do
+    call_app(conn, params, &UiApi.journal/2,
+      not_found_message: "That plan is not available.",
+      fallback_status: 400,
+      fallback_message: "We could not load your journal."
+    )
+  end
+
   def log_event(conn, params) do
     call_app(conn, params, &UiApi.log_event/2,
       fallback_status: 422,
@@ -50,7 +58,11 @@ defmodule ImproveWeb.AppController do
   end
 
   def correct_linked_event(conn, params) do
-    call_app(conn, params, &UiApi.correct_linked_event/2,
+    correct_event(conn, params)
+  end
+
+  def correct_event(conn, params) do
+    call_app(conn, params, &UiApi.correct_event/2,
       not_found_message: "That event is not available to correct.",
       fallback_status: 422,
       fallback_message: "We could not correct that event."

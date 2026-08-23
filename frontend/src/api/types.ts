@@ -218,10 +218,19 @@ export type TargetProvenance = {
   reason: string | null
 }
 
+export type WorkStatus =
+  | 'planned'
+  | 'started'
+  | 'partial'
+  | 'completed'
+  | 'missed'
+  | 'on_hold'
+  | 'skipped'
+
 export type WorkItem = {
   id: string
   kind: 'track' | 'session'
-  status: string
+  status: WorkStatus
   plannedFor: string
   ownerType: string
   ownerId: string
@@ -263,6 +272,9 @@ export type Today = {
   date: string
   total: number
   completed: number
+  skipped: number
+  missed: number
+  onHold: number
   remaining: number
   work: WorkItem[]
   upcoming: WorkItem[]
@@ -293,6 +305,20 @@ export type ItemEffect = {
   replacesItemEffectId: string | null
 }
 
+export type JournalItemEffect = ItemEffect & {
+  payload: JsonMap
+  voidedAt: string | null
+}
+
+export type JournalEventStatus = 'active' | 'corrected' | 'voided' | 'skipped'
+
+export type JournalEventOrigin =
+  | 'manual'
+  | 'seed'
+  | 'assistant_proposed'
+  | 'imported'
+  | 'offline_sync'
+
 export type JournalEvent = {
   id: string
   planId: string
@@ -303,7 +329,7 @@ export type JournalEvent = {
   quantity: string | null
   unit: string | null
   note: string | null
-  status: string
+  status: JournalEventStatus
   effectiveAt: string
   recordedAt: string
   sessionOccurrenceId: string | null
@@ -317,6 +343,83 @@ export type JournalEvent = {
   } | null
   itemLinks: EventItemLink[]
   itemEffects: ItemEffect[]
+}
+
+export type JournalEventReference = {
+  id: string
+  summary: string
+  status: JournalEventStatus
+  effectiveAt: string
+}
+
+export type JournalCorrection = {
+  eligible: boolean
+  unavailableReason: string | null
+  replaces: JournalEventReference | null
+  replacedBy: JournalEventReference[]
+}
+
+export type JournalEventDetail = {
+  id: string
+  planId: string
+  eventTypeId: string
+  eventTypeName: string | null
+  eventTypeKey: string | null
+  trackId: string | null
+  trackName: string | null
+  trackKey: string | null
+  summary: string
+  quantity: string | null
+  unit: string | null
+  note: string | null
+  payload: JsonMap
+  origin: JournalEventOrigin
+  status: JournalEventStatus
+  effectiveAt: string
+  recordedAt: string
+  correctedAt: string | null
+  voidedAt: string | null
+  targetSnapshot: JsonMap | null
+  sessionOccurrenceId: string | null
+  slotResultId: string | null
+  replacesEventInstanceId: string | null
+  itemLinks: EventItemLink[]
+  itemEffects: JournalItemEffect[]
+  correction: JournalCorrection
+}
+
+export type JournalFilters = {
+  eventTypeId: string | null
+  trackId: string | null
+  itemId: string | null
+  status: JournalEventStatus | null
+}
+
+export type JournalFilterOption = {
+  id: string
+  name: string
+}
+
+export type JournalPageData = {
+  planId: string
+  events: JournalEventDetail[]
+  pageInfo: {
+    limit: number
+    hasMore: boolean
+    nextCursor: string | null
+  }
+  appliedFilters: JournalFilters
+  filterOptions: {
+    eventTypes: JournalFilterOption[]
+    tracks: JournalFilterOption[]
+    items: JournalFilterOption[]
+    statuses: Array<{ value: JournalEventStatus; label: string }>
+  }
+}
+
+export type CorrectionResult = {
+  originalEventId: string
+  replacementEventId: string
 }
 
 export type ItemState = {
@@ -441,6 +544,10 @@ export type DashboardData = {
 // Mutations return only the slices they invalidate; merge into the cached
 // DashboardData. GET /app/dashboard always returns every slice.
 export type DashboardPatch = Partial<DashboardData>
+
+export type CorrectionDashboardPatch = DashboardPatch & {
+  correctionResult: CorrectionResult
+}
 
 export type DemoPlanKind = 'gym' | 'vial_inventory'
 

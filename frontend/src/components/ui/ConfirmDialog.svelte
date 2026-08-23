@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui'
+  import { handleDialogOpenAutoFocus } from '../../lib/dialogFocus'
   import Button from './Button.svelte'
 
   let {
@@ -24,6 +25,7 @@
 
   let busy = $state(false)
   let error = $state<string | null>(null)
+  let content = $state<HTMLElement | null>(null)
 
   async function confirm() {
     busy = true
@@ -50,13 +52,19 @@
 <Dialog.Root {open} onOpenChange={(next) => !next && close()}>
   <Dialog.Portal>
     <Dialog.Overlay class="dialog-overlay" />
-    <Dialog.Content class="dialog-content small-dialog">
+    <Dialog.Content
+      bind:ref={content}
+      class="dialog-content small-dialog"
+      onEscapeKeydown={(event) => busy && event.preventDefault()}
+      onInteractOutside={(event) => busy && event.preventDefault()}
+      onOpenAutoFocus={(event) => handleDialogOpenAutoFocus(event, () => content)}
+    >
       <div class="dialog-header">
         <div>
           <Dialog.Title>{title}</Dialog.Title>
           <Dialog.Description>{message}</Dialog.Description>
         </div>
-        <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+        <Dialog.Close class="icon-button" aria-label="Close" disabled={busy}>×</Dialog.Close>
       </div>
 
       {#if error}
@@ -64,7 +72,14 @@
       {/if}
 
       <div class="dialog-actions confirm-actions">
-        <Button variant="secondary" disabled={busy} onclick={close}>{cancelLabel}</Button>
+        <Button
+          variant="secondary"
+          data-dialog-initial-focus
+          disabled={busy}
+          onclick={close}
+        >
+          {cancelLabel}
+        </Button>
         <Button variant={danger ? 'danger' : 'primary'} disabled={busy} onclick={confirm}>
           {busy ? busyLabel : confirmLabel}
         </Button>

@@ -33,14 +33,7 @@ export function setCurrentUser(user: CurrentUser): void {
 }
 
 export async function completeCurrentUserProfile(fullName: string): Promise<void> {
-  authState.update((state) => ({ ...state, loading: true }))
-
-  try {
-    authState.set({ loading: false, user: await completeProfile(fullName) })
-  } catch (error) {
-    authState.update((state) => ({ ...state, loading: false }))
-    throw error
-  }
+  authState.set({ loading: false, user: await completeProfile(fullName) })
 }
 
 export async function logoutCurrentUser(): Promise<void> {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ApiRequestError } from '../../api/http'
   import Button from '../../components/ui/Button.svelte'
   import { completeCurrentUserProfile } from './authStore'
 
@@ -18,8 +19,10 @@
 
     try {
       await completeCurrentUserProfile(fullName.trim())
-    } catch {
-      error = 'Please enter your name.'
+    } catch (caught) {
+      error = caught instanceof ApiRequestError
+        ? caught.message
+        : 'We could not save your profile.'
     } finally {
       saving = false
     }

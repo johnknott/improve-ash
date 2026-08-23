@@ -30,6 +30,7 @@ defmodule Improve.Sessions do
       define :list_slot_results, action: :read
       define :complete_slot_result, action: :complete
       define :swap_slot_result, action: :swap
+      define :correct_slot_result, action: :correct
       define :skip_slot_result, action: :skip
     end
   end

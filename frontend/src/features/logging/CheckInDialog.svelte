@@ -6,6 +6,7 @@
   import { checkInDialogOpen, showToast } from '../../app/uiState'
   import Button from '../../components/ui/Button.svelte'
   import { formatDate } from '../../lib/dates'
+  import { focusDialogTarget, handleDialogOpenAutoFocus } from '../../lib/dialogFocus'
   import { selectedDate } from '../../app/dashboardState'
   import CheckInSessionStep from './CheckInSessionStep.svelte'
   import TrackLogForm from '../today/TrackLogForm.svelte'
@@ -21,6 +22,8 @@
   let index = $state(0)
   let handled = $state(0)
   let seeded = $state(false)
+  let content = $state<HTMLElement | null>(null)
+  let busy = $state(false)
 
   let work = $derived($today?.work ?? [])
   let remaining = $derived(work.filter((item) => REMAINING.includes(item.status)))
@@ -33,6 +36,7 @@
       queue = []
       index = 0
       handled = 0
+      busy = false
       seeded = true
     }
 
@@ -42,6 +46,10 @@
   })
 
   function close() {
+    if (busy) {
+      return
+    }
+
     checkInDialogOpen.set(false)
   }
 
@@ -50,6 +58,7 @@
     index = 0
     handled = 0
     stage = queue.length > 0 ? 'steps' : 'done'
+    focusDialogTarget(() => content)
   }
 
   function advance() {
@@ -58,6 +67,8 @@
     } else {
       stage = 'done'
     }
+
+    focusDialogTarget(() => content)
   }
 
   function onStepFinished() {
@@ -71,6 +82,8 @@
     } else {
       stage = 'intro'
     }
+
+    focusDialogTarget(() => content)
   }
 
   function finishSweep() {
@@ -84,14 +97,21 @@
 <Dialog.Root open={$checkInDialogOpen} onOpenChange={(next) => !next && close()}>
   <Dialog.Portal>
     <Dialog.Overlay class="dialog-overlay" />
-    <Dialog.Content class="dialog-content small-dialog">
+    <Dialog.Content
+      bind:ref={content}
+      class="dialog-content small-dialog"
+      aria-busy={busy}
+      onEscapeKeydown={(event) => busy && event.preventDefault()}
+      onInteractOutside={(event) => busy && event.preventDefault()}
+      onOpenAutoFocus={(event) => handleDialogOpenAutoFocus(event, () => content)}
+    >
       {#if stage === 'intro'}
         <div class="dialog-header">
           <div>
             <Dialog.Title>Check-in for {formatDate($selectedDate)}</Dialog.Title>
             <Dialog.Description>Work through what's left, one at a time.</Dialog.Description>
           </div>
-          <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+          <Dialog.Close class="icon-button" aria-label="Close" disabled={busy}>×</Dialog.Close>
         </div>
 
         <div class="checkin-intro">
@@ -113,8 +133,18 @@
         </div>
 
         <div class="dialog-actions">
-          <Button variant="secondary" onclick={close}>Not now</Button>
-          <Button disabled={remaining.length === 0} onclick={start}>
+          <Button
+            variant="secondary"
+            data-dialog-initial-focus={remaining.length === 0 ? true : undefined}
+            onclick={close}
+          >
+            Not now
+          </Button>
+          <Button
+            data-dialog-initial-focus={remaining.length > 0 ? true : undefined}
+            disabled={remaining.length === 0}
+            onclick={start}
+          >
             {remaining.length === 0 ? 'All done' : 'Start check-in'}
           </Button>
         </div>
@@ -124,7 +154,7 @@
             <Dialog.Title>{current.title}</Dialog.Title>
             <Dialog.Description>{index + 1} of {queue.length}</Dialog.Description>
           </div>
-          <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+          <Dialog.Close class="icon-button" aria-label="Close" disabled={busy}>×</Dialog.Close>
         </div>
 
         {#key current.id}
@@ -134,6 +164,7 @@
               onFinished={onStepFinished}
               onBack={back}
               onLeave={advance}
+              onBusyChange={(next) => (busy = next)}
             />
           {:else}
             <TrackLogForm
@@ -141,6 +172,7 @@
               onFinished={onStepFinished}
               onBack={back}
               onLeave={advance}
+              onBusyChange={(next) => (busy = next)}
             />
           {/if}
         {/key}
@@ -154,7 +186,7 @@
                 : `${handled} ${handled === 1 ? 'item' : 'items'} handled.`}
             </Dialog.Description>
           </div>
-          <Dialog.Close class="icon-button" aria-label="Close">×</Dialog.Close>
+          <Dialog.Close class="icon-button" aria-label="Close" disabled={busy}>×</Dialog.Close>
         </div>
 
         <div class="checkin-done">
@@ -163,7 +195,7 @@
         </div>
 
         <div class="dialog-actions">
-          <Button onclick={finishSweep}>Done</Button>
+          <Button data-dialog-initial-focus onclick={finishSweep}>Done</Button>
         </div>
       {/if}
     </Dialog.Content>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Check } from '@lucide/svelte'
   import type {
     ChecklistTargetProgress,
     TargetProvenance,
@@ -36,13 +37,24 @@
 
 {#if hasProgress && label}
   <div class="target-progress">
-    <p class="target-progress-label">{label}</p>
+    <p class="target-progress-label">
+      <span>Progress</span>
+      <strong>{label}</strong>
+    </p>
 
     {#if checklist}
       <ul class="checklist-chips">
         {#each checklist.requiredItems as itemKey (itemKey)}
-          <li class:done={checklist.completedItems.includes(itemKey)}>
-            {itemKey.replaceAll('_', ' ')}
+          {@const itemLabel = itemKey.replaceAll('_', ' ')}
+          {@const completed = checklist.completedItems.includes(itemKey)}
+          <li
+            class:done={completed}
+            aria-label={`${itemLabel}, ${completed ? 'complete' : 'not complete'}`}
+          >
+            {#if completed}
+              <Check size={11} strokeWidth={2.5} aria-hidden="true" />
+            {/if}
+            <span aria-hidden="true">{itemLabel}</span>
           </li>
         {/each}
       </ul>

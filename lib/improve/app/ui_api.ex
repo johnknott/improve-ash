@@ -28,6 +28,29 @@ defmodule Improve.App.UiApi do
     end
   end
 
+  def journal(actor, params) do
+    with {:ok, plan} <- get_owned_plan(params, actor),
+         {:ok, page} <-
+           Journal.read_journal_page(plan,
+             actor: actor,
+             cursor: Map.get(params, "cursor"),
+             limit: Map.get(params, "limit"),
+             track_id: Map.get(params, "track_id"),
+             item_id: Map.get(params, "item_id"),
+             event_type_id: Map.get(params, "event_type_id"),
+             status: Map.get(params, "status")
+           ),
+         {:ok, filter_options} <- journal_filter_options(plan.id, actor) do
+      {:ok, journal_page_json(page, filter_options)}
+    else
+      {:error, diagnostics} when is_list(diagnostics) ->
+        {:error, diagnostics}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
   def log_event(actor, params) do
     with {:ok, attrs} <- log_attrs(params),
          {:ok, plan} <- get_owned_plan(params, actor),
@@ -208,25 +231,18 @@ defmodule Improve.App.UiApi do
   defp offline_diagnostic_json(%{message: message}), do: message
   defp offline_diagnostic_json(diagnostic), do: inspect(diagnostic)
 
-  def correct_linked_event(actor, params) do
+  def correct_event(actor, params) do
     with {:ok, plan} <- get_owned_plan(params, actor),
          {:ok, original_event} <- get_event(params, actor),
          :ok <- ensure_event_plan(original_event, plan),
-         {:ok, linked_item} <- get_plan_item(params, plan.id, actor),
-         {:ok, original_effect} <- get_active_effect(original_event, linked_item, actor),
-         {:ok, event_type} <- get_plan_event_type(params, plan.id, actor),
-         {:ok, _result} <-
-           correct_linked_event(
-             plan,
-             linked_item,
-             event_type,
-             original_event,
-             original_effect,
-             params,
-             actor
-           ),
+         {:ok, context} <- Journal.correction_context(original_event, actor: actor),
+         {:ok, result} <- correct_event(context, params, actor),
          {:ok, payload} <- mutation_payload(plan, actor, params, [:today, :journal, :planDetail]) do
-      {:ok, payload}
+      {:ok,
+       Map.put(payload, :correctionResult, %{
+         originalEventId: result.corrected_event.id,
+         replacementEventId: result.replacement.event.id
+       })}
     else
       {:error, diagnostics} when is_list(diagnostics) ->
         {:error, diagnostics}
@@ -235,6 +251,8 @@ defmodule Improve.App.UiApi do
         {:error, error}
     end
   end
+
+  def correct_linked_event(actor, params), do: correct_event(actor, params)
 
   def create_plan(actor, params) do
     with {:ok, attrs} <- create_plan_attrs(params),
@@ -539,6 +557,154 @@ defmodule Improve.App.UiApi do
            ) do
       {:ok, %{proposal: proposal_json(dismissed)}}
     end
+  end
+
+  defp journal_filter_options(plan_id, actor) do
+    with {:ok, tracks} <-
+           Plans.list_tracks(
+             actor: actor,
+             query: [filter: [plan_id: plan_id], sort: [name: :asc, id: :asc]]
+           ),
+         {:ok, items} <-
+           Plans.list_items(
+             actor: actor,
+             query: [filter: [plan_id: plan_id], sort: [name: :asc, id: :asc]]
+           ),
+         {:ok, event_types} <-
+           Plans.list_event_types(
+             actor: actor,
+             query: [filter: [plan_id: plan_id], sort: [name: :asc, id: :asc]]
+           ) do
+      {:ok,
+       %{
+         tracks: Enum.map(tracks, &journal_filter_option_json/1),
+         items: Enum.map(items, &journal_filter_option_json/1),
+         eventTypes: Enum.map(event_types, &journal_filter_option_json/1),
+         statuses:
+           Enum.map(Journal.journal_statuses(), fn status ->
+             %{
+               value: Atom.to_string(status),
+               label: status |> Atom.to_string() |> String.capitalize()
+             }
+           end)
+       }}
+    end
+  end
+
+  defp journal_filter_option_json(resource) do
+    %{id: resource.id, key: resource.key, name: resource.name}
+  end
+
+  defp journal_page_json(page, filter_options) do
+    %{
+      planId: page.plan.id,
+      events:
+        Enum.map(
+          page.events,
+          &journal_event_json(&1, page.replacements_by_event_id)
+        ),
+      pageInfo: %{
+        limit: page.page_info.limit,
+        hasMore: page.page_info.has_more?,
+        nextCursor: page.page_info.next_cursor
+      },
+      filterOptions: filter_options,
+      appliedFilters: %{
+        trackId: page.applied_filters.track_id,
+        itemId: page.applied_filters.item_id,
+        eventTypeId: page.applied_filters.event_type_id,
+        status: page.applied_filters.status && Atom.to_string(page.applied_filters.status)
+      }
+    }
+  end
+
+  defp journal_event_json(event, replacements_by_event_id) do
+    event_type = event.event_type
+    track = event.track
+    event_item_links = Enum.sort_by(event.event_item_links, &{&1.role, &1.item_id, &1.id})
+    item_effects = Enum.sort_by(event.item_effects, &{&1.inserted_at, &1.id})
+    eligibility = Journal.correction_eligibility(event, event_item_links, item_effects)
+
+    %{
+      id: event.id,
+      planId: event.plan_id,
+      eventTypeId: event.event_type_id,
+      eventTypeName: event_type && event_type.name,
+      eventTypeKey: event_type && event_type.key,
+      trackId: event.track_id,
+      trackName: track && track.name,
+      trackKey: track && track.key,
+      summary: event.summary,
+      quantity: decimal_string(event.quantity),
+      unit: event.unit,
+      note: event.note,
+      payload: event.payload,
+      targetSnapshot: event.target_snapshot,
+      status: Atom.to_string(event.status),
+      origin: Atom.to_string(event.origin),
+      effectiveAt: DateTime.to_iso8601(event.effective_at),
+      recordedAt: DateTime.to_iso8601(event.recorded_at),
+      correctedAt: event_lifecycle_time(event, :corrected),
+      voidedAt: event_lifecycle_time(event, :voided),
+      sessionOccurrenceId: event.session_occurrence_id,
+      slotResultId: event.slot_result_id,
+      replacesEventInstanceId: event.replaces_event_instance_id,
+      itemLinks: Enum.map(event_item_links, &journal_event_item_link_json/1),
+      itemEffects: Enum.map(item_effects, &journal_item_effect_json/1),
+      correction: %{
+        eligible: eligibility.eligible,
+        unavailableReason: eligibility.unavailable_reason,
+        replaces: journal_event_reference_json(event.replaces_event_instance),
+        replacedBy:
+          replacements_by_event_id
+          |> Map.get(event.id, [])
+          |> Enum.map(&journal_event_reference_json/1)
+      }
+    }
+  end
+
+  defp event_lifecycle_time(%{status: status, voided_at: time}, status) when not is_nil(time),
+    do: DateTime.to_iso8601(time)
+
+  defp event_lifecycle_time(_event, _status), do: nil
+
+  defp journal_event_reference_json(nil), do: nil
+
+  defp journal_event_reference_json(event) do
+    %{
+      id: event.id,
+      summary: event.summary,
+      status: Atom.to_string(event.status),
+      effectiveAt: DateTime.to_iso8601(event.effective_at)
+    }
+  end
+
+  defp journal_event_item_link_json(link) do
+    %{
+      id: link.id,
+      role: link.role,
+      itemId: link.item_id,
+      itemKey: link.item && link.item.key,
+      itemName: link.item && link.item.name,
+      metadata: link.metadata
+    }
+  end
+
+  defp journal_item_effect_json(effect) do
+    %{
+      id: effect.id,
+      itemId: effect.item_id,
+      itemKey: effect.item && effect.item.key,
+      itemName: effect.item && effect.item.name,
+      effectType: Atom.to_string(effect.effect_type),
+      quantity: decimal_string(effect.quantity),
+      unit: effect.unit,
+      payload: effect.payload,
+      status: Atom.to_string(effect.status),
+      voidedAt: effect.voided_at && DateTime.to_iso8601(effect.voided_at),
+      eventInstanceId: effect.event_instance_id,
+      replacesItemEffectId: effect.replaces_item_effect_id
+    }
   end
 
   @dashboard_slices [:plans, :currentPlan, :today, :journal, :planDetail]
@@ -1082,25 +1248,6 @@ defmodule Improve.App.UiApi do
   defp ensure_event_plan(%{plan_id: plan_id}, %{id: plan_id}), do: :ok
   defp ensure_event_plan(_event, _plan), do: {:error, :not_found}
 
-  defp get_active_effect(original_event, linked_item, actor) do
-    with {:ok, effects} <-
-           Journal.list_item_effects(
-             actor: actor,
-             query: [
-               filter: [
-                 event_instance_id: original_event.id,
-                 item_id: linked_item.id,
-                 status: :active
-               ]
-             ]
-           ) do
-      case effects do
-        [effect | _rest] -> {:ok, effect}
-        [] -> {:error, :not_found}
-      end
-    end
-  end
-
   defp log_linked_event(plan, linked_item, event_type, params, actor) do
     now = DateTime.utc_now()
 
@@ -1115,34 +1262,157 @@ defmodule Improve.App.UiApi do
       {:error, [Exception.message(error)]}
   end
 
-  defp correct_linked_event(
-         plan,
-         linked_item,
-         event_type,
-         original_event,
-         original_effect,
-         params,
-         actor
-       ) do
+  defp correct_event(context, params, actor) do
     now = DateTime.utc_now()
+    original_event = context.event
+    quantity = correction_value(params, "quantity", original_event.quantity)
+    unit = correction_value(params, "unit", original_event.unit)
+    note = correction_value(params, "note", original_event.note)
 
-    attrs =
-      params
-      |> linked_event_attrs(plan, linked_item, event_type, now)
-      |> Map.merge(%{
-        original_event: original_event,
-        original_effect: original_effect,
-        corrected_at: now,
-        correction_note:
-          blank_to_nil(Map.get(params, "correction_note")) || "Corrected by replacement event",
-        summary: event_summary(params, "Corrected #{event_type.name} for #{linked_item.name}")
-      })
+    with {:ok, effective_at} <- correction_effective_at(params, original_event),
+         {:ok, summary} <- correction_summary(params, context),
+         {:ok, payload} <- correction_payload(params, original_event, quantity, unit, note) do
+      replacement = %{
+        plan_id: original_event.plan_id,
+        event_type_id: original_event.event_type_id,
+        session_occurrence_id: original_event.session_occurrence_id,
+        slot_result_id: original_event.slot_result_id,
+        track_id: original_event.track_id,
+        effective_at: effective_at,
+        recorded_at: now,
+        summary: summary,
+        quantity: quantity,
+        unit: unit,
+        payload: payload,
+        note: note,
+        origin: :manual,
+        replaces_event_instance_id: original_event.id,
+        target_snapshot: original_event.target_snapshot,
+        item_links:
+          Enum.map(context.event_item_links, fn link ->
+            %{role: link.role, item_id: link.item_id, metadata: link.metadata}
+          end)
+      }
 
-    {:ok, Journal.correct_linked_item_event!(attrs, actor: actor)}
+      result =
+        Journal.correct_generic_event!(
+          %{
+            original_event: original_event,
+            original_effects: context.item_effects,
+            corrected_at: now,
+            correction_note:
+              correction_value(
+                params,
+                "correction_note",
+                "Corrected from the Journal."
+              ) || "Corrected from the Journal.",
+            replacement: replacement
+          },
+          actor: actor
+        )
+
+      {:ok, result}
+    end
   rescue
+    error in [Improve.CommandError] ->
+      {:error, error.details}
+
     error in [KeyError, ArgumentError, Ash.Error.Invalid, Ash.Error.Forbidden] ->
       {:error, [Exception.message(error)]}
   end
+
+  defp correction_effective_at(params, original_event) do
+    case Map.fetch(params, "effective_at") do
+      :error ->
+        {:ok, original_event.effective_at}
+
+      {:ok, value} ->
+        case parse_datetime(value) do
+          %DateTime{} = effective_at ->
+            {:ok, effective_at}
+
+          _other ->
+            {:error,
+             [%{field: "effective_at", message: "Enter a valid date and time for this entry."}]}
+        end
+    end
+  end
+
+  defp correction_summary(params, context) do
+    case Map.fetch(params, "summary") do
+      :error ->
+        {:ok, default_correction_summary(context)}
+
+      {:ok, value} when is_binary(value) ->
+        case String.trim(value) do
+          "" -> {:error, [%{field: "summary", message: "Describe what happened."}]}
+          summary -> {:ok, summary}
+        end
+
+      {:ok, _value} ->
+        {:error, [%{field: "summary", message: "Describe what happened."}]}
+    end
+  end
+
+  defp default_correction_summary(%{
+         event_type: event_type,
+         event_item_links: [%{item: %{name: item_name}}]
+       }) do
+    "Corrected #{event_type.name} for #{item_name}"
+  end
+
+  defp default_correction_summary(context), do: "Corrected #{context.event.summary}"
+
+  defp correction_payload(params, original_event, quantity, unit, note) do
+    with {:ok, payload} <- correction_payload_input(params, original_event) do
+      {:ok,
+       payload
+       |> sync_correction_payload(params, "quantity", "amount", quantity)
+       |> maybe_sync_existing_payload(params, "quantity", "quantity", quantity)
+       |> sync_correction_payload(params, "unit", "unit", unit)
+       |> sync_correction_payload(params, "note", "note", note)}
+    end
+  end
+
+  defp correction_payload_input(params, original_event) do
+    case Map.fetch(params, "payload") do
+      :error ->
+        {:ok, original_event.payload || %{}}
+
+      {:ok, payload} when is_map(payload) ->
+        {:ok, payload}
+
+      {:ok, _payload} ->
+        {:error, [%{field: "payload", message: "Event details must be a set of fields."}]}
+    end
+  end
+
+  defp correction_value(params, key, default) do
+    case Map.fetch(params, key) do
+      :error -> default
+      {:ok, value} when is_binary(value) -> value |> String.trim() |> blank_to_nil()
+      {:ok, value} -> value
+    end
+  end
+
+  defp sync_correction_payload(payload, params, input_key, payload_key, value) do
+    if Map.has_key?(params, input_key) do
+      put_or_delete(payload, payload_key, value)
+    else
+      payload
+    end
+  end
+
+  defp maybe_sync_existing_payload(payload, params, input_key, payload_key, value) do
+    if Map.has_key?(payload, payload_key) do
+      sync_correction_payload(payload, params, input_key, payload_key, value)
+    else
+      payload
+    end
+  end
+
+  defp put_or_delete(map, key, nil), do: Map.delete(map, key)
+  defp put_or_delete(map, key, value), do: Map.put(map, key, value)
 
   defp linked_event_attrs(params, plan, linked_item, event_type, now) do
     %{
@@ -1373,6 +1643,8 @@ defmodule Improve.App.UiApi do
          pools_by_id,
          items_by_id
        ) do
+    counts = today_status_counts(projection.projected_work)
+
     work =
       Enum.map(
         projection.projected_work,
@@ -1387,14 +1659,15 @@ defmodule Improve.App.UiApi do
         )
       )
 
-    completed = Enum.count(work, &(&1.status == "completed"))
-
     %{
       planId: projection.plan_id,
       date: Date.to_iso8601(projection.date),
-      total: length(work),
-      completed: completed,
-      remaining: max(length(work) - completed, 0),
+      total: counts.total,
+      completed: counts.completed,
+      skipped: counts.skipped,
+      missed: counts.missed,
+      onHold: counts.on_hold,
+      remaining: counts.remaining,
       work: work,
       upcoming:
         upcoming
@@ -1413,6 +1686,22 @@ defmodule Improve.App.UiApi do
       proposals: proposals_summary_json(plan, actor),
       diagnostics: camelize_keys(projection.diagnostics),
       explanations: camelize_keys(projection.explanations)
+    }
+  end
+
+  defp today_status_counts(projected_work) do
+    frequencies = Enum.frequencies_by(projected_work, & &1.status)
+
+    %{
+      total: length(projected_work),
+      completed: Map.get(frequencies, :completed, 0),
+      skipped: Map.get(frequencies, :skipped, 0),
+      missed: Map.get(frequencies, :missed, 0),
+      on_hold: Map.get(frequencies, :on_hold, 0),
+      remaining:
+        Enum.sum(
+          for status <- [:planned, :started, :partial], do: Map.get(frequencies, status, 0)
+        )
     }
   end
 

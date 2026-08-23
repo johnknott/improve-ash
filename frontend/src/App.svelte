@@ -3,6 +3,7 @@
   import AppShell from './app/AppShell.svelte'
   import { dashboardData, dashboardStatus, loadDashboard, resetDashboard } from './app/dashboardState'
   import DevErrorBadge from './components/DevErrorBadge.svelte'
+  import LoadingState from './components/ui/LoadingState.svelte'
   import CompleteProfilePage from './features/auth/CompleteProfilePage.svelte'
   import LoginPage from './features/auth/LoginPage.svelte'
   import { authState, loadCurrentUser } from './features/auth/authStore'
@@ -29,10 +30,10 @@
 </script>
 
 {#if $authState.loading}
-  <main class="loading-shell">
-    <div class="loading-shell-inner">
-      <div class="loading-dot"></div>
-      <p>Loading Improve</p>
+  <main class="loading-shell" aria-busy="true">
+    <div class="auth-panel auth-loading-panel">
+      <p class="eyebrow">Improve</p>
+      <LoadingState message="Opening your space" />
     </div>
   </main>
 {:else if !$authState.user}
@@ -44,6 +45,7 @@
     user={$authState.user}
     data={$dashboardData}
     loading={$dashboardStatus.loading}
+    refreshing={$dashboardStatus.refreshing}
     error={$dashboardStatus.error}
     onRetry={() => loadDashboard()}
   />

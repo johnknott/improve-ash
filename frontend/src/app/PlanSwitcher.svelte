@@ -8,15 +8,36 @@
     } from "@lucide/svelte";
     import { DropdownMenu } from "bits-ui";
     import type { Plan } from "../api/types";
-    import { loadDashboard, selectedPlanId } from "./dashboardState";
+    import { changeSelectedPlan } from "./dashboardState";
     import { openEditPlanDialog, openNewPlanDialog } from "./uiState";
 
-    let { plans, currentPlan }: { plans: Plan[]; currentPlan: Plan | null } =
-        $props();
+    let {
+        plans,
+        currentPlan,
+        busy = false,
+        loading = false,
+        onNavigate = () => {},
+    }: {
+        plans: Plan[];
+        currentPlan: Plan | null;
+        busy?: boolean;
+        loading?: boolean;
+        onNavigate?: () => void;
+    } = $props();
 
     async function selectPlan(planId: string) {
-        selectedPlanId.set(planId);
-        await loadDashboard(planId);
+        onNavigate();
+        await changeSelectedPlan(planId);
+    }
+
+    function editPlan(plan: Plan) {
+        onNavigate();
+        openEditPlanDialog(plan);
+    }
+
+    function newPlan() {
+        onNavigate();
+        openNewPlanDialog();
     }
 
     const horizontalOffset = 10;
@@ -34,11 +55,15 @@
 </script>
 
 <DropdownMenu.Root>
-    <DropdownMenu.Trigger class="plan-switcher" onpointerdown={capturePointer}>
+    <DropdownMenu.Trigger class="plan-switcher" disabled={busy} onpointerdown={capturePointer}>
         <ListChecks class="plan-switcher-icon" size={18} />
         <span class="plan-switcher-copy">
-            <strong>{currentPlan?.name ?? "No plan"}</strong>
-            <span>{currentPlan?.dayLabel ?? "Create or import a plan"}</span>
+            <strong>{loading ? "Loading plans" : (currentPlan?.name ?? "No plan")}</strong>
+            <span>
+                {loading
+                    ? "Opening your workspace"
+                    : (currentPlan?.dayLabel ?? "Create or import a plan")}
+            </span>
         </span>
         <ChevronDown class="plan-switcher-icon" size={16} />
     </DropdownMenu.Trigger>
@@ -71,7 +96,7 @@
             {#if currentPlan}
                 <DropdownMenu.Item
                     class="dropdown-item dropdown-action"
-                    onclick={() => openEditPlanDialog(currentPlan)}
+                    onclick={() => editPlan(currentPlan)}
                 >
                     <Pencil size={16} />
                     <span>Edit plan</span>
@@ -80,7 +105,7 @@
 
             <DropdownMenu.Item
                 class="dropdown-item dropdown-action"
-                onclick={openNewPlanDialog}
+                onclick={newPlan}
             >
                 <Plus size={16} />
                 <span>New plan</span>

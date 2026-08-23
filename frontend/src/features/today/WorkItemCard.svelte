@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte'
   import { ClipboardList, PauseCircle, Target } from '@lucide/svelte'
   import type { TimeOffWindow, WorkItem } from '../../api/types'
   import {
@@ -17,6 +18,7 @@
   let { item }: { item: WorkItem } = $props()
 
   let busy = $state(false)
+  let focusTarget = $state<HTMLHeadingElement | null>(null)
 
   let sessionState = $derived(item.session?.state ?? null)
   let canStart = $derived(
@@ -24,7 +26,8 @@
   )
   let sessionOpen = $derived(item.status === 'started' || item.status === 'partial')
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<boolean>) {
+    const trigger = document.activeElement
     busy = true
 
     try {
@@ -33,6 +36,13 @@
       showToast(caught instanceof Error ? caught.message : 'That action failed.')
     } finally {
       busy = false
+      await tick()
+
+      const focusWasLost = !document.activeElement || document.activeElement === document.body
+
+      if ((!(trigger instanceof HTMLElement) || !trigger.isConnected) && focusWasLost) {
+        focusTarget?.focus()
+      }
     }
   }
 
@@ -86,7 +96,7 @@
   }
 </script>
 
-<Card class="work-card {onHold ? 'on-hold' : ''}">
+<Card class="work-card status-{item.status} {onHold ? 'on-hold' : ''}">
   <div class="work-card-head">
     <span class="work-icon">
       {#if item.kind === 'session'}
@@ -97,7 +107,7 @@
     </span>
 
     <div class="work-card-title">
-      <h3>{item.title}</h3>
+      <h3 bind:this={focusTarget} tabindex="-1">{item.title}</h3>
       {#if item.explanation}
         <p class="work-explanation">{item.explanation}</p>
       {/if}
@@ -116,6 +126,7 @@
         <Button
           variant="secondary"
           class="compact-button"
+          aria-label={`Log ${item.title}`}
           disabled={busy}
           onclick={() => openTrackLog(item)}
         >

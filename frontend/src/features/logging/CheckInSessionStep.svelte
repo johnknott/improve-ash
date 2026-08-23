@@ -4,6 +4,7 @@
   import Button from '../../components/ui/Button.svelte'
   import Field from '../../components/ui/Field.svelte'
   import TextInput from '../../components/ui/TextInput.svelte'
+  import { focusDialogTarget } from '../../lib/dialogFocus'
 
   // A session step in the check-in sweep: a quick slot summary and the
   // whole-session decisions. Slot-by-slot logging still lives on the Today
@@ -13,17 +14,20 @@
     onFinished,
     onBack = null,
     onLeave = null,
+    onBusyChange = null,
   }: {
     item: WorkItem
     onFinished: () => void
     onBack?: (() => void) | null
     onLeave?: (() => void) | null
+    onBusyChange?: ((busy: boolean) => void) | null
   } = $props()
 
   let skipReason = $state('')
   let showSkipReason = $state(false)
   let saving = $state(false)
   let error = $state<string | null>(null)
+  let step = $state<HTMLElement | null>(null)
 
   let session = $derived(item.session)
   let occurrenceId = $derived(session?.state.sessionOccurrenceId ?? null)
@@ -36,17 +40,32 @@
       : base
   })
 
-  async function run(action: () => Promise<void>) {
-    saving = true
+  function setSaving(next: boolean) {
+    if (saving === next) {
+      return
+    }
+
+    saving = next
+    onBusyChange?.(next)
+  }
+
+  async function run(action: () => Promise<boolean>) {
+    setSaving(true)
     error = null
 
     try {
-      await action()
+      const applied = await action()
+
+      if (!applied) {
+        return
+      }
+
+      setSaving(false)
       onFinished()
     } catch (caught) {
       error = caught instanceof Error ? caught.message : 'That did not save.'
     } finally {
-      saving = false
+      setSaving(false)
     }
   }
 
@@ -67,9 +86,14 @@
       run(() => skipWholeSession(occurrenceId!, skipReason.trim() || null))
     }
   }
+
+  function revealSkipReason() {
+    showSkipReason = true
+    focusDialogTarget(() => step, '[data-session-skip-reason]')
+  }
 </script>
 
-<div class="track-log-form">
+<div bind:this={step} class="track-log-form" aria-busy={saving}>
   <div class="target-card">
     <p class="target-card-eyebrow"><span>Session</span></p>
     <h3>{item.title}</h3>
@@ -84,7 +108,7 @@
 
   {#if showSkipReason}
     <Field label="Why skip it?" hint="Optional — honesty helps the review">
-      <TextInput bind:value={skipReason} disabled={saving} />
+      <TextInput bind:value={skipReason} data-session-skip-reason disabled={saving} />
     </Field>
   {/if}
 
@@ -104,15 +128,15 @@
       {#if showSkipReason}
         <Button variant="secondary" disabled={saving} onclick={skip}>Skip session</Button>
       {:else}
-        <Button variant="secondary" disabled={saving} onclick={() => (showSkipReason = true)}>
+        <Button variant="secondary" disabled={saving} onclick={revealSkipReason}>
           Skip
         </Button>
       {/if}
-      <Button disabled={saving} onclick={complete}>
+      <Button data-dialog-initial-focus disabled={saving} onclick={complete}>
         {saving ? 'Working' : 'Complete'}
       </Button>
     {:else}
-      <Button disabled={saving} onclick={start}>
+      <Button data-dialog-initial-focus disabled={saving} onclick={start}>
         {saving ? 'Starting' : 'Start session'}
       </Button>
     {/if}

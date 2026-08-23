@@ -25,11 +25,17 @@
     let {
         data,
         user,
+        busy = false,
+        loading = false,
+        compact = false,
         open = false,
         onNavigate = () => {},
     }: {
         data: DashboardData | null;
         user: CurrentUser;
+        busy?: boolean;
+        loading?: boolean;
+        compact?: boolean;
         open?: boolean;
         onNavigate?: () => void;
     } = $props();
@@ -54,8 +60,6 @@
         { id: "item-types", label: "Item Types", icon: Layers },
     ];
 
-    let isDark = $derived($theme === "dark");
-
     function go(route: AppRoute) {
         navigate(route);
         onNavigate();
@@ -75,17 +79,24 @@
     }
 </script>
 
-<aside class:open class="sidebar">
+<aside
+    id="app-sidebar"
+    class:open
+    class="sidebar"
+    aria-label="Application navigation"
+    aria-hidden={compact && !open ? "true" : undefined}
+    inert={compact && !open ? true : undefined}
+>
     <div class="sidebar-header">
         <img class="brand-mark" src="/logo.svg" alt="" />
         <span class="brand-name">Improve</span>
         <button
             class="theme-toggle"
             type="button"
-            aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+            aria-label={$theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             onclick={toggleTheme}
         >
-            {#if isDark}
+            {#if $theme === "dark"}
                 <Sun size={16} />
             {:else}
                 <Moon size={16} />
@@ -96,6 +107,9 @@
     <PlanSwitcher
         plans={data?.plans ?? []}
         currentPlan={data?.currentPlan ?? null}
+        {busy}
+        {loading}
+        {onNavigate}
     />
 
     <nav class="nav-groups" aria-label="Primary">
@@ -106,6 +120,7 @@
                 <button
                     class="nav-item"
                     class:active={$activeRoute.route === item.id}
+                    aria-current={$activeRoute.route === item.id ? "page" : undefined}
                     type="button"
                     onclick={() => go(item.id)}
                 >
@@ -122,6 +137,7 @@
                 <button
                     class="nav-item"
                     class:active={$activeRoute.route === item.id}
+                    aria-current={$activeRoute.route === item.id ? "page" : undefined}
                     type="button"
                     onclick={() => go(item.id)}
                 >
@@ -138,6 +154,7 @@
                 <button
                     class="nav-item"
                     class:active={$activeRoute.route === item.id}
+                    aria-current={$activeRoute.route === item.id ? "page" : undefined}
                     type="button"
                     onclick={() => go(item.id)}
                 >

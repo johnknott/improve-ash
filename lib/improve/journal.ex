@@ -3,8 +3,11 @@ defmodule Improve.Journal do
     extensions: [AshTypescript.Rpc],
     otp_app: :improve
 
+  require Ash.Query
+
   alias Improve.CommandError
   alias Improve.Journal.EventContract
+  alias Improve.Journal.EventInstance
   alias Improve.Journal.LogEventCommand
   alias Improve.Journal.OfflineIngressResult
   alias Improve.Planning.EffectRuleInterpreter
@@ -45,6 +48,9 @@ defmodule Improve.Journal do
   end
 
   @notifications_key {__MODULE__, :notifications}
+  @journal_page_default_limit 20
+  @journal_page_max_limit 50
+  @journal_statuses [:active, :corrected, :voided, :skipped]
 
   def log_generic_event(attrs, opts) do
     actor = Keyword.fetch!(opts, :actor)
@@ -571,6 +577,11 @@ defmodule Improve.Journal do
           :stale_session_state
         )
 
+      {:ok, %{event_instance_id: event_instance_id}}
+      when not is_nil(command.replaces_event_instance_id) and
+             event_instance_id == command.replaces_event_instance_id ->
+        :ok
+
       {:ok, %{status: status}} when status in [:completed, :skipped] ->
         needs_resolution("Slot result has already changed state.", :stale_session_state)
 
@@ -591,6 +602,10 @@ defmodule Improve.Journal do
   end
 
   defp validate_session_freshness(%{session_occurrence_id: nil}, _actor), do: :ok
+
+  defp validate_session_freshness(%{replaces_event_instance_id: event_id}, _actor)
+       when not is_nil(event_id),
+       do: :ok
 
   defp validate_session_freshness(command, actor) do
     case Sessions.get_session_occurrence(command.session_occurrence_id, actor: actor) do
@@ -642,6 +657,305 @@ defmodule Improve.Journal do
       end
     end
   end
+
+  def journal_statuses, do: @journal_statuses
+
+  def correction_context(event_or_id, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    with {:ok, event} <- get_event(id(event_or_id), actor: actor),
+         {:ok, event} <-
+           Ash.load(
+             event,
+             [
+               :event_type,
+               event_item_links: [:item],
+               item_effects: [:item, :replaces_item_effect]
+             ],
+             actor: actor
+           ) do
+      event_item_links = Enum.sort_by(event.event_item_links, &{&1.inserted_at, &1.id})
+      item_effects = Enum.sort_by(event.item_effects, &{&1.inserted_at, &1.id})
+      eligibility = correction_eligibility(event, event_item_links, item_effects)
+
+      if eligibility.eligible do
+        {:ok,
+         %{
+           event: event,
+           event_type: event.event_type,
+           event_item_links: event_item_links,
+           item_effects: item_effects
+         }}
+      else
+        {:error, [eligibility.unavailable_reason]}
+      end
+    end
+  end
+
+  def read_journal_page(plan_or_id, opts) do
+    actor = Keyword.fetch!(opts, :actor)
+
+    with {:ok, plan} <- fetch_plan(plan_or_id, actor),
+         {:ok, page_options} <- journal_page_options(opts),
+         {:ok, cursor_event} <- journal_cursor_event(plan.id, page_options, actor),
+         {:ok, events} <- journal_page_events(plan.id, page_options, cursor_event, actor),
+         page_events = Enum.take(events, page_options.limit),
+         {:ok, page_events} <- load_journal_page_events(page_events, actor),
+         {:ok, replacements} <- replacement_events(plan.id, page_events, actor) do
+      has_more? = length(events) > page_options.limit
+
+      {:ok,
+       %{
+         plan: plan,
+         events: page_events,
+         replacements_by_event_id: Enum.group_by(replacements, & &1.replaces_event_instance_id),
+         page_info: %{
+           limit: page_options.limit,
+           has_more?: has_more?,
+           next_cursor: next_journal_cursor(page_events, has_more?)
+         },
+         applied_filters: Map.drop(page_options, [:cursor, :limit])
+       }}
+    end
+  end
+
+  def correction_eligibility(%{status: :active}, event_item_links, item_effects)
+      when is_list(event_item_links) and is_list(item_effects) do
+    case item_effects do
+      [] ->
+        %{eligible: true, unavailable_reason: nil}
+
+      [%{status: :active, item_id: item_id}] ->
+        if Enum.any?(event_item_links, &(&1.item_id == item_id)) do
+          %{eligible: true, unavailable_reason: nil}
+        else
+          complex_correction_eligibility()
+        end
+
+      [%{status: _status}] ->
+        %{
+          eligible: false,
+          unavailable_reason:
+            "This entry has a state change that was already altered, so it cannot be corrected safely."
+        }
+
+      _multiple_effects ->
+        complex_correction_eligibility()
+    end
+  end
+
+  def correction_eligibility(%{status: :corrected}, _event_item_links, _item_effects) do
+    %{eligible: false, unavailable_reason: "This entry has already been corrected."}
+  end
+
+  def correction_eligibility(%{status: :voided}, _event_item_links, _item_effects) do
+    %{eligible: false, unavailable_reason: "Voided entries cannot be corrected."}
+  end
+
+  def correction_eligibility(%{status: :skipped}, _event_item_links, _item_effects) do
+    %{
+      eligible: false,
+      unavailable_reason: "Skipped entries are superseded by logging what actually happened."
+    }
+  end
+
+  def correction_eligibility(_event, _event_item_links, _item_effects) do
+    %{eligible: false, unavailable_reason: "This entry cannot be corrected."}
+  end
+
+  defp complex_correction_eligibility do
+    %{
+      eligible: false,
+      unavailable_reason: "This entry has state changes that need a richer correction flow."
+    }
+  end
+
+  defp journal_page_options(opts) do
+    with {:ok, limit} <- journal_page_limit(Keyword.get(opts, :limit)),
+         {:ok, cursor} <- journal_page_uuid(Keyword.get(opts, :cursor), "Journal cursor"),
+         {:ok, track_id} <- journal_page_uuid(Keyword.get(opts, :track_id), "Track filter"),
+         {:ok, item_id} <- journal_page_uuid(Keyword.get(opts, :item_id), "Item filter"),
+         {:ok, event_type_id} <-
+           journal_page_uuid(Keyword.get(opts, :event_type_id), "Event type filter"),
+         {:ok, status} <- journal_page_status(Keyword.get(opts, :status)) do
+      {:ok,
+       %{
+         limit: limit,
+         cursor: cursor,
+         track_id: track_id,
+         item_id: item_id,
+         event_type_id: event_type_id,
+         status: status
+       }}
+    end
+  end
+
+  defp journal_page_limit(nil), do: {:ok, @journal_page_default_limit}
+  defp journal_page_limit(""), do: {:ok, @journal_page_default_limit}
+
+  defp journal_page_limit(limit) when is_binary(limit) do
+    case Integer.parse(String.trim(limit)) do
+      {parsed, ""} -> journal_page_limit(parsed)
+      _other -> invalid_journal_page_limit()
+    end
+  end
+
+  defp journal_page_limit(limit)
+       when is_integer(limit) and limit >= 1 and limit <= @journal_page_max_limit,
+       do: {:ok, limit}
+
+  defp journal_page_limit(_limit), do: invalid_journal_page_limit()
+
+  defp invalid_journal_page_limit do
+    {:error, ["Journal page size must be between 1 and #{@journal_page_max_limit}."]}
+  end
+
+  defp journal_page_uuid(nil, _label), do: {:ok, nil}
+  defp journal_page_uuid("", _label), do: {:ok, nil}
+
+  defp journal_page_uuid(value, label) when is_binary(value) do
+    case Ash.Type.cast_input(Ash.Type.UUID, String.trim(value)) do
+      {:ok, uuid} -> {:ok, uuid}
+      {:error, _error} -> {:error, ["#{label} is invalid."]}
+    end
+  end
+
+  defp journal_page_uuid(_value, label), do: {:error, ["#{label} is invalid."]}
+
+  defp journal_page_status(nil), do: {:ok, nil}
+  defp journal_page_status(""), do: {:ok, nil}
+
+  defp journal_page_status(status) when is_binary(status) do
+    status
+    |> String.trim()
+    |> String.downcase()
+    |> case do
+      "active" -> {:ok, :active}
+      "corrected" -> {:ok, :corrected}
+      "voided" -> {:ok, :voided}
+      "skipped" -> {:ok, :skipped}
+      _other -> invalid_journal_page_status()
+    end
+  end
+
+  defp journal_page_status(status) when status in @journal_statuses, do: {:ok, status}
+  defp journal_page_status(_status), do: invalid_journal_page_status()
+
+  defp invalid_journal_page_status do
+    {:error, ["Journal status must be active, corrected, voided, or skipped."]}
+  end
+
+  defp journal_cursor_event(_plan_id, %{cursor: nil}, _actor), do: {:ok, nil}
+
+  defp journal_cursor_event(plan_id, page_options, actor) do
+    query =
+      plan_id
+      |> journal_page_base_query(page_options)
+      |> Ash.Query.filter(id == ^page_options.cursor)
+      |> Ash.Query.limit(1)
+
+    case list_events(actor: actor, query: query) do
+      {:ok, [event]} -> {:ok, event}
+      {:ok, []} -> {:error, ["Journal cursor is not valid for these filters."]}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp journal_page_events(plan_id, page_options, cursor_event, actor) do
+    query =
+      plan_id
+      |> journal_page_base_query(page_options)
+      |> maybe_filter_older_than(cursor_event)
+      |> Ash.Query.sort(
+        effective_at: :desc,
+        recorded_at: :desc,
+        inserted_at: :desc,
+        id: :desc
+      )
+      |> Ash.Query.limit(page_options.limit + 1)
+
+    list_events(actor: actor, query: query)
+  end
+
+  defp journal_page_base_query(plan_id, page_options) do
+    EventInstance
+    |> Ash.Query.filter(plan_id == ^plan_id)
+    |> maybe_filter_journal_track(page_options.track_id)
+    |> maybe_filter_journal_item(page_options.item_id)
+    |> maybe_filter_journal_event_type(page_options.event_type_id)
+    |> maybe_filter_journal_status(page_options.status)
+  end
+
+  defp maybe_filter_journal_track(query, nil), do: query
+
+  defp maybe_filter_journal_track(query, track_id) do
+    Ash.Query.filter(query, track_id == ^track_id)
+  end
+
+  defp maybe_filter_journal_item(query, nil), do: query
+
+  defp maybe_filter_journal_item(query, item_id) do
+    Ash.Query.filter(query, event_item_links.item_id == ^item_id)
+  end
+
+  defp maybe_filter_journal_event_type(query, nil), do: query
+
+  defp maybe_filter_journal_event_type(query, event_type_id) do
+    Ash.Query.filter(query, event_type_id == ^event_type_id)
+  end
+
+  defp maybe_filter_journal_status(query, nil), do: query
+
+  defp maybe_filter_journal_status(query, status) do
+    Ash.Query.filter(query, status == ^status)
+  end
+
+  defp maybe_filter_older_than(query, nil), do: query
+
+  defp maybe_filter_older_than(query, cursor) do
+    Ash.Query.filter(
+      query,
+      effective_at < ^cursor.effective_at or
+        (effective_at == ^cursor.effective_at and recorded_at < ^cursor.recorded_at) or
+        (effective_at == ^cursor.effective_at and recorded_at == ^cursor.recorded_at and
+           inserted_at < ^cursor.inserted_at) or
+        (effective_at == ^cursor.effective_at and recorded_at == ^cursor.recorded_at and
+           inserted_at == ^cursor.inserted_at and id < ^cursor.id)
+    )
+  end
+
+  defp load_journal_page_events([], _actor), do: {:ok, []}
+
+  defp load_journal_page_events(events, actor) do
+    Ash.load(
+      events,
+      [
+        :event_type,
+        :track,
+        :replaces_event_instance,
+        event_item_links: [:item],
+        item_effects: [:item, :replaces_item_effect]
+      ],
+      actor: actor
+    )
+  end
+
+  defp replacement_events(_plan_id, [], _actor), do: {:ok, []}
+
+  defp replacement_events(plan_id, events, actor) do
+    event_ids = Enum.map(events, & &1.id)
+
+    list_events(
+      actor: actor,
+      query: [
+        filter: [plan_id: plan_id, replaces_event_instance_id: [in: event_ids]],
+        sort: [effective_at: :asc, recorded_at: :asc, inserted_at: :asc, id: :asc]
+      ]
+    )
+  end
+
+  defp next_journal_cursor(events, true), do: events |> List.last() |> Map.fetch!(:id)
+  defp next_journal_cursor(_events, false), do: nil
 
   defp journal_sort(nil), do: [effective_at: :asc, recorded_at: :asc, inserted_at: :asc]
   defp journal_sort(_limit), do: [effective_at: :desc, recorded_at: :desc, inserted_at: :desc]
@@ -932,6 +1246,28 @@ defmodule Improve.Journal do
   defp update_linked_slot_result(%{slot_result_id: nil}, _event, _actor), do: nil
 
   defp update_linked_slot_result(%{item_links: []}, _event, _actor), do: nil
+
+  defp update_linked_slot_result(
+         %{replaces_event_instance_id: original_event_id} = command,
+         event,
+         actor
+       )
+       when not is_nil(original_event_id) do
+    slot_result = Sessions.get_slot_result!(command.slot_result_id, actor: actor)
+
+    create!(
+      Sessions,
+      :correct_slot_result!,
+      actor,
+      slot_result,
+      %{
+        actual_payload: command.payload,
+        event_instance_id: event.id,
+        expected_event_instance_id: original_event_id,
+        notes: command.note
+      }
+    )
+  end
 
   defp update_linked_slot_result(command, event, actor) do
     slot_result = Sessions.get_slot_result!(command.slot_result_id, actor: actor)

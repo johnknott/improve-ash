@@ -22,6 +22,7 @@ defmodule ImproveWeb.Router do
     post "/auth/revoke-token", AuthController, :revoke_token
 
     get "/app/dashboard", AppController, :dashboard
+    get "/app/journal", AppController, :journal
     post "/app/plans", AppController, :create_plan
     patch "/app/plans/:plan_id", AppController, :update_plan
     post "/app/tracks", AppController, :create_track
@@ -47,6 +48,7 @@ defmodule ImproveWeb.Router do
     post "/app/skip-track", AppController, :skip_track
     post "/app/skip-session-slot", AppController, :skip_session_slot
     post "/app/log-linked-event", AppController, :log_linked_event
+    post "/app/correct-event", AppController, :correct_event
     post "/app/correct-linked-event", AppController, :correct_linked_event
     post "/app/offline-events", AppController, :submit_offline_events
     get "/app/proposals", AppController, :list_proposals

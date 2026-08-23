@@ -9,6 +9,7 @@
   import Button from '../../components/ui/Button.svelte'
   import Field from '../../components/ui/Field.svelte'
   import TextInput from '../../components/ui/TextInput.svelte'
+  import { focusDialogTarget } from '../../lib/dialogFocus'
   import { formatDate } from '../../lib/dates'
 
   // The shared "log one track" body: target card with the track's own
@@ -25,12 +26,14 @@
     onCancel = null,
     onBack = null,
     onLeave = null,
+    onBusyChange = null,
   }: {
     item: WorkItem
     onFinished: () => void
     onCancel?: (() => void) | null
     onBack?: (() => void) | null
     onLeave?: (() => void) | null
+    onBusyChange?: ((busy: boolean) => void) | null
   } = $props()
 
   function targetOf(work: WorkItem): Record<string, unknown> {
@@ -52,6 +55,7 @@
   let showNote = $state(false)
   let saving = $state(false)
   let error = $state<string | null>(null)
+  let form = $state<HTMLFormElement | null>(null)
 
   let unit = $derived(
     typeof targetOf(item).unit === 'string' ? (targetOf(item).unit as string) : null,
@@ -74,22 +78,33 @@
     return amount ? `Log ${amount}${unit ? ` ${unit}` : ''}` : 'Mark done'
   })
 
+  function setSaving(next: boolean) {
+    if (saving === next) {
+      return
+    }
+
+    saving = next
+    onBusyChange?.(next)
+  }
+
   async function handleSubmit() {
     if (!item.trackKey) {
       return
     }
 
-    saving = true
+    setSaving(true)
     error = null
 
     try {
+      let applied: boolean
+
       if (mode === 'skip') {
-        await submitTrackSkip(
+        applied = await submitTrackSkip(
           { trackKey: item.trackKey, reason: skipReason.trim() || null },
           `Skipped ${item.title}.`,
         )
       } else {
-        await submitTrackLog(
+        applied = await submitTrackLog(
           {
             trackKey: item.trackKey,
             quantity: quantity.trim() || null,
@@ -99,17 +114,29 @@
         )
       }
 
+      if (!applied) {
+        return
+      }
+
+      setSaving(false)
       onFinished()
     } catch (caught) {
       error = caught instanceof Error ? caught.message : 'That did not save.'
     } finally {
-      saving = false
+      setSaving(false)
     }
+  }
+
+  function revealNote() {
+    showNote = true
+    focusDialogTarget(() => form, '[data-track-note]')
   }
 </script>
 
 <form
+  bind:this={form}
   class="track-log-form"
+  aria-busy={saving}
   onsubmit={(event) => {
     event.preventDefault()
     handleSubmit()
@@ -132,6 +159,7 @@
       <button
         type="button"
         class:active={mode === 'record'}
+        aria-pressed={mode === 'record'}
         disabled={saving}
         onclick={() => (mode = 'record')}
       >
@@ -140,6 +168,7 @@
       <button
         type="button"
         class:active={mode === 'skip'}
+        aria-pressed={mode === 'skip'}
         disabled={saving}
         onclick={() => (mode = 'skip')}
       >
@@ -151,7 +180,12 @@
   {#if mode === 'record'}
     <Field label="How much?">
       <div class="amount-row">
-        <TextInput bind:value={quantity} inputmode="decimal" disabled={saving} />
+        <TextInput
+          bind:value={quantity}
+          data-dialog-initial-focus
+          inputmode="decimal"
+          disabled={saving}
+        />
         {#if unit}
           <span class="unit-chip">{unit}</span>
         {/if}
@@ -160,14 +194,14 @@
 
     {#if showNote}
       <Field label="Note">
-        <TextInput bind:value={note} disabled={saving} />
+        <TextInput bind:value={note} data-track-note disabled={saving} />
       </Field>
     {:else}
       <button
         type="button"
         class="text-button add-note-toggle"
         disabled={saving}
-        onclick={() => (showNote = true)}
+        onclick={revealNote}
       >
         Add note
       </button>

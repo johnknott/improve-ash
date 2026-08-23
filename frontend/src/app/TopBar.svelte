@@ -23,9 +23,15 @@
 
   let {
     route,
+    busy = false,
+    refreshing = false,
+    sidebarOpen = false,
     onMenu
   }: {
     route: AppRoute
+    busy?: boolean
+    refreshing?: boolean
+    sidebarOpen?: boolean
     onMenu: () => void
   } = $props()
 
@@ -52,79 +58,114 @@
       // browsers without showPicker fall back to native focus behaviour
     }
   }
+
+  async function selectDate(input: HTMLInputElement) {
+    await changeSelectedDate(input.value)
+    input.value = $selectedDate
+  }
 </script>
 
 <header class="topbar">
   <div class="topbar-inner">
     <div class="topbar-left">
-      <button class="icon-button mobile-menu" type="button" aria-label="Open navigation" onclick={onMenu}>
+      <button
+        class="icon-button mobile-menu"
+        type="button"
+        aria-label="Open navigation"
+        aria-controls="app-sidebar"
+        aria-expanded={sidebarOpen}
+        onclick={onMenu}
+      >
         <Menu size={20} />
       </button>
       <div class="topbar-title">
         <h1>{info.title}</h1>
+        {#if refreshing}
+          <span class="refresh-status" role="status">Updating…</span>
+        {/if}
       </div>
     </div>
 
-    <div class="topbar-actions">
-      {#if isSelectedToday}
-        <span class="today-slot" aria-hidden="true"></span>
-      {:else}
-        <button class="secondary-button compact-button today-button" type="button" onclick={resetSelectedDate}>
-          Today
-        </button>
+    <div class="topbar-actions" class:selected-today={isSelectedToday}>
+      {#if route !== 'journal'}
+        <div class="date-toolbar">
+        {#if isSelectedToday}
+          <span class="today-slot" aria-hidden="true"></span>
+        {:else}
+          <button class="secondary-button compact-button today-button" type="button" disabled={busy} onclick={resetSelectedDate}>
+            Today
+          </button>
+        {/if}
+        <div class="date-controls" aria-disabled={busy}>
+          <button class="icon-button" type="button" disabled={busy} aria-label="Previous day" onclick={() => stepSelectedDate(-1)}>
+            <ChevronLeft size={18} />
+          </button>
+          <label class="date-field">
+            <CalendarDays size={16} />
+            <input
+              type="date"
+              aria-label="Selected date"
+              value={$selectedDate}
+              disabled={busy}
+              onclick={openDatePicker}
+              onchange={(event) => selectDate(event.currentTarget)}
+            />
+          </label>
+          <button class="icon-button" type="button" disabled={busy} aria-label="Next day" onclick={() => stepSelectedDate(1)}>
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        </div>
       {/if}
-      <div class="date-controls">
-        <button class="icon-button" type="button" aria-label="Previous day" onclick={() => stepSelectedDate(-1)}>
-          <ChevronLeft size={18} />
+
+      <div class="quick-actions">
+        <button
+          class="secondary-button"
+          type="button"
+          aria-label="Check in"
+          disabled={busy}
+          onclick={() => checkInDialogOpen.set(true)}
+        >
+          <CheckCircle2 size={18} />
+          <span>Check-in</span>
         </button>
-        <label class="date-field">
-          <CalendarDays size={16} />
-          <input
-            type="date"
-            value={$selectedDate}
-            onclick={openDatePicker}
-            onchange={(event) => changeSelectedDate(event.currentTarget.value)}
-          />
-        </label>
-        <button class="icon-button" type="button" aria-label="Next day" onclick={() => stepSelectedDate(1)}>
-          <ChevronRight size={18} />
-        </button>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            class="primary-button"
+            data-global-log-trigger
+            aria-label="Log"
+            disabled={busy}
+          >
+            <ClipboardPlus size={18} />
+            <span>Log</span>
+          </DropdownMenu.Trigger>
+
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content class="dropdown-content log-menu" align="end" sideOffset={8}>
+              {#if loggableTracks.length > 0}
+                <p class="dropdown-heading">Scheduled today</p>
+                {#each loggableTracks as item (item.id)}
+                  <DropdownMenu.Item class="dropdown-item" onclick={() => openTrackLog(item)}>
+                    <span class="log-menu-title">{item.title}</span>
+                    {#if trackTargetSummary(item)}
+                      <small>{trackTargetSummary(item)}</small>
+                    {/if}
+                  </DropdownMenu.Item>
+                {/each}
+                <div class="dropdown-separator"></div>
+              {/if}
+
+              <DropdownMenu.Item
+                class="dropdown-item dropdown-action"
+                onclick={() => openLogDialog()}
+              >
+                <PenLine size={16} />
+                <span>Something else…</span>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </div>
-      <button class="secondary-button" type="button" onclick={() => checkInDialogOpen.set(true)}>
-        <CheckCircle2 size={18} />
-        <span>Check-in</span>
-      </button>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger class="primary-button">
-          <ClipboardPlus size={18} />
-          <span>Log</span>
-        </DropdownMenu.Trigger>
-
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content class="dropdown-content log-menu" align="end" sideOffset={8}>
-            {#if loggableTracks.length > 0}
-              <p class="dropdown-heading">Scheduled today</p>
-              {#each loggableTracks as item (item.id)}
-                <DropdownMenu.Item class="dropdown-item" onclick={() => openTrackLog(item)}>
-                  <span class="log-menu-title">{item.title}</span>
-                  {#if trackTargetSummary(item)}
-                    <small>{trackTargetSummary(item)}</small>
-                  {/if}
-                </DropdownMenu.Item>
-              {/each}
-              <div class="dropdown-separator"></div>
-            {/if}
-
-            <DropdownMenu.Item
-              class="dropdown-item dropdown-action"
-              onclick={() => openLogDialog()}
-            >
-              <PenLine size={16} />
-              <span>Something else…</span>
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
     </div>
   </div>
 </header>

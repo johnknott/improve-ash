@@ -1,6 +1,7 @@
 import { derived, get, writable } from 'svelte/store'
 import {
   completeSession as completeSessionRequest,
+  correctEvent as correctEventRequest,
   createPlan as createPlanRequest,
   installDemoPlan as installDemoPlanRequest,
   loadDashboard as fetchDashboard,
@@ -14,6 +15,7 @@ import {
   swapSessionSlot as swapSessionSlotRequest,
   updatePlan as updatePlanRequest,
   type LogEventInput,
+  type CorrectEventInput,
   type LogTrackInput,
   type SlotActionInput,
 } from '../api/improveClient'
@@ -29,6 +31,10 @@ import type {
   UpdatePlanInput,
 } from '../api/types'
 import { addDays, todayIso } from '../lib/dates'
+import {
+  invalidateJournalPage,
+  resetJournalPage,
+} from '../features/journal/journalState'
 import { closeNewPlanDialog, resetUiState, showToast } from './uiState'
 
 // One store per dashboard slice, so pages can subscribe to (and later
@@ -74,12 +80,18 @@ export const dashboardData = derived(
 )
 
 let lastLoadedPlanId: string | null = null
+let dashboardGeneration = 0
+let latestLoadRequest = 0
+
+const updateInProgressMessage = 'Wait for the current update to finish.'
 
 export async function loadDashboard(
   planId = get(selectedPlanId),
   date = get(selectedDate),
 ): Promise<void> {
   const loaded = get(dashboardStatus).loaded
+  const generation = dashboardGeneration
+  const requestId = ++latestLoadRequest
 
   dashboardStatus.update((status) => ({
     ...status,
@@ -89,8 +101,19 @@ export async function loadDashboard(
   }))
 
   try {
-    applyDashboardPatch(await fetchDashboard(planId, date))
+    const patch = await fetchDashboard(planId, date)
+
+    if (generation !== dashboardGeneration || requestId !== latestLoadRequest) {
+      return
+    }
+
+    applyDashboardPatch(patch)
+    selectedDate.set(patch.today?.date ?? date)
   } catch {
+    if (generation !== dashboardGeneration || requestId !== latestLoadRequest) {
+      return
+    }
+
     dashboardStatus.update((status) => ({
       ...status,
       loading: false,
@@ -106,48 +129,71 @@ export function applyDashboardPatch(patch: DashboardPatch): void {
   }
 
   if ('currentPlan' in patch) {
-    currentPlan.set(patch.currentPlan ?? null)
+    const previousPlanId = get(currentPlan)?.id ?? null
+    const nextPlan = patch.currentPlan ?? null
+    currentPlan.set(nextPlan)
+    lastLoadedPlanId = nextPlan?.id ?? null
+    selectedPlanId.set(lastLoadedPlanId)
+
+    if (previousPlanId !== lastLoadedPlanId) {
+      resetJournalPage()
+    }
   }
 
   if ('today' in patch) {
-    today.set(patch.today ?? null)
+    const nextToday = patch.today ?? null
+    today.set(nextToday)
+
+    if (nextToday) {
+      selectedDate.set(nextToday.date)
+    }
   }
 
   if (patch.journal) {
     journal.set(patch.journal)
+    invalidateJournalPage()
   }
 
   if ('planDetail' in patch) {
     planDetail.set(patch.planDetail ?? null)
   }
 
-  lastLoadedPlanId = get(currentPlan)?.id ?? lastLoadedPlanId
-  selectedPlanId.set(lastLoadedPlanId)
-  selectedDate.set(get(today)?.date ?? get(selectedDate))
   dashboardStatus.set({ loading: false, refreshing: false, loaded: true, error: null })
 }
 
 export function resetDashboard(): void {
+  dashboardGeneration += 1
+  latestLoadRequest += 1
   lastLoadedPlanId = null
   plans.set([])
   currentPlan.set(null)
   today.set(null)
   journal.set([])
+  resetJournalPage()
   planDetail.set(null)
   selectedPlanId.set(null)
   selectedDate.set(todayIso())
   installingDemoPlan.set(null)
-  dashboardStatus.set({ loading: false, refreshing: false, loaded: false, error: null })
+  // The next authenticated shell needs a fresh dashboard before it can show
+  // an honest empty or ready state.
+  dashboardStatus.set({ loading: true, refreshing: false, loaded: false, error: null })
   resetUiState()
 }
 
 export async function changeSelectedDate(date: string): Promise<void> {
-  if (!date) {
+  if (!date || date === get(selectedDate) || contextChangeBlocked()) {
     return
   }
 
-  selectedDate.set(date)
   await loadDashboard(lastLoadedPlanId, date)
+}
+
+export async function changeSelectedPlan(planId: string): Promise<void> {
+  if (!planId || planId === get(selectedPlanId) || contextChangeBlocked()) {
+    return
+  }
+
+  await loadDashboard(planId, get(selectedDate))
 }
 
 export async function stepSelectedDate(days: number): Promise<void> {
@@ -158,41 +204,84 @@ export async function resetSelectedDate(): Promise<void> {
   await changeSelectedDate(todayIso())
 }
 
-export async function installDemoPlan(kind: DemoPlanKind): Promise<void> {
+function contextChangeBlocked(): boolean {
+  const status = get(dashboardStatus)
+  return status.loading || status.refreshing
+}
+
+export async function installDemoPlan(kind: DemoPlanKind): Promise<boolean> {
+  if (contextChangeBlocked()) {
+    showToast(updateInProgressMessage)
+    return false
+  }
+
+  const generation = dashboardGeneration
   installingDemoPlan.set(kind)
   dashboardStatus.update((status) => ({ ...status, refreshing: true, error: null }))
 
   try {
-    applyDashboardPatch(await installDemoPlanRequest(kind, get(selectedDate)))
+    const patch = await installDemoPlanRequest(kind, get(selectedDate))
+
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
+    applyDashboardPatch(patch)
     showToast(kind === 'gym' ? 'Training demo ready.' : 'Inventory demo ready.')
+    return true
   } catch {
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
     dashboardStatus.update((status) => ({
       ...status,
       loading: false,
       refreshing: false,
       error: 'We could not install that demo plan.',
     }))
+    return false
   } finally {
-    installingDemoPlan.set(null)
+    if (generation === dashboardGeneration && get(installingDemoPlan) === kind) {
+      installingDemoPlan.set(null)
+    }
   }
 }
 
 // Write mutations share this shape: mark refreshing, apply the returned
-// patch, optionally toast; rethrow the original error so callers can show
-// it in place (the global banner stays out of it).
+// patch, optionally toast, and return false when logout/reset invalidates
+// the response. Real failures are rethrown so callers can show them in
+// place (the global banner stays out of it).
 async function runMutation(
   mutate: () => Promise<DashboardPatch>,
   successToast?: string,
-): Promise<void> {
+): Promise<boolean> {
+  if (contextChangeBlocked()) {
+    throw new Error(updateInProgressMessage)
+  }
+
+  const generation = dashboardGeneration
   dashboardStatus.update((status) => ({ ...status, refreshing: true, error: null }))
 
   try {
-    applyDashboardPatch(await mutate())
+    const patch = await mutate()
+
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
+    applyDashboardPatch(patch)
 
     if (successToast) {
       showToast(successToast)
     }
+
+    return true
   } catch (error) {
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
     dashboardStatus.update((status) => ({ ...status, refreshing: false }))
     throw error
   }
@@ -201,14 +290,14 @@ async function runMutation(
 export async function submitTrackLog(
   input: Omit<LogTrackInput, 'planId' | 'date'>,
   successToast = 'Logged.',
-): Promise<void> {
+): Promise<boolean> {
   const planId = get(selectedPlanId)
 
   if (!planId) {
     throw new Error('Select a plan before logging.')
   }
 
-  await runMutation(
+  return runMutation(
     () => logTrackRequest({ ...input, planId, date: get(selectedDate) }),
     successToast,
   )
@@ -217,14 +306,14 @@ export async function submitTrackLog(
 export async function submitTrackSkip(
   input: { trackKey: string; reason?: string | null },
   successToast = 'Skipped.',
-): Promise<void> {
+): Promise<boolean> {
   const planId = get(selectedPlanId)
 
   if (!planId) {
     throw new Error('Select a plan before skipping.')
   }
 
-  await runMutation(
+  return runMutation(
     () => skipTrackRequest({ ...input, planId, date: get(selectedDate) }),
     successToast,
   )
@@ -233,78 +322,134 @@ export async function submitTrackSkip(
 export async function submitEventLog(
   input: Omit<LogEventInput, 'planId'>,
   successToast = 'Logged.',
-): Promise<void> {
+): Promise<boolean> {
   const planId = get(selectedPlanId)
 
   if (!planId) {
     throw new Error('Select a plan before logging.')
   }
 
-  await runMutation(() => logEventRequest({ ...input, planId }), successToast)
+  return runMutation(() => logEventRequest({ ...input, planId }), successToast)
 }
 
-export async function startProjectedSession(sessionTemplateId: string): Promise<void> {
+export async function submitEventCorrection(
+  input: Omit<CorrectEventInput, 'date'>,
+): Promise<boolean> {
+  const planId = get(selectedPlanId)
+
+  if (!planId || planId !== input.planId) {
+    throw new Error('That journal entry is no longer in the selected plan.')
+  }
+
+  return runMutation(
+    () => correctEventRequest({ ...input, date: get(selectedDate) }),
+    'Correction saved. The original is still in your history.',
+  )
+}
+
+export async function startProjectedSession(sessionTemplateId: string): Promise<boolean> {
   const planId = get(selectedPlanId)
 
   if (!planId) {
     throw new Error('Select a plan before starting a session.')
   }
 
-  await runMutation(
+  return runMutation(
     () => startSessionRequest(planId, sessionTemplateId, get(selectedDate)),
     'Session started.',
   )
 }
 
-export async function acceptSessionSlot(input: SlotActionInput): Promise<void> {
-  await runMutation(() => logSessionSlotRequest(input), 'Slot logged.')
+export async function acceptSessionSlot(input: SlotActionInput): Promise<boolean> {
+  return runMutation(() => logSessionSlotRequest(input, get(selectedDate)), 'Slot logged.')
 }
 
-export async function skipSlot(input: SlotActionInput): Promise<void> {
-  await runMutation(() => skipSessionSlotRequest(input), 'Slot skipped.')
+export async function skipSlot(input: SlotActionInput): Promise<boolean> {
+  return runMutation(() => skipSessionSlotRequest(input, get(selectedDate)), 'Slot skipped.')
 }
 
 export async function swapSlot(
   slotResultId: string,
   actualItemKey: string,
-): Promise<void> {
-  await runMutation(() => swapSessionSlotRequest(slotResultId, actualItemKey), 'Slot swapped.')
+): Promise<boolean> {
+  return runMutation(
+    () => swapSessionSlotRequest(slotResultId, actualItemKey, get(selectedDate)),
+    'Slot swapped.',
+  )
 }
 
-export async function finishSession(sessionOccurrenceId: string): Promise<void> {
-  await runMutation(() => completeSessionRequest(sessionOccurrenceId), 'Session completed.')
+export async function finishSession(sessionOccurrenceId: string): Promise<boolean> {
+  return runMutation(
+    () => completeSessionRequest(sessionOccurrenceId, get(selectedDate)),
+    'Session completed.',
+  )
 }
 
 export async function skipWholeSession(
   sessionOccurrenceId: string,
   note?: string | null,
-): Promise<void> {
-  await runMutation(() => skipSessionRequest(sessionOccurrenceId, note), 'Session skipped.')
+): Promise<boolean> {
+  return runMutation(
+    () => skipSessionRequest(sessionOccurrenceId, get(selectedDate), note),
+    'Session skipped.',
+  )
 }
 
 // Plan form submissions rethrow the original error so the dialog can show
 // field-level messages; the global error banner stays out of it.
-export async function submitNewPlan(input: CreatePlanInput): Promise<void> {
+export async function submitNewPlan(input: CreatePlanInput): Promise<boolean> {
+  if (contextChangeBlocked()) {
+    throw new Error(updateInProgressMessage)
+  }
+
+  const generation = dashboardGeneration
   dashboardStatus.update((status) => ({ ...status, refreshing: true, error: null }))
 
   try {
-    applyDashboardPatch(await createPlanRequest({ ...input, date: get(selectedDate) }))
+    const patch = await createPlanRequest({ ...input, date: get(selectedDate) })
+
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
+    applyDashboardPatch(patch)
     closeNewPlanDialog()
     showToast('Plan created.')
+    return true
   } catch (error) {
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
     dashboardStatus.update((status) => ({ ...status, refreshing: false }))
     throw error
   }
 }
 
-export async function submitPlanEdit(input: UpdatePlanInput): Promise<void> {
+export async function submitPlanEdit(input: UpdatePlanInput): Promise<boolean> {
+  if (contextChangeBlocked()) {
+    throw new Error(updateInProgressMessage)
+  }
+
+  const generation = dashboardGeneration
   dashboardStatus.update((status) => ({ ...status, refreshing: true, error: null }))
 
   try {
-    applyDashboardPatch(await updatePlanRequest({ ...input, date: get(selectedDate) }))
+    const patch = await updatePlanRequest({ ...input, date: get(selectedDate) })
+
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
+    applyDashboardPatch(patch)
     closeNewPlanDialog()
     showToast('Plan updated.')
+    return true
   } catch (error) {
+    if (generation !== dashboardGeneration) {
+      return false
+    }
+
     dashboardStatus.update((status) => ({ ...status, refreshing: false }))
     throw error
   }

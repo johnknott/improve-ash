@@ -77,6 +77,27 @@ defmodule Improve.Sessions.SlotResult do
                 ]}
     end
 
+    update :correct do
+      argument :expected_event_instance_id, :uuid, allow_nil?: false
+
+      accept [:actual_payload, :event_instance_id, :notes]
+
+      validate data_one_of(:status, [:completed, :swapped]) do
+        message "can only be corrected after it has been logged"
+      end
+
+      change filter(expr(event_instance_id == ^arg(:expected_event_instance_id)))
+
+      validate {Improve.Validations.SamePlan,
+                references: [
+                  session_occurrence_id: Improve.Sessions.SessionOccurrence,
+                  session_slot_id: Improve.Plans.SessionSlot,
+                  recommended_item_id: Improve.Plans.Item,
+                  actual_item_id: Improve.Plans.Item,
+                  event_instance_id: Improve.Journal.EventInstance
+                ]}
+    end
+
     update :skip do
       accept [:actual_payload, :notes]
 

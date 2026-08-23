@@ -7,6 +7,7 @@
   import FormDialog from '../../components/ui/FormDialog.svelte'
   import Select from '../../components/ui/Select.svelte'
   import TextInput from '../../components/ui/TextInput.svelte'
+  import { focusDialogTarget } from '../../lib/dialogFocus'
 
   type LinkRole = { role: string; itemTypeKey: string | null; required: boolean }
 
@@ -24,6 +25,7 @@
   let roleSelections = $state<Record<string, string>>({})
   let saving = $state(false)
   let error = $state<string | null>(null)
+  let invalidField = $state<string | null>(null)
   let seeded = $state(false)
 
   let showMore = $state(false)
@@ -39,12 +41,20 @@
   let optionalSchemaFields = $derived(schemaFields.filter((field) => !field.required))
   let requiredRoles = $derived(linkRoles.filter((role) => role.required))
   let optionalRoles = $derived(linkRoles.filter((role) => !role.required))
+  let requiredPayloadFields = $derived(
+    eventType ? stringList(eventType.payloadSchema['required']) : [],
+  )
   let quantityRequired = $derived.by(() => {
-    const required = eventType ? stringList(eventType.payloadSchema['required']) : []
-    return required.includes('amount') || required.includes('quantity')
+    return requiredPayloadFields.includes('amount') || requiredPayloadFields.includes('quantity')
   })
+  let unitRequired = $derived(requiredPayloadFields.includes('unit'))
+  let noteRequired = $derived(requiredPayloadFields.includes('note'))
+  let quantityFieldsRequired = $derived(quantityRequired || unitRequired)
   let hasMoreDetails = $derived(
-    optionalSchemaFields.length > 0 || optionalRoles.length > 0 || !quantityRequired,
+    optionalSchemaFields.length > 0 ||
+      optionalRoles.length > 0 ||
+      !quantityFieldsRequired ||
+      !noteRequired,
   )
 
   $effect(() => {
@@ -57,6 +67,7 @@
       showMore = false
       saving = false
       error = null
+      invalidField = null
       seeded = true
     }
 
@@ -71,6 +82,8 @@
   $effect(() => {
     fieldValues = Object.fromEntries(schemaFields.map((field) => [field.name, '']))
     roleSelections = Object.fromEntries(linkRoles.map((role) => [role.role, '']))
+    invalidField = null
+    error = null
   })
 
   function schemaFieldsFor(type: EventType | null): { name: string; required: boolean }[] {
@@ -137,7 +150,25 @@
     return name.replaceAll('_', ' ').replace(/^./, (first) => first.toUpperCase())
   }
 
+  function revealMoreDetails(trigger: HTMLButtonElement) {
+    const form = trigger.closest('form')
+    showMore = true
+    focusDialogTarget(form, '[data-log-more-focus]')
+  }
+
+  function showValidationError(field: string, message: string) {
+    invalidField = field
+    error = message
+    focusDialogTarget(
+      document.querySelector<HTMLElement>('[role="dialog"]'),
+      '[data-log-invalid="true"]',
+    )
+  }
+
   async function handleSubmit() {
+    invalidField = null
+    error = null
+
     if (!eventType) {
       error = 'Choose an event type.'
       return
@@ -146,7 +177,25 @@
     const missingRole = linkRoles.find((role) => role.required && !roleSelections[role.role])
 
     if (missingRole) {
-      error = `Choose an item for ${fieldLabel(missingRole.role)}.`
+      showValidationError(
+        `role:${missingRole.role}`,
+        `Choose an item for ${fieldLabel(missingRole.role)}.`,
+      )
+      return
+    }
+
+    if (quantityRequired && !quantity.trim()) {
+      showValidationError('quantity', 'Add a quantity.')
+      return
+    }
+
+    if (unitRequired && !unit.trim()) {
+      showValidationError('unit', 'Add a unit.')
+      return
+    }
+
+    if (noteRequired && !note.trim()) {
+      showValidationError('note', 'Add a note.')
       return
     }
 
@@ -155,7 +204,10 @@
     )
 
     if (missingField) {
-      error = `Add a value for ${fieldLabel(missingField.name)}.`
+      showValidationError(
+        `schema:${missingField.name}`,
+        `Add a value for ${fieldLabel(missingField.name)}.`,
+      )
       return
     }
 
@@ -172,8 +224,12 @@
       }
     }
 
+    if (requiredPayloadFields.includes('quantity') && quantity.trim()) {
+      payload.quantity = quantity.trim()
+    }
+
     try {
-      await submitEventLog(
+      const applied = await submitEventLog(
         {
           eventTypeId: eventType.id,
           summary: eventType.name,
@@ -188,7 +244,10 @@
         },
         'Logged.',
       )
-      closeLogDialog()
+
+      if (applied) {
+        closeLogDialog()
+      }
     } catch (caught) {
       error = caught instanceof Error ? caught.message : 'We could not log that event.'
     } finally {
@@ -203,6 +262,7 @@
   submitLabel="Log it"
   busyLabel="Logging"
   busy={saving}
+  submitDisabled={eventTypes.length === 0}
   {error}
   onClose={closeLogDialog}
   onSubmit={handleSubmit}
@@ -225,7 +285,12 @@
 
     {#each requiredRoles as role (role.role)}
       <Field label={fieldLabel(role.role)}>
-        <Select bind:value={roleSelections[role.role]} disabled={saving}>
+        <Select
+          bind:value={roleSelections[role.role]}
+          aria-invalid={invalidField === `role:${role.role}` ? true : undefined}
+          data-log-invalid={invalidField === `role:${role.role}` ? true : undefined}
+          disabled={saving}
+        >
           <option value="">Choose…</option>
           {#each itemsForRole(role) as item (item.id)}
             <option value={item.id}>{item.name}</option>
@@ -234,22 +299,49 @@
       </Field>
     {/each}
 
-    {#if quantityRequired}
+    {#if quantityFieldsRequired}
       <div class="form-grid">
-        <Field label="Quantity">
-          <TextInput bind:value={quantity} inputmode="decimal" disabled={saving} />
+        <Field label="Quantity" optional={!quantityRequired}>
+          <TextInput
+            bind:value={quantity}
+            aria-invalid={invalidField === 'quantity' ? true : undefined}
+            data-log-invalid={invalidField === 'quantity' ? true : undefined}
+            inputmode="decimal"
+            disabled={saving}
+          />
         </Field>
-        <Field label="Unit">
-          <TextInput bind:value={unit} disabled={saving} />
+        <Field label="Unit" optional={!unitRequired}>
+          <TextInput
+            bind:value={unit}
+            aria-invalid={invalidField === 'unit' ? true : undefined}
+            data-log-invalid={invalidField === 'unit' ? true : undefined}
+            disabled={saving}
+          />
         </Field>
       </div>
+    {/if}
+
+    {#if noteRequired}
+      <Field label="Note">
+        <TextInput
+          bind:value={note}
+          aria-invalid={invalidField === 'note' ? true : undefined}
+          data-log-invalid={invalidField === 'note' ? true : undefined}
+          disabled={saving}
+        />
+      </Field>
     {/if}
 
     {#if requiredSchemaFields.length > 0}
       <div class="form-grid">
         {#each requiredSchemaFields as field (field.name)}
           <Field label={fieldLabel(field.name)}>
-            <TextInput bind:value={fieldValues[field.name]} disabled={saving} />
+            <TextInput
+              bind:value={fieldValues[field.name]}
+              aria-invalid={invalidField === `schema:${field.name}` ? true : undefined}
+              data-log-invalid={invalidField === `schema:${field.name}` ? true : undefined}
+              disabled={saving}
+            />
           </Field>
         {/each}
       </div>
@@ -260,7 +352,7 @@
         type="button"
         class="text-button add-note-toggle"
         disabled={saving}
-        onclick={() => (showMore = true)}
+        onclick={(event) => revealMoreDetails(event.currentTarget)}
       >
         More details…
       </button>
@@ -269,7 +361,7 @@
     {#if showMore || !hasMoreDetails}
       {#each optionalRoles as role (role.role)}
         <Field label={fieldLabel(role.role)} optional>
-          <Select bind:value={roleSelections[role.role]} disabled={saving}>
+          <Select bind:value={roleSelections[role.role]} data-log-more-focus disabled={saving}>
             <option value="">None</option>
             {#each itemsForRole(role) as item (item.id)}
               <option value={item.id}>{item.name}</option>
@@ -278,13 +370,18 @@
         </Field>
       {/each}
 
-      {#if !quantityRequired}
+      {#if !quantityFieldsRequired}
         <div class="form-grid">
           <Field label="Quantity" optional>
-            <TextInput bind:value={quantity} inputmode="decimal" disabled={saving} />
+            <TextInput
+              bind:value={quantity}
+              data-log-more-focus
+              inputmode="decimal"
+              disabled={saving}
+            />
           </Field>
           <Field label="Unit" optional>
-            <TextInput bind:value={unit} disabled={saving} />
+            <TextInput bind:value={unit} data-log-more-focus disabled={saving} />
           </Field>
         </div>
       {/if}
@@ -293,15 +390,21 @@
         <div class="form-grid">
           {#each optionalSchemaFields as field (field.name)}
             <Field label={fieldLabel(field.name)} optional>
-              <TextInput bind:value={fieldValues[field.name]} disabled={saving} />
+              <TextInput
+                bind:value={fieldValues[field.name]}
+                data-log-more-focus
+                disabled={saving}
+              />
             </Field>
           {/each}
         </div>
       {/if}
 
-      <Field label="Note" optional>
-        <TextInput bind:value={note} disabled={saving} />
-      </Field>
+      {#if !noteRequired}
+        <Field label="Note" optional>
+          <TextInput bind:value={note} data-log-more-focus disabled={saving} />
+        </Field>
+      {/if}
     {/if}
   {/if}
 </FormDialog>

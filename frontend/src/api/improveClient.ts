@@ -3,13 +3,26 @@ import { operationIdempotency } from './idempotency'
 import type {
   DashboardData,
   DashboardPatch,
+  CorrectionDashboardPatch,
   CreatePlanInput,
   DemoPlanKind,
+  JournalEventStatus,
+  JournalPageData,
   JsonMap,
   UpdatePlanInput,
 } from './types'
 
 export { ApiRequestError } from './http'
+
+export type LoadJournalPageInput = {
+  planId: string
+  limit?: number
+  cursor?: string | null
+  eventTypeId?: string | null
+  trackId?: string | null
+  itemId?: string | null
+  status?: JournalEventStatus | null
+}
 
 export type LogTrackInput = {
   planId: string
@@ -34,6 +47,19 @@ export type LogEventInput = {
   itemLinks?: Array<{ role: string; item_id: string }>
 }
 
+export type CorrectEventInput = {
+  planId: string
+  originalEventId: string
+  effectiveAt: string
+  summary: string
+  quantity?: string | number | null
+  unit?: string | null
+  note?: string | null
+  payload: JsonMap
+  correctionNote?: string | null
+  date?: string
+}
+
 export type SlotActionInput = {
   sessionOccurrenceId: string
   slotKey: string
@@ -53,6 +79,32 @@ export async function loadDashboard(planId?: string | null, date = todayIso()): 
   }
 
   return request<DashboardData>(`/api/app/dashboard?${search.toString()}`)
+}
+
+export async function loadJournalPage(input: LoadJournalPageInput): Promise<JournalPageData> {
+  const search = new URLSearchParams({ plan_id: input.planId })
+
+  if (input.limit !== undefined) {
+    search.set('limit', String(input.limit))
+  }
+
+  setSearchParam(search, 'cursor', input.cursor)
+  setSearchParam(search, 'event_type_id', input.eventTypeId)
+  setSearchParam(search, 'track_id', input.trackId)
+  setSearchParam(search, 'item_id', input.itemId)
+  setSearchParam(search, 'status', input.status)
+
+  return request<JournalPageData>(`/api/app/journal?${search.toString()}`)
+}
+
+function setSearchParam(
+  search: URLSearchParams,
+  key: string,
+  value: string | null | undefined,
+): void {
+  if (value) {
+    search.set(key, value)
+  }
 }
 
 export async function installDemoPlan(kind: DemoPlanKind, date = todayIso()): Promise<DashboardPatch> {
@@ -139,6 +191,24 @@ export async function logEvent(input: LogEventInput): Promise<DashboardPatch> {
   })
 }
 
+export async function correctEvent(input: CorrectEventInput): Promise<CorrectionDashboardPatch> {
+  return request<CorrectionDashboardPatch>('/api/app/correct-event', {
+    method: 'POST',
+    body: {
+      plan_id: input.planId,
+      original_event_id: input.originalEventId,
+      effective_at: input.effectiveAt,
+      summary: input.summary,
+      quantity: input.quantity,
+      unit: input.unit,
+      note: input.note,
+      payload: input.payload,
+      correction_note: input.correctionNote,
+      date: input.date,
+    },
+  })
+}
+
 export async function startSession(
   planId: string,
   sessionTemplateId: string,
@@ -150,10 +220,14 @@ export async function startSession(
   })
 }
 
-export async function logSessionSlot(input: SlotActionInput): Promise<DashboardPatch> {
+export async function logSessionSlot(
+  input: SlotActionInput,
+  date: string,
+): Promise<DashboardPatch> {
   return request<DashboardPatch>('/api/app/log-session-slot', {
     method: 'POST',
     body: {
+      date,
       session_occurrence_id: input.sessionOccurrenceId,
       slot_key: input.slotKey,
       actual_item_key: input.actualItemKey,
@@ -167,10 +241,14 @@ export async function logSessionSlot(input: SlotActionInput): Promise<DashboardP
   })
 }
 
-export async function skipSessionSlot(input: SlotActionInput): Promise<DashboardPatch> {
+export async function skipSessionSlot(
+  input: SlotActionInput,
+  date: string,
+): Promise<DashboardPatch> {
   return request<DashboardPatch>('/api/app/skip-session-slot', {
     method: 'POST',
     body: {
+      date,
       session_occurrence_id: input.sessionOccurrenceId,
       slot_key: input.slotKey,
       recommended_item_key: input.recommendedItemKey,
@@ -182,31 +260,34 @@ export async function skipSessionSlot(input: SlotActionInput): Promise<Dashboard
 export async function swapSessionSlot(
   slotResultId: string,
   actualItemKey: string,
+  date: string,
   note?: string | null,
 ): Promise<DashboardPatch> {
   return request<DashboardPatch>('/api/app/swap-session-slot', {
     method: 'POST',
-    body: { slot_result_id: slotResultId, actual_item_key: actualItemKey, note },
+    body: { slot_result_id: slotResultId, actual_item_key: actualItemKey, date, note },
   })
 }
 
 export async function completeSession(
   sessionOccurrenceId: string,
+  date: string,
   note?: string | null,
 ): Promise<DashboardPatch> {
   return request<DashboardPatch>('/api/app/complete-session', {
     method: 'POST',
-    body: { session_occurrence_id: sessionOccurrenceId, note },
+    body: { session_occurrence_id: sessionOccurrenceId, date, note },
   })
 }
 
 export async function skipSession(
   sessionOccurrenceId: string,
+  date: string,
   note?: string | null,
 ): Promise<DashboardPatch> {
   return request<DashboardPatch>('/api/app/skip-session', {
     method: 'POST',
-    body: { session_occurrence_id: sessionOccurrenceId, note },
+    body: { session_occurrence_id: sessionOccurrenceId, date, note },
   })
 }
 

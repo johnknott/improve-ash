@@ -522,7 +522,18 @@ defmodule ImproveWeb.AppControllerTest do
         date: "2026-06-23"
       })
 
-    assert [%{"trackKey" => track_key}] = get_in(json_response(conn, 200), ["today", "work"])
+    response = json_response(conn, 200)
+
+    assert [%{"trackKey" => track_key}] = get_in(response, ["today", "work"])
+
+    assert %{
+             "total" => 1,
+             "completed" => 0,
+             "skipped" => 0,
+             "missed" => 0,
+             "onHold" => 0,
+             "remaining" => 1
+           } = response["today"]
 
     conn =
       post(conn, ~p"/api/app/skip-track", %{
@@ -544,6 +555,15 @@ defmodule ImproveWeb.AppControllerTest do
     assert [%{"status" => "skipped", "note" => "Long travel day"}] =
              get_in(response, ["journal"])
 
+    assert %{
+             "total" => 1,
+             "completed" => 0,
+             "skipped" => 1,
+             "missed" => 0,
+             "onHold" => 0,
+             "remaining" => 0
+           } = response["today"]
+
     # Changing your mind and logging for real wins over the skip.
     conn =
       post(conn, ~p"/api/app/log-track", %{
@@ -554,7 +574,18 @@ defmodule ImproveWeb.AppControllerTest do
         unit: "minutes"
       })
 
-    assert [%{"status" => "completed"}] = get_in(json_response(conn, 200), ["today", "work"])
+    response = json_response(conn, 200)
+
+    assert [%{"status" => "completed"}] = get_in(response, ["today", "work"])
+
+    assert %{
+             "total" => 1,
+             "completed" => 1,
+             "skipped" => 0,
+             "missed" => 0,
+             "onHold" => 0,
+             "remaining" => 0
+           } = response["today"]
   end
 
   test "skipping a session slot records the skip", %{conn: conn} do
